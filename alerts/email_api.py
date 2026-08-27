@@ -15,12 +15,17 @@ def get_email_api_config() -> dict:
     """
     Reads email API configuration from environment variables.
     """
-    provider = os.environ.get("EMAIL_PROVIDER", "").strip().lower() or "resend"
+    env_provider = os.environ.get("EMAIL_PROVIDER", "").strip().lower()
+    if env_provider:
+        provider = env_provider
+    elif os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_HOST"):
+        provider = "smtp"
+    else:
+        provider = "resend"
     
     # Check general API key or provider-specific keys
     api_key = (
         os.environ.get("EMAIL_API_KEY") or
-        os.environ.get("BREVO_API_KEY") or
         os.environ.get("RESEND_API_KEY") or
         os.environ.get("SENDGRID_API_KEY") or
         os.environ.get("MAILGUN_API_KEY") or
@@ -30,12 +35,10 @@ def get_email_api_config() -> dict:
     from_name = os.environ.get("EMAIL_FROM_NAME", "CyberShieldAI").strip()
     from_email = os.environ.get("EMAIL_FROM", "").strip()
 
-    # Default from_email if not specified
+    # Default from_email for Resend testing domain if not specified
     if not from_email:
         if provider == "resend":
             from_email = "onboarding@resend.dev"
-        elif provider == "brevo":
-            from_email = "alerts@cybershield.ai"
         elif provider == "sendgrid":
             from_email = "alerts@cybershield.ai"
         else:
@@ -169,49 +172,6 @@ def _send_via_mailgun(api_key: str, domain: str, from_name: str, from_email: str
         return False, "Failed to connect to Mailgun API over HTTPS."
 
 
-def _send_via_brevo(api_key: str, from_name: str, from_email: str, to_email: str, subject: str, html_body: str, text_body: str) -> tuple:
-    """
-    Sends email via Brevo (Sendinblue) HTTPS REST API (https://api.brevo.com/v3/smtp/email).
-    300 free emails/day. Allows verifying your personal Gmail address with no custom domain needed!
-    """
-    if not api_key:
-        logger.warning("[EMAIL_API_WARNING] provider=brevo error=missing_api_key")
-        return False, "Brevo API key is missing. Please configure EMAIL_API_KEY in environment variables."
-
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "api-key": api_key,
-        "Content-Type": "application/json",
-        "accept": "application/json",
-    }
-
-    payload = {
-        "sender": {"name": from_name, "email": from_email},
-        "to": [{"email": to_email.strip()}],
-        "subject": subject,
-        "htmlContent": html_body,
-    }
-    if text_body:
-        payload["textContent"] = text_body
-
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=12)
-        if response.status_code in (200, 201, 202):
-            return True, "Email successfully sent via Brevo."
-        
-        try:
-            err_data = response.json()
-            err_msg = err_data.get("message") or str(response.status_code)
-        except Exception:
-            err_msg = f"HTTP {response.status_code}"
-
-        logger.error(f"[EMAIL_API_ERROR] provider=brevo status={response.status_code} error={err_msg}")
-        return False, f"Brevo API error: {err_msg}"
-    except requests.RequestException as e:
-        logger.error(f"[EMAIL_API_ERROR] provider=brevo exception={type(e).__name__}")
-        return False, "Failed to connect to Brevo API over HTTPS."
-
-
 def send_https_email(
     to_email: str,
     subject: str,
@@ -220,7 +180,7 @@ def send_https_email(
     config: dict = None,
 ) -> tuple:
     """
-    Sends an email using configured HTTPS Email API provider (Brevo, Resend, SendGrid, Mailgun).
+    Sends an email using configured HTTPS Email API provider (Resend, SendGrid, Mailgun).
     Never attempts direct raw SMTP ports (25/465/587) unless provider is explicitly set to 'smtp'.
     Returns (success: bool, safe_message: str).
     """
@@ -233,9 +193,7 @@ def send_https_email(
     from_name = cfg.get("from_name", "CyberShieldAI")
     from_email = cfg.get("from_email", "onboarding@resend.dev")
 
-    if provider == "brevo":
-        return _send_via_brevo(api_key, from_name, from_email, to_email, subject, html_body, text_body)
-    elif provider == "resend":
+    if provider == "resend":
         return _send_via_resend(api_key, from_name, from_email, to_email, subject, html_body, text_body)
     elif provider == "sendgrid":
         return _send_via_sendgrid(api_key, from_name, from_email, to_email, subject, html_body, text_body)
