@@ -199,14 +199,12 @@ CyberShieldAI Security Team
 </html>
 """
 
-    effective_settings = get_smtp_effective_settings()
-    from alerts.email_notifier import send_smtp_email
-    return send_smtp_email(
+    from alerts.email_api import send_https_email
+    return send_https_email(
         to_email=clean_email,
         subject=subject,
         html_body=html_body,
         text_body=text_body,
-        settings=effective_settings,
     )
 
 
