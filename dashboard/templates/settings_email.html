@@ -209,22 +209,22 @@
                     <input 
                         type="text" 
                         name="smtp_user" 
-                        value="{{ settings.smtp_user or '' }}" 
-                        placeholder="your-email@gmail.com" 
+                        value="{{ settings.smtp_user or (api_config.from_email if api_config else 'defenderr0809@gmail.com') }}" 
+                        placeholder="defenderr0809@gmail.com" 
                         autocomplete="off"
                         style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                     >
                 </div>
                 <div class="field" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
-                        SMTP Password / App Password
+                        SMTP Password / API Key
                     </label>
                     <div style="position: relative;">
                         <input 
                             type="password" 
                             id="smtpPassInput"
                             name="smtp_password" 
-                            value="{{ settings.smtp_password or '' }}" 
+                            value="{{ settings.smtp_password or (api_config.api_key if api_config else '') }}" 
                             placeholder="••••••••••••••••" 
                             autocomplete="new-password"
                             style="width: 100%; padding: 10px 38px 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
@@ -245,8 +245,8 @@
                     <input 
                         type="email" 
                         name="from_email" 
-                        value="{{ settings.from_email or '' }}" 
-                        placeholder="alerts@cybershield.ai" 
+                        value="{{ settings.from_email or (api_config.from_email if api_config else 'defenderr0809@gmail.com') }}" 
+                        placeholder="defenderr0809@gmail.com" 
                         style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                     >
                 </div>
@@ -257,8 +257,8 @@
                     <input 
                         type="text" 
                         name="recipient_email" 
-                        value="{{ settings.recipient_email or '' }}" 
-                        placeholder="soc-team@company.com" 
+                        value="{{ settings.recipient_email or 'smvaghani2005@gmail.com' }}" 
+                        placeholder="smvaghani2005@gmail.com" 
                         required
                         style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                     >
@@ -319,8 +319,8 @@
                 <input 
                     type="email" 
                     name="test_recipient" 
-                    value="{{ settings.recipient_email or '' }}" 
-                    placeholder="recipient@example.com" 
+                    value="{{ settings.recipient_email or 'smvaghani2005@gmail.com' }}" 
+                    placeholder="smvaghani2005@gmail.com" 
                     required 
                     style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                 >
