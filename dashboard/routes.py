@@ -164,7 +164,7 @@ def register_routes(app):
                         )
 
                         if not sent:
-                            error = "Unable to send the verification email right now. Please try again later."
+                            error = f"{send_msg}"
                             return render_template(
                                 "register.html",
                                 error=error,

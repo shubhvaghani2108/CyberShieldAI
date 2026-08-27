@@ -96,6 +96,8 @@ def _send_via_resend(api_key: str, from_name: str, from_email: str, to_email: st
             err_msg = f"HTTP {response.status_code}"
         
         logger.error(f"[EMAIL_API_ERROR] provider=resend status={response.status_code} error={err_msg}")
+        if response.status_code == 403 or "only send testing emails" in str(err_msg).lower():
+            return False, f"Resend Sandbox Restriction: {err_msg}. (Note: To send to any Gmail address like {to_email}, use Brevo or SendGrid in Render Environment variables)."
         return False, f"Resend API error: {err_msg}"
     except requests.RequestException as e:
         logger.error(f"[EMAIL_API_ERROR] provider=resend exception={type(e).__name__}")
