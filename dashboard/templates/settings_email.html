@@ -257,9 +257,10 @@
             <!-- From and To Email Addresses Grid -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px;">
                 <div class="field" style="margin-bottom: 0;">
-                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
-                        Sender Address (From)
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 4px;">
+                        System Sender Address (From)
                     </label>
+                    <span style="font-size: 11px; color: var(--text-2); display: block; margin-bottom: 6px;">Verified cloud sender (Brevo)</span>
                     <input 
                         type="email" 
                         name="from_email" 
@@ -269,9 +270,10 @@
                     >
                 </div>
                 <div class="field" style="margin-bottom: 0;">
-                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
-                        Recipient Address (To) <span style="color: var(--crit);">*</span>
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 4px;">
+                        Admin Alert Recipient (To) <span style="color: var(--crit);">*</span>
                     </label>
+                    <span style="font-size: 11px; color: var(--text-2); display: block; margin-bottom: 6px;">Where Admin receives scan threat reports</span>
                     <input 
                         type="text" 
                         name="recipient_email" 
