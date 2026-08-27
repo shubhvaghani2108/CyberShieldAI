@@ -68,10 +68,42 @@ setup_auth_middleware(app)
 # Register dashboard routes
 register_routes(app)
 
-# Inject safe csrf_token helper into Jinja context
+import hashlib
+import urllib.parse
+
+# Inject safe csrf_token and universal email avatar helper into Jinja context
 @app.context_processor
-def inject_csrf_token():
-    return dict(csrf_token=lambda: os.environ.get("CSRF_TOKEN", "cybershield-csrf-token"))
+def inject_template_helpers():
+    def get_user_avatar(user_or_dict=None, email="", username="", full_name=""):
+        if isinstance(user_or_dict, dict):
+            if user_or_dict.get("avatar_url"):
+                return user_or_dict["avatar_url"]
+            email = user_or_dict.get("email", "")
+            username = user_or_dict.get("username", "")
+            full_name = user_or_dict.get("full_name", "")
+        elif isinstance(user_or_dict, str) and user_or_dict.strip():
+            if user_or_dict.startswith("http") or user_or_dict.startswith("/static"):
+                return user_or_dict
+            if "@" in user_or_dict:
+                email = user_or_dict
+            else:
+                username = user_or_dict
+
+        clean_email = (email or "").strip().lower()
+        name = (full_name or (clean_email.split("@")[0] if clean_email else username) or "User").strip()
+        encoded_name = urllib.parse.quote(name)
+        fallback = urllib.parse.quote(f"https://ui-avatars.com/api/?name={encoded_name}&background=0284c7&color=ffffff&bold=true&rounded=true&size=256")
+
+        if clean_email:
+            email_hash = hashlib.md5(clean_email.encode("utf-8")).hexdigest()
+            return f"https://www.gravatar.com/avatar/{email_hash}?s=256&d={fallback}"
+
+        return f"https://ui-avatars.com/api/?name={encoded_name}&background=0284c7&color=ffffff&bold=true&rounded=true&size=256"
+
+    return dict(
+        csrf_token=lambda: os.environ.get("CSRF_TOKEN", "cybershield-csrf-token"),
+        get_user_avatar=get_user_avatar,
+    )
 
 # Security Headers Middleware
 @app.after_request

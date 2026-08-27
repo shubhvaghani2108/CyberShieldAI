@@ -129,12 +129,13 @@
         <div class="sidebar-user-section">
             <a href="{{ url_for('profile_page') }}" class="user-meta" style="text-decoration:none;" title="View User Profile">
                 <div class="user-avatar-icon" style="overflow: hidden; border-radius: 50%;">
-                    {% set avatar_name = (session.get('email', '').split('@')[0] if session.get('email') else session.get('username', 'User')) %}
-                    {% if session.get('avatar_url') %}
-                        <img src="{{ session.get('avatar_url') }}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ avatar_name | urlencode }}&background=0284c7&color=ffffff&bold=true&rounded=true';" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-                    {% else %}
-                        <img src="https://ui-avatars.com/api/?name={{ avatar_name | urlencode }}&background=0284c7&color=ffffff&bold=true&rounded=true" alt="Avatar" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-                    {% endif %}
+                    <img 
+                        src="{{ get_user_avatar(session.get('avatar_url') or session.get('email') or session.get('username', 'User')) }}" 
+                        alt="Avatar" 
+                        referrerpolicy="no-referrer" 
+                        onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((session.get('email', '').split('@')[0] if session.get('email') else session.get('username', 'User'))) | urlencode }}&background=0284c7&color=ffffff&bold=true&rounded=true';" 
+                        style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
+                    >
                 </div>
                 <div class="user-text-col">
                     <span class="user-display-name" style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ session.get('email') or session.get('username', 'User') }}">{{ session.get('email') or session.get('username', 'User') }}</span>
