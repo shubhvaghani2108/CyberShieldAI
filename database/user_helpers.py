@@ -119,6 +119,7 @@ def get_user_by_email(email):
     """Fetches a single user record by email (case-insensitive search)."""
     if not email:
         return None
+    clean_email = str(email).strip()
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -126,10 +127,10 @@ def get_user_by_email(email):
             """
             SELECT *
             FROM users
-            WHERE LOWER(email) = LOWER(?)
+            WHERE LOWER(TRIM(COALESCE(email, ''))) = LOWER(?)
             LIMIT 1
             """,
-            (email.strip(),),
+            (clean_email,),
         )
         row = cursor.fetchone()
         if row:
@@ -449,36 +450,46 @@ def verify_user_credentials(username_or_email, password):
 
     identifier = str(username_or_email).strip()
 
-    # 1. Try finding user by username first
-    user = get_user_by_username(identifier)
-
-    # 2. If not found by username, try finding by email address
-    if not user:
-        user = get_user_by_email(identifier)
-
-    if not user:
-        return None
-
-    if not user.get("is_active"):
-        return None
-
-    stored_hash = user.get("password_hash")
-    if not stored_hash or not check_password_hash(stored_hash, password):
-        return None
-
-    # Update last login timestamp
+    conn = get_db_connection()
     try:
-        update_last_login(user["id"])
-    except Exception:
-        pass
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE (LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(COALESCE(email, ''))) = LOWER(?))
+            LIMIT 1
+            """,
+            (identifier, identifier),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
 
-    return {
-        "id": user["id"],
-        "username": user["username"],
-        "role": user["role"],
-        "email": user["email"],
-        "is_active": user["is_active"],
-    }
+        user = dict(row)
+        if not user.get("is_active"):
+            return None
+
+        stored_hash = user.get("password_hash")
+        if not stored_hash or not check_password_hash(stored_hash, password):
+            return None
+
+        # Update last login timestamp
+        try:
+            cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
+            conn.commit()
+        except Exception:
+            pass
+
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+            "email": user["email"],
+            "is_active": user["is_active"],
+        }
+    finally:
+        conn.close()
 
 
 def update_user_last_seen(user_id):
