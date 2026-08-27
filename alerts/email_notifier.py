@@ -66,13 +66,59 @@ def send_smtp_email(
         msg.attach(MIMEText(text_body, "plain", "utf-8"))
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
+    if not smtp_user or not smtp_password:
+        return False, "SMTP credentials are not configured. Please set SMTP_USERNAME and SMTP_PASSWORD in your environment variables (or settings)."
+
+    import socket
+    import ssl
+
+    def _open_smtp_connection(server_host, port, ssl_mode, tls_mode):
+        # Resolve to IPv4 to prevent [Errno 101] Network is unreachable on IPv6-broken cloud networks
+        ipv4_addrs = []
+        try:
+            addr_infos = socket.getaddrinfo(server_host, port, socket.AF_INET, socket.SOCK_STREAM)
+            for item in addr_infos:
+                ip = item[4][0]
+                if ip not in ipv4_addrs:
+                    ipv4_addrs.append(ip)
+        except Exception:
+            ipv4_addrs = [server_host]
+
+        if not ipv4_addrs:
+            ipv4_addrs = [server_host]
+
+        last_conn_err = None
+        for target_ip in ipv4_addrs:
+            try:
+                if ssl_mode or port == 465:
+                    srv = smtplib.SMTP_SSL(target_ip, port, timeout=12)
+                    srv.helo(server_host)
+                    return srv
+                else:
+                    srv = smtplib.SMTP(target_ip, port, timeout=12)
+                    srv.helo(server_host)
+                    if tls_mode or port == 587:
+                        srv.starttls()
+                    return srv
+            except Exception as ce:
+                last_conn_err = ce
+                continue
+        if last_conn_err:
+            raise last_conn_err
+        raise ConnectionError(f"Unable to connect to SMTP server {server_host}:{port}")
+
     try:
-        if smtp_port == 465 or (use_ssl and smtp_port != 587):
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=15)
-        else:
-            server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
-            if use_tls or smtp_port == 587:
-                server.starttls()
+        # Try configured port and mode first
+        try:
+            server = _open_smtp_connection(smtp_server, smtp_port, use_ssl, use_tls)
+        except Exception as primary_err:
+            # Fallback strategy: if port 587 failed, try port 465 SSL; if port 465 failed, try port 587 TLS
+            if smtp_port == 587:
+                server = _open_smtp_connection(smtp_server, 465, ssl_mode=True, tls_mode=False)
+            elif smtp_port == 465:
+                server = _open_smtp_connection(smtp_server, 587, ssl_mode=False, tls_mode=True)
+            else:
+                raise primary_err
 
         if smtp_user and smtp_password:
             clean_pw = smtp_password.replace(" ", "").strip()
@@ -86,11 +132,10 @@ def send_smtp_email(
         server.quit()
         return True, f"Email successfully sent to {to_email}."
 
-
     except smtplib.SMTPAuthenticationError as auth_err:
         advice = ""
         if "gmail" in str(smtp_server).lower():
-            advice = " (Note: For Gmail SMTP, you must enable 2-Step Verification and use a 16-character Google 'App Password', not your standard account password. Visit https://myaccount.google.com/apppasswords)"
+            advice = " (Note: For Gmail, you must use a 16-character Google 'App Password' created at https://myaccount.google.com/apppasswords)"
         return False, f"SMTP Authentication failed: {auth_err}{advice}"
     except Exception as e:
         return False, f"Failed to send email via SMTP: {str(e)}"
