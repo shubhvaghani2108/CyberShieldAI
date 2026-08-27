@@ -126,6 +126,7 @@
             <span class="status-text">Engine Online</span>
         </div>
 
+        <div class="sidebar-user-section">
             <a href="{{ url_for('profile_page') }}" class="user-meta" style="text-decoration:none;" title="View User Profile">
                 <div class="user-avatar-icon" style="overflow: hidden; border-radius: 50%;">
                     {% set avatar_name = (session.get('email', '').split('@')[0] if session.get('email') else session.get('username', 'User')) %}
