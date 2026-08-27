@@ -55,6 +55,7 @@ def get_current_user():
         "id": session.get("user_id"),
         "username": session.get("username", "Operator"),
         "role": session.get("role", "ANALYST"),
+        "email": session.get("email", ""),
     }
 
 
@@ -63,6 +64,7 @@ def login_user(user):
     session.clear()
     session["user_id"] = user["id"]
     session["username"] = user["username"]
+    session["email"] = user.get("email", "")
     session["role"] = user.get("role", "ANALYST")
     session["avatar_url"] = user.get("avatar_url", "")
     session.permanent = True

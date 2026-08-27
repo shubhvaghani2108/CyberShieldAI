@@ -554,7 +554,7 @@ def register_routes(app):
                     return redirect(next_url)
                 return redirect(url_for("dashboard"))
             else:
-                error = "Invalid username or password."
+                error = "Invalid username, email, or password."
 
         return render_template(
             "login.html",

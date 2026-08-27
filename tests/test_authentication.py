@@ -88,6 +88,22 @@ class AuthenticationTestCase(unittest.TestCase):
             self.assertEqual(session.get("role"), "ADMIN")
             self.assertIsNotNone(session.get("user_id"))
 
+    def test_02b_local_login_via_email_address(self):
+        """2b. User can log in using their email address instead of username."""
+        response = self.client.post(
+            "/login",
+            data={"username": "admin@cybershield.test", "password": "AdminPassword123!"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/")
+
+        with self.client as client:
+            client.post("/login", data={"username": "admin@cybershield.test", "password": "AdminPassword123!"})
+            self.assertEqual(session.get("username"), "test_admin")
+            self.assertEqual(session.get("email"), "admin@cybershield.test")
+            self.assertEqual(session.get("role"), "ADMIN")
+
     # 3. Invalid Local Credentials
     def test_03_invalid_local_credentials_rejected(self):
         """3. Invalid password or non-existent username are rejected."""
@@ -98,7 +114,7 @@ class AuthenticationTestCase(unittest.TestCase):
             follow_redirects=True,
         )
         self.assertEqual(res_wrong_pw.status_code, 200)
-        self.assertIn(b"Invalid username or password.", res_wrong_pw.data)
+        self.assertIn(b"Invalid username", res_wrong_pw.data)
 
         # Unknown username
         res_unknown = self.client.post(
@@ -107,7 +123,7 @@ class AuthenticationTestCase(unittest.TestCase):
             follow_redirects=True,
         )
         self.assertEqual(res_unknown.status_code, 200)
-        self.assertIn(b"Invalid username or password.", res_unknown.data)
+        self.assertIn(b"Invalid username", res_unknown.data)
 
     # 4. /auth/google Initiation & Redirect to Google
     def test_04_auth_google_redirects_to_google(self):

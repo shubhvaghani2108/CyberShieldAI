@@ -439,15 +439,23 @@ def update_last_login(user_id):
         conn.close()
 
 
-def verify_user_credentials(username, password):
+def verify_user_credentials(username_or_email, password):
     """
-    Verifies user credentials securely.
+    Verifies user credentials securely by Username OR Email address.
     Returns the user dict if valid and active, else None.
     """
-    if not username or not password:
+    if not username_or_email or not password:
         return None
 
-    user = get_user_by_username(username)
+    identifier = str(username_or_email).strip()
+
+    # 1. Try finding user by username first
+    user = get_user_by_username(identifier)
+
+    # 2. If not found by username, try finding by email address
+    if not user:
+        user = get_user_by_email(identifier)
+
     if not user:
         return None
 
