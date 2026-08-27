@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% block title %}Target Monitoring{% endblock %}
+
+{% block content %}
+<div class="panel-heading" style="margin-top:0;">
+    <div>
+        <h2>📡 Target Monitoring</h2>
+        <span class="sub">{{ total_targets if total_targets is defined else targets|length }} target{{ 's' if (total_targets if total_targets is defined else targets|length) != 1 else '' }} registered for continuous surveillance &middot; Powered by APScheduler</span>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <form action="{{ url_for('monitoring_run_cycle_route') }}" method="POST" style="margin:0;">
+            <button type="submit" class="btn" style="background:var(--overlay-2); border-color:var(--border-strong);" title="Trigger scan cycle for all active targets">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--accent);"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Run Monitoring Cycle
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Flash Notifications / Success / Error Alerts -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+        {% for category, message in messages %}
+            <div class="alert-box alert-{{ category }}" style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 18px;
+                border-radius: var(--radius-sm);
+                margin-bottom: 10px;
+                font-size: 13px;
+                font-weight: 500;
+                {% if category == 'success' %}
+                background: rgba(34, 197, 94, 0.12);
+                border: 1px solid rgba(34, 197, 94, 0.32);
+                color: var(--ok);
+                {% elif category == 'error' %}
+                background: rgba(244, 63, 94, 0.12);
+                border: 1px solid rgba(244, 63, 94, 0.32);
+                color: var(--crit);
+                {% else %}
+                background: rgba(34, 211, 238, 0.12);
+                border: 1px solid rgba(34, 211, 238, 0.32);
+                color: var(--accent);
+                {% endif %}
+            ">
+                <span style="font-size: 16px; font-weight: bold;">
+                    {% if category == 'success' %}✓{% elif category == 'error' %}⚠{% else %}ℹ{% endif %}
+                </span>
+                <div style="flex: 1;">{{ message }}</div>
+                <button type="button" onclick="this.parentElement.remove()" style="background:transparent; border:none; color:inherit; cursor:pointer; font-size:18px; line-height:1; padding:0 4px;" title="Dismiss">&times;</button>
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+<!-- Top Add Target Form -->
+<div class="glass content-panel" style="padding: 22px 26px; margin-bottom: 24px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--panel-solid);">
+    <div style="margin-bottom: 16px;">
+        <h3 style="margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; color: var(--accent);"><path d="M12 5v14M5 12h14"/></svg>
+            Add New Target for Automated Monitoring
+        </h3>
+        <p style="margin: 0; font-size: 12.5px; color: var(--text-2);">
+            Specify a target host or URL and configure the automated APScheduler scan interval (1h, 6h, 12h, or 24h).
+        </p>
+    </div>
+
+    <form id="addMonitoringForm" action="{{ url_for('monitoring_add') }}" method="POST" onsubmit="return validateMonitoringForm(event);">
+        <div style="display: grid; grid-template-columns: 2fr 1.2fr auto; gap: 16px; align-items: flex-end;">
+            <div class="field" style="margin-bottom: 0;">
+                <label for="targetUrlIp" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
+                    Target URL/IP <span style="color: var(--crit);">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="targetUrlIp" 
+                    name="target" 
+                    placeholder="e.g. 192.168.1.1 or https://example.com" 
+                    required 
+                    autocomplete="off"
+                    style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px; font-family: var(--font-mono, monospace);"
+                >
+                <div id="targetError" style="display: none; color: var(--crit); font-size: 11.5px; margin-top: 5px; font-weight: 500;"></div>
+            </div>
+
+            <div class="field" style="margin-bottom: 0;">
+                <label for="frequencySelect" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
+                    Frequency <span style="color: var(--crit);">*</span>
+                </label>
+                <select 
+                    id="frequencySelect" 
+                    name="frequency" 
+                    required
+                    style="width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--panel-solid); color: var(--text-0); font-size: 13px;"
+                >
+                    <option value="1">1 Hour</option>
+                    <option value="6">6 Hours</option>
+                    <option value="12">12 Hours</option>
+                    <option value="24" selected>24 Hours</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 0;">
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="height: 42px; padding: 0 22px; white-space: nowrap; font-weight: 700;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M12 5v14M5 12h14"/></svg>
+                    Add Target
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Top Analytics Stat Cards Section -->
+<div class="cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 24px;">
+
+    <!-- Total Monitored Targets Card -->
+    <div class="card">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            </div>
+        </div>
+        <h2>{{ total_targets if total_targets is defined else targets|length }}</h2>
+        <p>Total Monitored Targets</p>
+        <div class="trend">{{ targets|selectattr('enabled', 'equalto', 1)|list|length }} active &middot; {{ targets|selectattr('enabled', 'equalto', 0)|list|length }} disabled</div>
+    </div>
+
+    <!-- Healthy Assets Card -->
+    <div class="card accent-ok">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            </div>
+        </div>
+        <h2 style="color:var(--ok);">{{ analytics.healthy_assets if analytics is defined else '-' }}</h2>
+        <p>Healthy Assets</p>
+        <div class="trend">Low risk &middot; No critical issues</div>
+    </div>
+
+    <!-- Warning Assets Card -->
+    <div class="card accent-med">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+        </div>
+        <h2 style="color:var(--med);">{{ analytics.warning_assets if analytics is defined else '-' }}</h2>
+        <p>Warning Assets</p>
+        <div class="trend">Medium severity findings</div>
+    </div>
+
+    <!-- Critical Assets Card -->
+    <div class="card accent-crit">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+        </div>
+        <h2 style="color:var(--crit);">{{ analytics.critical_assets if analytics is defined else '-' }}</h2>
+        <p>Critical Assets</p>
+        <div class="trend">Action required immediately</div>
+    </div>
+
+    <!-- Last Monitoring Run Card -->
+    <div class="card accent-purple">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+        </div>
+        <h2 style="font-size: 15px; font-weight: 700; line-height: 1.35; margin: 15px 0 4px; font-family: var(--font-mono, monospace);">
+            {{ analytics.last_monitoring_run if analytics is defined else 'No Runs Yet' }}
+        </h2>
+        <p>Last Monitoring Run</p>
+        <div class="trend">APScheduler daemon active</div>
+    </div>
+
+</div>
+
+<!-- Table of Monitored Targets with Last/Next Scan Time & Monitoring Status -->
+<div class="panel-heading" style="margin-top: 10px;">
+    <h2>🎯 Monitored Targets & Scan Schedules</h2>
+    <span class="sub">{{ total_targets if total_targets is defined else targets|length }} registered targets</span>
+</div>
+
+{% if targets and targets|length > 0 %}
+<div class="glass table-wrap" style="margin-bottom: 28px;">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Target</th>
+                <th>Frequency</th>
+                <th>Last Scan Time</th>
+                <th>Next Scan Time</th>
+                <th>Monitoring Status</th>
+                <th style="text-align:right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for target in targets %}
+        <tr data-target="{{ target.target }}">
+            <td class="mono" style="font-weight:700; color:var(--text-2);">#{{ loop.index }}</td>
+            <td class="mono" style="font-weight:600; color:var(--text-0);">
+
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color:{% if target.monitoring_status == 'Active' or target.enabled %}var(--accent){% else %}var(--text-2){% endif %};">●</span>
+                    {{ target.target }}
+                </div>
+            </td>
+            <td>
+                <span class="badge badge-low" style="font-family:var(--font-mono, monospace); text-transform:none;">
+                    {{ target.scan_frequency }} Hour{{ 's' if target.scan_frequency != 1 else '' }}
+                </span>
+            </td>
+            <td class="mono" style="font-size:12px; color:var(--text-1); white-space:nowrap;">
+                {% if target.last_scan_time and target.last_scan_time != 'Never Scanned' %}
+                    {{ target.last_scan_time }}
+                {% else %}
+                    <span style="color:var(--text-2); font-style:italic;">Never Scanned</span>
+                {% endif %}
+            </td>
+            <td class="mono" style="font-size:12px; color:var(--text-1); white-space:nowrap;">
+                {% if target.next_scan_time and target.next_scan_time not in ['Monitoring Paused', 'Pending First Scan', 'Pending Cycle'] %}
+                    <span style="color:var(--ok); font-weight:600;">{{ target.next_scan_time }}</span>
+                {% elif target.next_scan_time == 'Monitoring Paused' %}
+                    <span style="color:var(--text-2); font-style:italic;">Paused</span>
+                {% else %}
+                    <span style="color:var(--accent); font-weight:500;">{{ target.next_scan_time or 'Pending' }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if target.monitoring_status == 'Active' or target.enabled %}
+                    <span class="badge badge-ok">Active</span>
+                {% else %}
+                    <span class="badge badge-dead">Disabled</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+                <div style="display:inline-flex; gap:8px; align-items:center;">
+                    {% if target.enabled %}
+                        <form action="{{ url_for('monitoring_disable_route', target_id=target.id) }}" method="POST" style="display:inline; margin:0;">
+                            <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--high);" title="Pause Scheduled Monitoring">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                Disable
+                            </button>
+                        </form>
+                    {% else %}
+                        <form action="{{ url_for('monitoring_enable_route', target_id=target.id) }}" method="POST" style="display:inline; margin:0;">
+                            <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--ok);" title="Activate Scheduled Monitoring">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Enable
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <form action="{{ url_for('monitoring_delete_route', target_id=target.id) }}" method="POST" style="display:inline; margin:0;" onsubmit="return confirm('Are you sure you want to delete target {{ target.target }}?');">
+                        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--crit);" title="Delete Target">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Delete
+                        </button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel" style="padding:48px 24px; text-align:center; margin-bottom: 28px;">
+    <div style="font-size:36px; margin-bottom:12px; opacity:0.8;">📡</div>
+    <h3 style="margin:0 0 6px; font-size:16px; color:var(--text-0);">No Monitored Targets Found</h3>
+    <p class="empty-note" style="max-width:440px; margin:0 auto;">
+        No targets are currently being monitored. Enter a target URL or IP in the form above to begin automated APScheduler posture surveillance.
+    </p>
+</div>
+{% endif %}
+
+<!-- Security Alerts Section -->
+<div class="panel-heading" style="margin-top: 10px;">
+    <h2>🚨 Live Security Alerts & Findings</h2>
+    <span class="sub">{{ alerts|length if alerts else 0 }} alert{{ 's' if not alerts or alerts|length != 1 else '' }} registered</span>
+</div>
+
+{% if alerts and alerts|length > 0 %}
+<div class="glass table-wrap" style="margin-bottom: 28px;">
+    <table>
+        <thead>
+            <tr>
+                <th>Target</th>
+                <th>Alert Type</th>
+                <th>Severity</th>
+                <th>Message</th>
+                <th>Created At</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for a in alerts %}
+        <tr>
+            <td class="mono" style="font-weight:600; color:var(--text-0);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color:{% if a.severity == 'Critical' %}var(--crit){% elif a.severity == 'High' %}var(--high){% elif a.severity == 'Medium' %}var(--med){% else %}var(--ok){% endif %};">●</span>
+                    {{ a.target }}
+                </div>
+            </td>
+            <td style="font-weight:600; color:var(--text-0);">{{ a.alert_type }}</td>
+            <td>
+                {% if a.severity == 'Critical' %}
+                    <span class="badge badge-critical">Critical</span>
+                {% elif a.severity == 'High' %}
+                    <span class="badge badge-high">High</span>
+                {% elif a.severity == 'Medium' %}
+                    <span class="badge badge-medium">Medium</span>
+                {% else %}
+                    <span class="badge badge-low">Low</span>
+                {% endif %}
+            </td>
+            <td style="font-size:12.5px; color:var(--text-1); max-width:400px; word-break:break-word;">
+                {{ a.message }}
+            </td>
+            <td class="mono" style="font-size:12px; color:var(--text-2); white-space:nowrap;">
+                {{ a.created_at }}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel" style="padding:24px 20px; text-align:center; margin-bottom: 28px;">
+    <p class="empty-note" style="margin:0;">No security alerts generated yet. All monitored targets are within normal security parameters.</p>
+</div>
+{% endif %}
+
+<!-- Live Activity Logs -->
+<div class="panel-heading">
+    <h2>📋 Live Monitoring Activity Logs</h2>
+    <span class="sub">{{ logs|length if logs else 0 }} recent event{{ 's' if not logs or logs|length != 1 else '' }} recorded</span>
+</div>
+
+{% if logs and logs|length > 0 %}
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Activity Details</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+        <tr>
+            <td class="mono" style="font-size:12px; color:var(--text-2); white-space:nowrap;">{{ log.timestamp }}</td>
+            <td class="mono" style="font-weight:600;">{{ log.target }}</td>
+            <td>
+                {% if log.status == 'Scan Started' %}
+                    <span class="badge badge-low" style="text-transform:none;">Scan Started</span>
+                {% elif log.status == 'Scan Completed' %}
+                    <span class="badge badge-ok" style="text-transform:none;">Scan Completed</span>
+                {% elif log.status == 'Scan Failed' %}
+                    <span class="badge badge-critical" style="text-transform:none;">Scan Failed</span>
+                {% else %}
+                    <span class="badge badge-dead" style="text-transform:none;">{{ log.status }}</span>
+                {% endif %}
+            </td>
+            <td style="font-size:12.5px; color:var(--text-1);">
+                {{ log.message }}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel" style="padding:24px 20px;">
+    <p class="empty-note" style="margin:0;">No monitoring scan activity logged yet. Use "Run Monitoring Cycle" or wait for scheduled APScheduler execution.</p>
+</div>
+{% endif %}
+
+<script>
+var existingTargets = [
+    {% for t in targets %}
+    "{{ t.target|lower|trim }}",
+    {% endfor %}
+];
+
+function validateMonitoringForm(event) {
+    var input = document.getElementById("targetUrlIp");
+    var errorDiv = document.getElementById("targetError");
+    var val = input ? input.value.trim() : "";
+
+    // 1. Validate empty field
+    if (!val) {
+        event.preventDefault();
+        if (errorDiv) {
+            errorDiv.textContent = "Target URL or IP cannot be empty. Please enter a valid host.";
+            errorDiv.style.display = "block";
+        }
+        if (input) {
+            input.focus();
+            input.style.borderColor = "var(--crit)";
+        }
+        return false;
+    }
+
+    // 2. Validate duplicate target (client-side instant check)
+    var normalizedVal = val.toLowerCase().replace(/\/+$/, "");
+    var isDuplicate = existingTargets.some(function(t) {
+        return t.replace(/\/+$/, "") === normalizedVal;
+    });
+
+    if (isDuplicate) {
+        event.preventDefault();
+        if (errorDiv) {
+            errorDiv.textContent = "Duplicate target: '" + val + "' is already registered in the monitoring list.";
+            errorDiv.style.display = "block";
+        }
+        if (input) {
+            input.focus();
+            input.style.borderColor = "var(--crit)";
+        }
+        return false;
+    }
+
+    if (errorDiv) {
+        errorDiv.style.display = "none";
+    }
+    if (input) {
+        input.style.borderColor = "var(--border-strong)";
+    }
+    return true;
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    var input = document.getElementById("targetUrlIp");
+    if (input) {
+        input.addEventListener("input", function() {
+            var errorDiv = document.getElementById("targetError");
+            if (this.value.trim().length > 0) {
+                if (errorDiv) errorDiv.style.display = "none";
+                this.style.borderColor = "var(--border-strong)";
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,30 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & uploads
+*.db
+*.sqlite3
+instance/
+
+# OS and Editor configs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Reports and temporary exports
+scratch/
+*.pdf
+*.csv
+*.exe
+cloudflared.exe

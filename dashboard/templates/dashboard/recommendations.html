@@ -1,0 +1,18 @@
+<div class="panel-heading">
+    <h2>💡 Recommended Actions</h2>
+    <span class="sub">Generated from the latest scan findings</span>
+</div>
+
+<div class="glass">
+    {% for rec in recommendations %}
+        <div class="rec-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></svg>
+            <span>{{ rec }}</span>
+        </div>
+    {% else %}
+        <div class="rec-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+            <span>No recommendations yet — run a scan to get prioritized, actionable guidance based on open ports, services, and detected vulnerabilities.</span>
+        </div>
+    {% endfor %}
+</div>

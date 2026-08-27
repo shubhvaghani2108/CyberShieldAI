@@ -1,0 +1,26 @@
+<div class="chart-grid">
+
+    <div class="glass chart-card">
+        <h3>Open Ports by Service (latest scan)</h3>
+        <div class="chart-container">
+            <canvas id="portChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass chart-card">
+        <h3>Vulnerability Severity Distribution</h3>
+        <div class="chart-container">
+            <canvas id="severityChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<div class="glass chart-card" style="margin-top:16px;">
+    <h3>Risk Score Trend (recent scans)</h3>
+    <div class="chart-container" style="height:200px;">
+        <canvas id="riskTrendChart"></canvas>
+    </div>
+</div>
+
+<script id="dashboard-data" type="application/json">{{ chart_data|tojson }}</script>

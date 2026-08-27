@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}URL Scan History{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>🌐 URL Scan History</h2>
+    <span class="sub">{{ rows|length }} scan{{ 's' if rows|length != 1 else '' }} recorded</span>
+</div>
+
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>URL</th>
+                <th>Domain</th>
+                <th>IP</th>
+                <th>Risk</th>
+                <th>Scan Time</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="mono">{{ row[0] }}</td>
+            <td style="max-width:320px; word-break:break-word;">{{ row[1] }}</td>
+            <td style="max-width:200px; word-break:break-word;">{{ row[2] }}</td>
+            <td class="mono">{{ row[3] }}</td>
+            <td>
+                {% set lvl = (row[6] or 'low')|lower %}
+                <span class="badge badge-{{ lvl }}">{{ row[6] }}</span>
+            </td>
+            <td class="mono">{{ row[7] }}</td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="6">No URL scan history available.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

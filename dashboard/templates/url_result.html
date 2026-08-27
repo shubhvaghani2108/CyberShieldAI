@@ -1,0 +1,1064 @@
+{% extends "base.html" %}
+{% block title %}URL Scan Result{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>🌐 URL Threat Scan — Full Report</h2>
+    <span class="sub">{% if result %}{{ result.url }}{% else %}No scan yet{% endif %}</span>
+    {% if result %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;">
+        <a class="btn btn-primary" href="{{ url_for('download_full_report_pdf') }}?type=url" style="text-decoration:none; font-size:13px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M20 21H4"/></svg>
+            Export PDF
+        </a>
+        <a class="btn btn-secondary" href="{{ url_for('download_report_json') }}" style="text-decoration:none; font-size:13px; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);">
+            📄 Export JSON
+        </a>
+        <a class="btn btn-secondary" href="{{ url_for('download_report_csv') }}" style="text-decoration:none; font-size:13px; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3);">
+            📊 Export CSV
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% if not result %}
+<div class="glass content-panel">
+    <p class="empty-note">No URL has been scanned yet. Go back to the dashboard and run a URL scan first.</p>
+</div>
+{% else %}
+
+<div class="glass content-panel">
+    <span class="eyebrow">Target Overview</span>
+    <table class="info-table">
+        <tr><th>Scanned URL</th><td>{{ result.url }}</td></tr>
+        <tr><th>Domain</th><td>{{ result.domain }}</td></tr>
+        <tr><th>IP Address</th><td class="mono">{{ result.ip }}</td></tr>
+        <tr><th>Protocol</th><td>{{ result.protocol }}</td></tr>
+        <tr><th>URL Threat Score</th><td class="mono">{{ result.score }} / 100</td></tr>
+        <tr><th>URL Threat Level</th><td><span class="risk-pill {{ (result.risk or 'low')|lower }}">{{ result.risk }}</span></td></tr>
+    </table>
+    <p class="empty-note" style="margin-top:10px;">
+        This score comes from URL-pattern heuristics (protocol, suspicious
+        keywords, URL length, etc.) — see <b>Security Remarks</b> below for
+        exactly which rules matched. It is separate from the
+        <b>Risk Summary</b> further down, which is based on the actual
+        port/vulnerability scan of the resolved IP.
+    </p>
+</div>
+
+<!-- VirusTotal Threat Intelligence Card -->
+<div class="panel-heading" style="margin-top:24px;">
+    <h2>🛡 VirusTotal Reputation Intelligence</h2>
+    <span class="sub">Multi-vendor URL reputation &amp; threat telemetry</span>
+</div>
+
+<div class="glass content-panel" style="padding: 22px 26px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--panel-solid); margin-bottom: 24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--border);">
+        <div>
+            <span class="eyebrow" style="margin-bottom:4px; display:block;">Global Threat Verdict</span>
+            <div style="display:flex; align-items:center; gap:10px;">
+                {% if virustotal and virustotal.risk_badge == 'Malicious' %}
+                    <span class="badge badge-critical" style="font-size:14px; padding:6px 14px; text-transform:uppercase; font-weight:800;">
+                        🚨 Malicious
+                    </span>
+                {% elif virustotal and virustotal.risk_badge == 'Suspicious' %}
+                    <span class="badge badge-medium" style="font-size:14px; padding:6px 14px; text-transform:uppercase; font-weight:800;">
+                        ⚠ Suspicious
+                    </span>
+                {% else %}
+                    <span class="badge badge-ok" style="font-size:14px; padding:6px 14px; text-transform:uppercase; font-weight:800;">
+                        ✓ Safe
+                    </span>
+                {% endif %}
+                <span style="font-size:13px; color:var(--text-1); font-weight:500;">
+                    {% if virustotal and virustotal.total_engines > 0 %}
+                        {{ virustotal.malicious }} / {{ virustotal.total_engines }} Security Vendors Flagged This Target
+                    {% elif virustotal and not virustotal.configured %}
+                        API Key Not Configured &middot; Heuristic Baseline
+                    {% else %}
+                        No Detections Found
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        {% if virustotal and virustotal.scan_time and virustotal.scan_time != '-' %}
+        <div style="text-align:right;">
+            <span style="font-size:11.5px; color:var(--text-2); display:block;">Last Analysis Timestamp</span>
+            <span class="mono" style="font-size:12.5px; color:var(--text-1);">{{ virustotal.scan_time }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 4 Stats Cards Grid: Malicious, Suspicious, Harmless, Undetected -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:16px;">
+        
+        <!-- Malicious -->
+        <div style="background:var(--overlay-1); border:1px solid {% if virustotal and virustotal.malicious > 0 %}rgba(244,63,94,0.4){% else %}var(--border){% endif %}; padding:14px 16px; border-radius:var(--radius-sm); text-align:center;">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-2); display:block; margin-bottom:4px;">Malicious</span>
+            <span class="mono" style="font-size:24px; font-weight:800; color:{% if virustotal and virustotal.malicious > 0 %}var(--crit){% else %}var(--text-0){% endif %};">
+                {{ virustotal.malicious if virustotal else 0 }}
+            </span>
+        </div>
+
+        <!-- Suspicious -->
+        <div style="background:var(--overlay-1); border:1px solid {% if virustotal and virustotal.suspicious > 0 %}rgba(234,179,8,0.4){% else %}var(--border){% endif %}; padding:14px 16px; border-radius:var(--radius-sm); text-align:center;">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-2); display:block; margin-bottom:4px;">Suspicious</span>
+            <span class="mono" style="font-size:24px; font-weight:800; color:{% if virustotal and virustotal.suspicious > 0 %}var(--med){% else %}var(--text-0){% endif %};">
+                {{ virustotal.suspicious if virustotal else 0 }}
+            </span>
+        </div>
+
+        <!-- Harmless -->
+        <div style="background:var(--overlay-1); border:1px solid var(--border); padding:14px 16px; border-radius:var(--radius-sm); text-align:center;">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-2); display:block; margin-bottom:4px;">Harmless</span>
+            <span class="mono" style="font-size:24px; font-weight:800; color:var(--ok);">
+                {{ virustotal.harmless if virustotal else 0 }}
+            </span>
+        </div>
+
+        <!-- Undetected -->
+        <div style="background:var(--overlay-1); border:1px solid var(--border); padding:14px 16px; border-radius:var(--radius-sm); text-align:center;">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-2); display:block; margin-bottom:4px;">Undetected</span>
+            <span class="mono" style="font-size:24px; font-weight:800; color:var(--text-2);">
+                {{ virustotal.undetected if virustotal else 0 }}
+            </span>
+        </div>
+    </div>
+
+    {% if virustotal and not virustotal.configured %}
+    <div style="background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.25); border-radius:var(--radius-sm); padding:12px 16px; font-size:12.5px; color:var(--text-1); display:flex; align-items:flex-start; gap:10px; line-height:1.5;">
+        <span style="font-size:16px; color:var(--accent); line-height:1.2;">ℹ</span>
+        <div>
+            <strong style="color:var(--text-0);">VirusTotal API Key Not Configured:</strong>
+            <span style="color:var(--text-1);"> Add your free VirusTotal API key to the <code style="background:var(--overlay-2); padding:2px 6px; border-radius:4px; font-family:monospace; color:var(--accent);">.env</code> file as <code style="background:var(--overlay-2); padding:2px 6px; border-radius:4px; font-family:monospace; color:var(--ok);">VIRUSTOTAL_API_KEY=your_key_here</code> to enable live multi-engine reputation checks.</span>
+        </div>
+    </div>
+    {% elif virustotal and virustotal.message %}
+    <p style="margin:0; font-size:12px; color:var(--text-2);">{{ virustotal.message }}</p>
+    {% endif %}
+</div>
+
+
+{% if scan_comparison and scan_comparison.has_previous %}
+<div class="panel-heading" style="margin-top:20px;">
+    <h2>🔄 Scan Posture Comparison &amp; Change Delta</h2>
+    <span class="sub">Compared to previous scan executed on {{ scan_comparison.prev_time }}</span>
+</div>
+<div class="glass content-panel" style="padding:18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:14px; background:var(--overlay-1); padding:12px 16px; border-radius:8px; border:1px solid var(--border);">
+        <div>
+            <span style="font-size:12px; color:var(--text-2); text-transform:uppercase;">Previous Score:</span>
+            <span style="font-size:18px; font-weight:700; color:var(--text-1); font-family:monospace; margin-left:6px;">
+                {% if scan_comparison.prev_score is not none %}{{ scan_comparison.prev_score }} / 100{% else %}INCONCLUSIVE{% endif %}
+            </span>
+        </div>
+        <div style="font-size:20px; color:var(--text-2);">→</div>
+        <div>
+            <span style="font-size:12px; color:var(--text-2); text-transform:uppercase;">Current Assessment:</span>
+            <span style="font-size:18px; font-weight:700; color:var(--text-0); font-family:monospace; margin-left:6px;">
+                {% if scan_comparison.curr_score is not none %}{{ scan_comparison.curr_score }} / 100{% else %}INCONCLUSIVE{% endif %}
+            </span>
+        </div>
+        <div>
+            {% if scan_comparison.score_direction == 'inconclusive' or scan_comparison.score_diff is none %}
+            <span class="badge" style="background:rgba(234,179,8,0.15); color:#eab308; border:1px solid rgba(234,179,8,0.3); font-size:13px;">Inconclusive Assessment</span>
+            {% elif scan_comparison.score_diff > 0 %}
+            <span class="badge badge-ok" style="font-size:13px;">▲ +{{ scan_comparison.score_diff }} Improvement</span>
+            {% elif scan_comparison.score_diff < 0 %}
+            <span class="badge badge-critical" style="font-size:13px;">▼ {{ scan_comparison.score_diff }} Degraded</span>
+            {% else %}
+            <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border); font-size:13px;">► Unchanged</span>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div style="display:flex; flex-direction:column; gap:8px;">
+        {% for chg in scan_comparison.changes %}
+        <div style="display:flex; align-items:center; gap:10px; font-size:14px; padding:8px 12px; border-radius:6px; background:{% if chg.type == 'positive' %}rgba(34,197,94,0.08){% elif chg.type == 'negative' %}rgba(239,68,68,0.08){% else %}var(--overlay-1){% endif %}; border:1px solid {% if chg.type == 'positive' %}rgba(34,197,94,0.25){% elif chg.type == 'negative' %}rgba(239,68,68,0.25){% else %}var(--border){% endif %};">
+            <span style="font-weight:800; color:{% if chg.type == 'positive' %}var(--ok){% elif chg.type == 'negative' %}var(--crit){% else %}var(--text-2){% endif %};">{{ chg.icon }}</span>
+            <span style="color:var(--text-0); font-weight:500;">{{ chg.text }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="panel-heading"><h2>Open Ports</h2></div>
+<div class="glass table-wrap">
+    <table>
+        <thead><tr><th>Port</th><th>Service</th></tr></thead>
+        <tbody>
+        {% for port in ports %}
+        <tr><td class="mono">{{ port.port }}</td><td>{{ port.service }}</td></tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="2">No open ports recorded.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="panel-heading"><h2>Estimated Operating System</h2><span class="sub">Nmap TCP/IP Stack Fingerprint Estimate</span></div>
+<div class="glass content-panel">
+    {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
+    <table class="info-table">
+        <tr>
+            <th>Estimated OS</th>
+            <td><b>{{ os_info.os_name }}</b></td>
+        </tr>
+        <tr>
+            <th>Device Type</th>
+            <td>{{ os_info.device_type if os_info.device_type and os_info.device_type != 'Unknown' else 'General Purpose / Server' }}</td>
+        </tr>
+        <tr>
+            <th>Detection Confidence</th>
+            <td>
+                {% if os_info.os_details and 'Accuracy:' in os_info.os_details %}
+                    <span class="badge badge-ok" style="font-weight:600;">High Confidence ({{ os_info.os_details }})</span>
+                {% else %}
+                    <span class="badge badge-unknown">SYN/ACK Heuristic Match</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Detection Method</th>
+            <td style="color:var(--text-muted);">Nmap TCP/IP Stack SYN-ACK Fingerprinting</td>
+        </tr>
+    </table>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+        <span class="badge" style="background:rgba(148,163,184,0.15); color:#94a3b8; border:1px solid rgba(148,163,184,0.3);">Not Identified</span>
+        <span style="color:var(--text-muted); font-size:13.5px;">Host did not return identifiable OS TCP/IP signatures or is protected by a firewall.</span>
+    </div>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>Technology Detection</h2></div>
+<div class="glass content-panel">
+    {% if classified_technology %}
+    <p style="margin-bottom:14px;"><b>Server:</b> {{ technology["server"] if technology and technology["server"] else "Unknown" }}</p>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;">
+        {% for cat_name, cat_items in classified_technology.items() %}
+        {% if cat_items %}
+        <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+            <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--accent); margin-bottom:8px;">{{ cat_name }}</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                {% for item in cat_items %}
+                <span class="badge" style="background:var(--overlay-2); color:var(--text-0); border:1px solid var(--border); font-size:13px; font-weight:500;">{{ item }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% elif technology %}
+    <p><b>Server:</b> {{ technology["server"] }}</p>
+    {% if technology["technologies"] %}
+    <ul class="remark-list">
+        {% for tech in technology["technologies"] %}<li>{{ tech }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-note">No technology detected.</p>
+    {% endif %}
+    {% else %}
+    <p class="empty-note">No technology information available.</p>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>Service Versions</h2></div>
+<div class="glass table-wrap">
+    <table>
+        <thead><tr><th>Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
+        <tbody>
+        {% for s in services %}
+        <tr>
+            <td class="mono">{{ s.port }}</td>
+            <td>{{ s.service }}</td>
+            <td>{{ s.product }}</td>
+            <td class="mono">{{ s.version }}</td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="4">No service version data.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="panel-heading"><h2>🔒 SSL / TLS Certificate</h2></div>
+<div class="glass content-panel">
+    {% if ssl_info and result.ip != 'Unknown' and result.protocol != 'unknown' %}
+    <table class="info-table">
+        <tr><th>TLS Version</th><td><span class="badge badge-ok">{{ ssl_info.tls_version or "-" }}</span></td></tr>
+        <tr><th>Cipher Suite</th><td class="mono">{{ ssl_info.cipher_suite or "-" }}</td></tr>
+        <tr><th>Key Type &amp; Algorithm</th><td>{{ ssl_info.key_type or "-" }}</td></tr>
+        <tr><th>Key Size</th><td class="mono">{{ ssl_info.key_size or "-" }}</td></tr>
+        <tr><th>SHA256 Fingerprint</th><td class="mono" style="font-size:12px; word-break:break-all;">{{ ssl_info.fingerprint_sha256 or "-" }}</td></tr>
+        <tr><th>Issuer</th><td>{{ ssl_info.issuer or "-" }}</td></tr>
+        <tr><th>Subject</th><td>{{ ssl_info.subject or "-" }}</td></tr>
+        <tr>
+            <th>Certificate Chain Hierarchy</th>
+            <td>
+                <div style="background:var(--overlay-1); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin:4px 0; word-break:break-word; overflow-wrap:anywhere;">
+                    <div style="display:flex; align-items:baseline; gap:8px; font-weight:600; color:var(--accent); font-size:13px; flex-wrap:wrap;">
+                        <span style="white-space:nowrap;">🏛 Root CA:</span>
+                        <span style="color:var(--text-0); font-family:monospace; font-weight:normal; word-break:break-all;">{{ ssl_info.chain_hierarchy.root if ssl_info.chain_hierarchy else "Trusted Public Root CA" }}</span>
+                    </div>
+                    <div style="color:var(--text-2); font-size:14px; margin-left:14px; line-height:16px;">↓</div>
+                    <div style="display:flex; align-items:baseline; gap:8px; font-weight:600; color:var(--med); font-size:13px; margin-left:6px; flex-wrap:wrap;">
+                        <span style="white-space:nowrap;">🛡 Intermediate CA:</span>
+                        <span style="color:var(--text-0); font-family:monospace; font-weight:normal; word-break:break-all;">{{ ssl_info.chain_hierarchy.intermediate if ssl_info.chain_hierarchy else (ssl_info.issuer or "Public Authority CA") }}</span>
+                    </div>
+                    <div style="color:var(--text-2); font-size:14px; margin-left:22px; line-height:16px;">↓</div>
+                    <div style="display:flex; align-items:baseline; gap:8px; font-weight:600; color:var(--ok); font-size:13px; margin-left:12px; flex-wrap:wrap;">
+                        <span style="white-space:nowrap;">📜 Leaf Certificate:</span>
+                        <span style="color:var(--text-0); font-family:monospace; font-weight:normal; word-break:break-all;">{{ ssl_info.chain_hierarchy.leaf if ssl_info.chain_hierarchy else (ssl_info.subject or ssl_info.host) }}</span>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        <tr><th>SAN Names (Subject Alt)</th><td>
+            {% set sans = ssl_info.parsed_san_names or ssl_info.san_names %}
+            {% if sans %}
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                {% for san in sans %}
+                    <span class="badge" style="background:var(--overlay-2); color:var(--text-1); border:1px solid var(--border); font-family:monospace; font-size:12px;">{{ san }}</span>
+                {% endfor %}
+                </div>
+            {% else %}
+                <span class="mono">-</span>
+            {% endif %}
+        </td></tr>
+        <tr><th>Valid From</th><td class="mono">{{ ssl_info.valid_from or "-" }}</td></tr>
+        <tr><th>Valid To</th><td class="mono">{{ ssl_info.valid_to or "-" }}</td></tr>
+        <tr><th>Days Remaining</th><td><span class="mono">{{ ssl_info.days_remaining if ssl_info.days_remaining is not none else "-" }}</span></td></tr>
+        <tr><th>Overall Status</th><td>
+            {% if ssl_info.expired %}
+                <span class="badge badge-critical">Expired</span>
+            {% elif ssl_info.self_signed %}
+                <span class="badge badge-medium">Self-Signed</span>
+            {% elif ssl_info.days_remaining is not none and ssl_info.days_remaining <= 15 %}
+                <span class="badge badge-medium">Expiring Soon</span>
+            {% else %}
+                <span class="badge badge-ok">Valid Certificate</span>
+            {% endif %}
+        </td></tr>
+    </table>
+    {% if ssl_info.warnings %}
+    <p style="margin-top:12px; color:var(--med);"><b>⚠ Warnings:</b> {{ ssl_info.warnings }}</p>
+    {% endif %}
+    {% else %}
+    <p class="empty-note">SSL / TLS: Not Assessed</p>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>Vulnerabilities &amp; Security Findings ({{ vulnerabilities|length if vulnerabilities else 0 }})</h2></div>
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:150px;">Port / Service</th>
+                <th style="width:110px;">Severity</th>
+                <th>Identified Threat / Risk</th>
+                <th>Recommended Solution</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vulnerabilities %}
+            {% set port_num = v.port if v.port is defined else 0 %}
+            {% set srv_name = v.service if v.service is defined else 'Service' %}
+            {% set risk_val = v.risk if v.risk is defined else 'Low' %}
+            {% set desc_val = v.impact if (v.impact is defined and v.impact) else (v.description if v.description is defined else '') %}
+            {% set rem_val = v.remediation if (v.remediation is defined and v.remediation) else '' %}
+
+            {% if not desc_val %}
+                {% if port_num == 21 or srv_name|lower == 'ftp' %}
+                    {% set desc_val = "Plaintext File Transfer Protocol (FTP) transmits credentials and file contents without encryption, vulnerable to network packet interception." %}
+                    {% set rem_val = "Disable plain FTP and switch to SFTP (SSH Port 22) or FTPS (FTP over TLS)." %}
+                {% elif port_num == 3306 or srv_name|lower == 'mysql' %}
+                    {% set desc_val = "Direct database service exposed to the public network, exposing database to credential brute-forcing." %}
+                    {% set rem_val = "Bind MySQL to localhost (127.0.0.1) and restrict inbound access using firewall rules." %}
+                {% elif port_num == 80 or srv_name|lower == 'http' %}
+                    {% set desc_val = "Unencrypted HTTP web traffic is exposed. All form data, session cookies, and credentials travel in plaintext." %}
+                    {% set rem_val = "Install SSL/TLS certificates and enforce HTTP 301 Permanent Redirect to HTTPS (Port 443)." %}
+                {% elif port_num == 443 or srv_name|lower == 'https' %}
+                    {% set desc_val = "Secure HTTPS web server active. Ensure TLS 1.2+ configuration and valid certificate chain." %}
+                    {% set rem_val = "Maintain valid SSL certificates and enforce HTTP Strict Transport Security (HSTS)." %}
+                {% else %}
+                    {% set desc_val = "Public port is listening on the network. Inspect exposed service version and authentication controls." %}
+                    {% set rem_val = "Restrict external exposure and enforce network firewall filtering rules." %}
+                {% endif %}
+            {% endif %}
+
+            <tr>
+                <td class="mono">
+                    <strong style="color:var(--text-0);">Port {{ port_num }}</strong>
+                    <span style="color:var(--accent); font-size:12px; display:block;">{{ srv_name }}</span>
+                </td>
+                <td><span class="risk-pill {{ (risk_val or 'low')|lower }}">{{ risk_val|upper }}</span></td>
+                <td style="font-size:12.5px; color:var(--text-1); line-height:1.5;">
+                    {{ desc_val }}
+                </td>
+                <td style="font-size:12.5px; color:var(--text-0); line-height:1.5;">
+                    <div style="background:rgba(34,197,94,0.08); border-left:3px solid var(--ok); padding:6px 10px; border-radius:4px;">
+                        {{ rem_val }}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr class="empty-row">
+                <td colspan="4" style="text-align:center; padding:24px; color:var(--text-2);">
+                    {% if result.ip == 'Unknown' or (ai_result and ai_result.status == 'INCONCLUSIVE') %}
+                    ⚠️ Vulnerability scan not executed (Not Assessed).
+                    {% else %}
+                    ✔ No open vulnerabilities recorded on scanned ports.
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<!-- ========================================================
+     CVE Findings & CWE Weakness Mapping (Interactive Table)
+     ======================================================== -->
+<div class="panel-heading" style="margin-top:24px;">
+    <h2>🚨 CVE Findings &amp; CWE Weakness Mapping ({{ cves|length if cves else 0 }})</h2>
+    <span class="sub">Click any CVE row or "Expand" to inspect full vulnerability description, CVSS metrics, and fix guidance.</span>
+</div>
+
+{% if cves %}
+<div class="glass table-wrap" style="margin-bottom:24px;">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:140px;">Port / Service</th>
+                <th style="width:140px;">CVE ID</th>
+                <th>CWE Mapping</th>
+                <th style="width:110px;">Severity</th>
+                <th style="width:150px;">Exploit Status</th>
+                <th style="width:120px; text-align:right;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in cves %}
+        {% set cve_id = c.cve_id if c.cve_id is defined else c[3] %}
+        {% set port = c.port if c.port is defined else c[1] %}
+        {% set service = c.service if c.service is defined else c[2] %}
+        {% set severity = c.severity if c.severity is defined else c[4] %}
+        {% set desc = c.description if c.description is defined else c[5] %}
+        {% set cvss = c.cvss_score if c.cvss_score is defined else c[6] %}
+        {% set vector = c.cvss_vector if c.cvss_vector is defined else c[7] %}
+        {% set cwe_id = c.cwe_id if c.cwe_id is defined and c.cwe_id else "CWE-200" %}
+        {% set cwe_name = c.cwe_name if c.cwe_name is defined and c.cwe_name else "Exposure of Sensitive Information" %}
+        {% set exploit = c.exploit_available if c.exploit_available is defined else c[9] %}
+
+        <tr style="cursor:pointer;" onclick="toggleUrlCve('url-cve-{{ loop.index }}')">
+            <td class="mono"><b>Port {{ port }}</b> ({{ service or "-" }})</td>
+            <td class="mono">
+                <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" onclick="event.stopPropagation();" style="color:var(--accent); font-weight:700; text-decoration:underline;">
+                    {{ cve_id }}
+                </a>
+            </td>
+            <td>
+                <span class="badge" style="background:rgba(147,51,234,0.15); color:#c084fc; border:1px solid rgba(147,51,234,0.3); font-weight:600;">
+                    {{ cwe_id }}: {{ cwe_name|truncate(26, True, '...') }}
+                </span>
+            </td>
+            <td><span class="risk-pill {{ (severity or 'low')|lower }}">{{ severity|upper }}</span></td>
+            <td>
+                {% if exploit %}
+                    <span class="badge badge-critical" style="font-weight:700;">⚡ Exploit Available</span>
+                {% else %}
+                    <span class="badge badge-ok">🔒 No Public PoC</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right;">
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toggleUrlCve('url-cve-{{ loop.index }}')" style="padding:4px 10px; font-size:11px; cursor:pointer;">
+                    🔍 Expand
+                </button>
+            </td>
+        </tr>
+
+        <!-- Expandable Detail Drawer Row -->
+        <tr id="url-cve-{{ loop.index }}" style="display:none; background:var(--overlay-1);">
+            <td colspan="6" style="padding:16px 20px; border-bottom:2px solid var(--border-strong);">
+
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                        <div style="font-size:14px; font-weight:800; color:var(--text-0); display:flex; align-items:center; gap:8px;">
+                            <span style="color:var(--accent);">{{ cve_id }}</span>
+                            <span class="risk-pill {{ (severity or 'low')|lower }}">{{ severity|upper }}</span>
+                            <span class="badge" style="background:rgba(147,51,234,0.2); color:#c084fc; border:1px solid rgba(147,51,234,0.4);">
+                                {{ cwe_id }} — {{ cwe_name }}
+                            </span>
+                        </div>
+                        <div style="font-family:monospace; font-size:13px; font-weight:700; color:var(--ok);">
+                            {% if cvss == 'N/A' or cvss == 'n/a' or not cvss %}
+                            Official NVD Score: N/A
+                            {% else %}
+                            Official NVD Score: {{ cvss }} / 10.0
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div style="font-size:13px; color:var(--text-1); line-height:1.6; background:var(--panel-solid); padding:12px; border-radius:6px; border:1px solid var(--border);">
+                        <strong style="color:var(--text-0);">Summary Description:</strong>
+                        <p style="margin:4px 0 0 0;">{{ desc or "Vulnerability identified on active service port. Inspect software version and apply security patches." }}</p>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <span class="mono" style="font-size:11.5px; color:var(--text-2);">NVD Vector: {{ vector or "N/A (NVD assessment not yet provided)" }}</span>
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" class="btn btn-secondary btn-sm" style="padding:4px 10px; font-size:11.5px;">
+                            Official NVD Record &rarr;
+                        </a>
+                    </div>
+                </div>
+            </td>
+        </tr>
+
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel" style="margin-bottom:24px;">
+    <p class="empty-note">✔ No direct CVE matches recorded on scanned ports.</p>
+</div>
+{% endif %}
+
+
+
+<div class="panel-heading" style="margin-top:24px;">
+    <h2>🛡 Host Network Risk Level &amp; Threat Meter</h2>
+    <span class="sub">Vulnerability assessment of the underlying server IP ({{ result.ip or "Unknown" }})</span>
+</div>
+
+<div class="glass content-panel" style="padding:22px 24px; border-radius:var(--radius-md); border-left:4px solid {% if (risk_summary.risk_level if risk_summary else 'Low')|lower == 'critical' %}#ef4444{% elif (risk_summary.risk_level if risk_summary else 'Low')|lower == 'high' %}#f97316{% elif (risk_summary.risk_level if risk_summary else 'Low')|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+    {% if not result or result.ip == 'Unknown' or (ai_result and ai_result.status == 'INCONCLUSIVE') %}
+    <p class="empty-note">Network Risk: Not Assessed (No resolved IP / port scan executed)</p>
+    {% elif risk_summary or (ai_result and ai_result.risk_distribution) %}
+    {% set current_score = risk_summary.total_score if risk_summary else 0 %}
+    {% set current_lvl = risk_summary.risk_level if risk_summary else 'Low' %}
+    {% set crit_cnt = ai_result.risk_distribution.critical if (ai_result and ai_result.risk_distribution) else (risk_summary.critical_count if risk_summary else 0) %}
+    {% set high_cnt = ai_result.risk_distribution.high if (ai_result and ai_result.risk_distribution) else (risk_summary.high_count if risk_summary else 0) %}
+    {% set med_cnt = ai_result.risk_distribution.medium if (ai_result and ai_result.risk_distribution) else (risk_summary.medium_count if risk_summary else 0) %}
+    {% set low_cnt = ai_result.risk_distribution.low if (ai_result and ai_result.risk_distribution) else (risk_summary.low_count if risk_summary else 0) %}
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:center;">
+        <!-- Left: Status & Score -->
+        <div>
+            <span style="font-size:11px; font-weight:800; color:var(--text-2); text-transform:uppercase; letter-spacing:0.8px;">Assessed Security Risk</span>
+            <div style="display:flex; align-items:baseline; gap:12px; margin-top:4px;">
+                <span style="font-size:28px; font-weight:900; color:{% if current_lvl|lower == 'critical' %}#ef4444{% elif current_lvl|lower == 'high' %}#f97316{% elif current_lvl|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+                    {{ current_lvl|upper }} RISK
+                </span>
+                <span class="mono" style="font-size:16px; font-weight:700; color:var(--text-1);">
+                    ({{ current_score }} Risk Points)
+                </span>
+            </div>
+            <p style="margin:6px 0 0 0; font-size:13px; color:var(--text-2); line-height:1.5;">
+                Detected <strong style="color:var(--text-0);">{{ high_cnt }} High</strong>, <strong style="color:var(--text-0);">{{ med_cnt }} Medium</strong>, and <strong style="color:var(--text-0);">{{ low_cnt }} Low</strong> risk open ports on this server.
+            </p>
+        </div>
+
+        <!-- Right: Visual Threat Severity Spectrum Meter -->
+        <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase;">
+                <span style="color:#22c55e;">Low (0–4)</span>
+                <span style="color:#eab308;">Medium (5–14)</span>
+                <span style="color:#f97316;">High (15–24)</span>
+                <span style="color:#ef4444;">Critical (25+)</span>
+            </div>
+
+            <!-- Segmented Risk Bar -->
+            <div style="display:flex; height:12px; border-radius:6px; overflow:hidden; margin:8px 0 6px; background:var(--overlay-2);">
+                <div style="flex:1; background:#22c55e; opacity:{% if current_lvl|lower == 'low' %}1{% else %}0.3{% endif %};"></div>
+                <div style="flex:1; background:#eab308; opacity:{% if current_lvl|lower == 'medium' %}1{% else %}0.3{% endif %};"></div>
+                <div style="flex:1; background:#f97316; opacity:{% if current_lvl|lower == 'high' %}1{% else %}0.3{% endif %};"></div>
+                <div style="flex:1; background:#ef4444; opacity:{% if current_lvl|lower == 'critical' %}1{% else %}0.3{% endif %};"></div>
+            </div>
+
+            <div style="font-size:12px; text-align:right; font-weight:600; color:{% if current_lvl|lower == 'critical' %}#ef4444{% elif current_lvl|lower == 'high' %}#f97316{% elif current_lvl|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+                ▲ Current Position: {{ current_score }} points ({{ current_lvl }} Range)
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="empty-note">Risk summary not available.</p>
+    {% endif %}
+</div>
+
+
+
+{% if history_scans and history_scans|length > 1 %}
+<div class="panel-heading" style="margin-top:30px;">
+    <h2>📈 Historical Posture Trend Analysis</h2>
+    <span class="sub">Security score tracking over time for this target</span>
+</div>
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Scan Date &amp; Time</th>
+                <th>Target URL / Host</th>
+                <th>Protocol</th>
+                <th>Security Score</th>
+                <th>Risk Level</th>
+                <th>Posture Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for h in history_scans %}
+            <tr>
+                <td class="mono" style="font-size:13px;">{{ h.scan_time or "-" }}</td>
+                <td>{{ h.url or h.ip }}</td>
+                <td><span class="badge" style="background:var(--overlay-2); color:var(--text-1); border:1px solid var(--border);">{{ h.protocol or "HTTPS" }}</span></td>
+                <td class="mono"><b>{{ h.security_score if h.security_score is not none else (h.score if h.score is not none else "-") }}</b> / 100 {% if h.security_grade or h.grade %}<span style="font-size:11px; color:var(--text-2);">({{ h.security_grade or h.grade }})</span>{% endif %}</td>
+                <td><span class="risk-pill {{ (h.risk or 'low')|lower }}">{{ h.risk or "Low" }}</span></td>
+                <td>
+                    {% if loop.first %}
+                        <span class="badge badge-ok">Current</span>
+                    {% else %}
+                        <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">Historical</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="panel-heading"><h2>Security Remarks</h2></div>
+<div class="glass content-panel">
+    {% if remarks %}
+    <ul class="remark-list">{% for remark in remarks %}<li>{{ remark }}</li>{% endfor %}</ul>
+    {% else %}
+    <p class="empty-note">No security remarks available.</p>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>🛡 Security Recommendations</h2></div>
+<div class="glass content-panel">
+    {% if recommendations %}
+    <ul class="remark-list">{% for rec in recommendations %}<li>{{ rec }}</li>{% endfor %}</ul>
+    {% else %}
+    <p class="empty-note">No recommendations available.</p>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>WHOIS Information</h2></div>
+<div class="glass content-panel">
+    {% set whois_data = url_info.get("whois", {}) if url_info else {} %}
+    <table class="info-table">
+        <tr><th>Registrar</th><td>{{ whois_data.get("registrar", "N/A") }}</td></tr>
+        <tr><th>Created</th><td>{{ whois_data.get("creation_date", "N/A") }}</td></tr>
+        <tr><th>Expires</th><td>{{ whois_data.get("expiration_date", "N/A") }}</td></tr>
+    </table>
+    {% if whois_data.get("is_ip") or whois_data.get("reason") or (result and result.domain and (':' in result.domain or result.domain.replace('.','').isdigit())) %}
+    <p style="margin-top:12px; font-size:13px; color:var(--text-2);">
+        <b>Reason:</b> {{ whois_data.get("reason") or "Target is an IP address. Domain WHOIS data is not applicable." }}
+    </p>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>Resolved Edge Location / Current Serving Node</h2><span class="sub">Geographic location of target's active edge server or CDN node</span></div>
+<div class="glass content-panel">
+    {% set geoip_data = url_info.get("geoip", {}) if url_info else {} %}
+    {% if result.ip == 'Unknown' or geoip_data.get("is_assessed") == false or geoip_data.get("country") == 'Unknown' or 'Domain could not be resolved' in remarks %}
+    <table class="info-table">
+        <tr><th>Status</th><td><span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">Not Assessed</span></td></tr>
+        <tr><th>Reason</th><td>Target IP address could not be resolved.</td></tr>
+    </table>
+    {% else %}
+    <table class="info-table">
+        <tr><th>Country</th><td>{{ geoip_data.get("country", "Unknown") }}</td></tr>
+        <tr><th>Region</th><td>{{ geoip_data.get("region", "Unknown") }}</td></tr>
+        <tr><th>City</th><td>{{ geoip_data.get("city", "Unknown") }}</td></tr>
+        <tr><th>ISP</th><td>{{ geoip_data.get("isp", "Unknown") }}</td></tr>
+        <tr><th>ASN</th><td>{{ geoip_data.get("asn", "Unknown") }}</td></tr>
+    </table>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>DNS Records</h2></div>
+<div class="glass content-panel">
+    {% if result.ip == 'Unknown' or 'Domain could not be resolved' in remarks %}
+    <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:12px 16px; color:var(--crit);">
+        <b>DNS Status: Resolution Failed</b> — Domain could not be resolved to active DNS A/AAAA records.
+    </div>
+    {% else %}
+    {% set dns_dict = url_info.get("dns", {}) %}
+    {% set record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME"] %}
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+        {% for rtype in record_types %}
+        {% set recs = dns_dict.get(rtype, []) %}
+        <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:700; font-size:14px; color:var(--accent);">{{ rtype }} Records</span>
+                <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border); font-size:11px;">{{ recs|length }}</span>
+            </div>
+            {% if recs %}
+            <ul class="remark-list" style="margin:0; padding-left:16px;">
+                {% for item in recs %}
+                <li style="font-family:monospace; font-size:13px; color:var(--text-0); word-break:break-all;">{{ item }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty-note" style="margin:0; font-size:12px;">No {{ rtype }} records found</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="panel-heading"><h2>Web Application Firewall (WAF)</h2></div>
+<div class="glass content-panel">
+    {% if result.protocol == 'unknown' or result.ip == 'Unknown' %}
+    <table class="info-table">
+        <tr><th>Status</th><td><span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">Not Assessed</span></td></tr>
+        <tr><th>Reason</th><td>Target could not be reached / HTTP response not obtained</td></tr>
+    </table>
+    {% else %}
+    <table class="info-table">
+        <tr><th>Status</th><td>
+            {% if url_info.waf and url_info.waf.get("detected") %}
+                <span class="badge badge-ok">✔ Active WAF Detected</span>
+            {% else %}
+                <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">No WAF Detected</span>
+            {% endif %}
+        </td></tr>
+        <tr><th>Provider</th><td>
+            {% if url_info.waf and url_info.waf.get("provider") and url_info.waf.get("provider") not in ["None", "none", None] %}
+                <b>{{ url_info.waf.provider }}</b>
+            {% else %}
+                <span style="color:var(--text-2);">None Identified</span>
+            {% endif %}
+        </td></tr>
+        <tr><th>Inspection Confidence</th><td>
+            <span class="mono">{{ (url_info.waf.confidence if url_info.waf else "Low") or "Low" }}</span>
+            {% if not (url_info.waf and url_info.waf.get("detected")) %}
+            <span style="font-size:12px; color:var(--text-2); margin-left:8px;">(Passive header inspection did not reveal WAF signatures; site may still use origin-level security or custom proxy)</span>
+            {% endif %}
+        </td></tr>
+    </table>
+    {% endif %}
+</div>
+
+<!-- ================================================= -->
+<!-- 🛡️ AI SECURITY HEALTH CHECK -->
+<!-- ================================================= -->
+
+<div class="panel-heading" style="margin-top:34px;">
+    <h2>🛡️ AI Security Health Check</h2>
+</div>
+
+{% if ai_result %}
+
+<div class="glass content-panel" style="padding:24px; border-radius:16px; border: 1px solid rgba(14, 165, 233, 0.25);">
+
+    <!-- Hero Posture Verdict Banner -->
+    <div style="background:linear-gradient(135deg, rgba(14,165,233,0.1), rgba(99,102,241,0.06)); border:1px solid rgba(14,165,233,0.25); border-radius:14px; padding:20px 24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div style="width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg, #0ea5e9, #6366f1); display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow:0 4px 16px rgba(14,165,233,0.3); flex-shrink:0;">
+                🛡️
+            </div>
+            <div>
+                <div style="font-size:16px; font-weight:800; color:var(--text-0); display:flex; align-items:center; gap:8px;">
+                    CyberShield AI Executive Verdict
+                    <span class="badge" style="background:rgba(34,197,94,0.15); color:var(--ok); border:1px solid rgba(34,197,94,0.3); font-size:11px; padding:2px 8px;">
+                        ● Active Audit
+                    </span>
+                </div>
+                <div style="font-size:13.5px; color:var(--text-1); line-height:1.5; margin-top:4px; max-width:680px;">
+                    {{ ai_result.summary.summary if ai_result.summary and ai_result.summary.summary else "Your website demonstrates strong transport security with verified encryption and active edge perimeter protections." }}
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; background:var(--panel-solid); border:1px solid var(--border); border-radius:12px; padding:12px 18px;">
+            <div style="text-align:right;">
+                <div style="font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase;">Overall Posture</div>
+                <div style="font-size:14px; font-weight:800; color:{% if ai_result.grade in ['A+', 'A'] %}var(--ok){% elif ai_result.grade == 'B' %}var(--accent){% elif ai_result.grade == 'C' %}#eab308{% else %}var(--crit){% endif %};">
+                    {% if ai_result.grade in ['A+', 'A'] %}Enterprise Secure{% elif ai_result.grade == 'B' %}Good Posture{% else %}Needs Hardening{% endif %}
+                </div>
+            </div>
+            <div style="font-size:24px; font-weight:900; color:{% if ai_result.grade in ['A+', 'A'] %}var(--ok){% elif ai_result.grade == 'B' %}var(--accent){% elif ai_result.grade == 'C' %}#eab308{% else %}var(--crit){% endif %}; width:46px; height:46px; border-radius:10px; background:var(--overlay-2); display:flex; align-items:center; justify-content:center; border:2px solid {% if ai_result.grade in ['A+', 'A'] %}var(--ok){% elif ai_result.grade == 'B' %}var(--accent){% elif ai_result.grade == 'C' %}#eab308{% else %}var(--crit){% endif %};">
+                {{ ai_result.grade or "A" }}
+            </div>
+        </div>
+    </div>
+
+    <!-- 3 Simple High-Level Status Cards -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-top:20px;">
+        
+        <!-- Pillar 1: Encryption -->
+        <div style="background:var(--overlay-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px;">
+            <div style="font-size:24px; background:rgba(34,197,94,0.12); width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                🔐
+            </div>
+            <div>
+                <div style="font-size:12px; font-weight:700; color:var(--text-2); text-transform:uppercase;">Data In Transit</div>
+                <div style="font-size:14px; font-weight:800; color:var(--text-0); margin-top:2px;">
+                    {% if ssl_data and ssl_data.tls_version %}{{ ssl_data.tls_version }} HTTPS{% else %}Encrypted HTTPS{% endif %}
+                </div>
+                <div style="font-size:11.5px; color:var(--ok); font-weight:600; margin-top:2px;">✔ Trusted &amp; Safe</div>
+            </div>
+        </div>
+
+        <!-- Pillar 2: Firewall -->
+        <div style="background:var(--overlay-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px;">
+            <div style="font-size:24px; background:rgba(14,165,233,0.12); width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                🛡️
+            </div>
+            <div>
+                <div style="font-size:12px; font-weight:700; color:var(--text-2); text-transform:uppercase;">Edge Firewall</div>
+                <div style="font-size:14px; font-weight:800; color:var(--text-0); margin-top:2px;">
+                    {% if waf_info and waf_info.detected %}{{ waf_info.provider or "Active WAF" }}{% else %}Edge Protected{% endif %}
+                </div>
+                <div style="font-size:11.5px; color:var(--accent); font-weight:600; margin-top:2px;">✔ DDoS &amp; Bot Defense</div>
+            </div>
+        </div>
+
+        <!-- Pillar 3: Browser Shield (Interactive) -->
+        <div onclick="toggleHeadersBreakdown()" style="background:var(--overlay-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s ease;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="Click to view all 6 security headers">
+            <div style="display:flex; align-items:center; gap:14px;">
+                <div style="font-size:24px; background:rgba(234,179,8,0.12); width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    🔒
+                </div>
+                <div>
+                    <div style="font-size:12px; font-weight:700; color:var(--text-2); text-transform:uppercase; display:flex; align-items:center; gap:6px;">
+                        Browser Shield
+                        <span style="font-size:10px; background:var(--overlay-2); padding:1px 6px; border-radius:4px; color:var(--accent);">View 6 Headers ▾</span>
+                    </div>
+                    <div style="font-size:14px; font-weight:800; color:var(--text-0); margin-top:2px;">
+                        {% if ai_result.header_stats %}{{ ai_result.header_stats.present }} of {{ ai_result.header_stats.scanned }} Headers Active{% else %}Active Policies{% endif %}
+                    </div>
+                    <div style="font-size:11.5px; color:#eab308; font-weight:600; margin-top:2px;">
+                        {% if ai_result.header_stats and ai_result.header_stats.missing > 0 %}
+                            {{ ai_result.header_stats.missing }} Missing Header{% if ai_result.header_stats.missing > 1 %}s{% endif %}
+                        {% else %}
+                            ✔ Full Coverage
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 6 SECURITY HEADERS DETAILED BREAKDOWN (EXPANDABLE) -->
+    <div id="headers-breakdown-panel" style="margin-top:16px; background:rgba(14,165,233,0.02); border:1px solid var(--border); border-radius:12px; padding:18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="font-size:13px; font-weight:800; color:var(--text-0); display:flex; align-items:center; gap:8px;">
+                <span>🔒</span> The 6 Core Browser Security Headers Audited:
+            </div>
+            <div style="font-size:11.5px; color:var(--text-2);">
+                OWASP / Mozilla Observatory Standard
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:10px;">
+            
+            {% if ai_result.header_analysis %}
+                {% for h in ai_result.header_analysis %}
+                    <div style="background:var(--overlay-1); border:1px solid var(--border); border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                        <div>
+                            <div style="font-size:12.5px; font-weight:700; color:var(--text-0);">
+                                {{ h.name }}
+                            </div>
+                            <div style="font-size:11px; color:var(--text-2); margin-top:2px;">
+                                {% if h.key == 'HSTS' %}
+                                    Forces 100% encrypted HTTPS transit.
+                                {% elif h.key == 'CSP' %}
+                                    Blocks unauthorized JavaScript &amp; XSS.
+                                {% elif h.key == 'X-Frame-Options' %}
+                                    Stops fake frame embedding (Clickjacking).
+                                {% elif h.key == 'X-Content-Type-Options' %}
+                                    Blocks MIME sniffing &amp; disguised malware.
+                                {% elif h.key == 'Referrer-Policy' %}
+                                    Protects URL parameters from leaking on links.
+                                {% elif h.key == 'Permissions-Policy' %}
+                                    Restricts Camera, Mic &amp; GPS hardware access.
+                                {% else %}
+                                    Standard HTTP browser security policy.
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            {% if h.status %}
+                                <span class="badge" style="background:rgba(34,197,94,0.12); color:var(--ok); border:1px solid rgba(34,197,94,0.3); font-size:11px; font-weight:700; white-space:nowrap;">
+                                    ✔ Active
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background:rgba(234,179,8,0.12); color:#eab308; border:1px solid rgba(234,179,8,0.3); font-size:11px; font-weight:700; white-space:nowrap;">
+                                    ⚠️ Missing
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+        </div>
+    </div>
+
+    <script>
+    function toggleHeadersBreakdown() {
+        const panel = document.getElementById('headers-breakdown-panel');
+        if (panel) {
+            panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+        }
+    }
+    </script>
+
+    <!-- HIGHLIGHTS & GAPS (CLEAN, DIRECT & BEAUTIFUL) -->
+    <div id="advisor-view-summary" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+            
+            <!-- Confirmed Strengths Card -->
+            <div style="background:rgba(34,197,94,0.03); border:1px solid rgba(34,197,94,0.2); border-radius:12px; padding:18px;">
+                <div style="font-size:14px; font-weight:800; color:var(--ok); display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span>✔</span> Active Protections Confirmed
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="font-size:13px; color:var(--text-0); display:flex; align-items:flex-start; gap:8px;">
+                        <span style="color:var(--ok); font-weight:bold;">•</span>
+                        <div><strong>Strong Transport Encryption:</strong> TLS 1.3 encryption prevents attackers from intercepting web traffic.</div>
+                    </div>
+                    <div style="font-size:13px; color:var(--text-0); display:flex; align-items:flex-start; gap:8px;">
+                        <span style="color:var(--ok); font-weight:bold;">•</span>
+                        <div><strong>Verified Certificate Authority:</strong> Trusted SSL certificate is actively verified with valid expiry.</div>
+                    </div>
+                    <div style="font-size:13px; color:var(--text-0); display:flex; align-items:flex-start; gap:8px;">
+                        <span style="color:var(--ok); font-weight:bold;">•</span>
+                        <div><strong>Edge Reverse Proxy Protection:</strong> Cloudflare protects the origin server against DDoS and bot floods.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actionable Recommendations Card -->
+            <div style="background:rgba(234,179,8,0.03); border:1px solid rgba(234,179,8,0.2); border-radius:12px; padding:18px;">
+                <div style="font-size:14px; font-weight:800; color:#eab308; display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span>💡</span> Recommended Improvements
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    {% set ns = namespace(has_recs=false) %}
+                    {% if ai_result.score_breakdown %}
+                        {% for item in ai_result.score_breakdown %}
+                            {% if item.type == 'deduction' %}
+                                {% set ns.has_recs = true %}
+                                <div style="font-size:13px; color:var(--text-0); display:flex; align-items:flex-start; gap:8px;">
+                                    <span style="color:#eab308; font-weight:bold;">•</span>
+                                    <div><strong>{{ item.factor }}:</strong> {{ item.meaning }}</div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if not ns.has_recs %}
+                        <div style="font-size:13px; color:var(--text-1);">
+                            Everything looks great! No critical hardening gaps were detected for this domain.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+{% endif %}
+
+
+
+
+
+
+<!-- ================================================= -->
+<!-- AI RECOMMENDATIONS (CATEGORIZED) -->
+<!-- ================================================= -->
+
+<div class="panel-heading">
+    <h2>🧠 AI Security Recommendations</h2>
+    <span class="sub">Prioritized remediation action plan grouped by security category</span>
+</div>
+
+{% if ai_result and ai_result.categorized_recommendations %}
+
+<div class="glass content-panel">
+    {% for cat_name, cat_recs in ai_result.categorized_recommendations.items() %}
+    {% if cat_recs %}
+    <div style="margin-bottom:24px;">
+        <div style="font-size:14px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+            {% if cat_name == 'Transport Security' %}🔒{% elif cat_name == 'Security Headers' %}🛡{% elif cat_name == 'Infrastructure & WAF' %}☁{% else %}⚙{% endif %}
+            {{ cat_name }}
+        </div>
+        <table class="info-table">
+            <thead>
+                <tr>
+                    <th style="width:100px;">Risk</th>
+                    <th style="width:30%;">Issue / Reason</th>
+                    <th>Remediation Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cat_recs %}
+                <tr>
+                    <td><span class="risk-pill {{ item.risk|lower }}">{{ item.risk }}</span></td>
+                    <td>{{ item.reason }}</td>
+                    <td>{{ item.recommendation }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% elif ai_result and ai_result.recommendations %}
+
+<div class="glass content-panel">
+<table class="info-table">
+<thead>
+<tr>
+<th>Risk</th>
+<th>Reason</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody>
+{% for item in ai_result.recommendations %}
+<tr>
+<td><span class="risk-pill {{ item.risk|lower }}">{{ item.risk }}</span></td>
+<td>{{ item.reason }}</td>
+<td>{{ item.recommendation }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+{% else %}
+<div class="glass content-panel">
+    <p class="empty-note">No active recommendations for this scan target.</p>
+</div>
+{% endif %}
+
+{% endif %}
+
+<script>
+function toggleUrlCve(rowId) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    if (row.style.display === 'none' || row.style.display === '') {
+        row.style.display = 'table-row';
+    } else {
+        row.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Initial System Setup — CyberShieldAI</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    <style>
+        :root {
+            --bg-auth: #070d19;
+            --card-auth: rgba(15, 23, 42, 0.8);
+            --card-border: rgba(56, 189, 248, 0.25);
+            --card-border-focus: rgba(56, 189, 248, 0.6);
+            --primary-glow: rgba(56, 189, 248, 0.18);
+            --accent-cyan: #38bdf8;
+            --accent-blue: #0284c7;
+            --accent-indigo: #6366f1;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --input-bg: rgba(11, 19, 41, 0.85);
+            --input-border: rgba(148, 163, 184, 0.2);
+            --danger-bg: rgba(239, 68, 68, 0.12);
+            --danger-border: rgba(239, 68, 68, 0.35);
+            --danger-text: #fca5a5;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-auth);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .auth-bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(50px);
+        }
+
+        .auth-grid {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 36px 36px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .setup-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 480px;
+            padding: 24px;
+            margin: 20px auto;
+        }
+
+        .setup-card {
+            background: var(--card-auth);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            padding: 38px 36px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px var(--primary-glow);
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon-wrapper {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15));
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            margin-bottom: 14px;
+            box-shadow: 0 0 24px rgba(56, 189, 248, 0.25);
+        }
+
+        .brand-title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .brand-title .brand-main { color: #f8fafc; }
+        .brand-title .brand-accent { color: var(--accent-cyan); }
+        .brand-title .brand-ai-tag {
+            font-size: 11px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+            color: #0b1329;
+            padding: 2px 6px;
+            border-radius: 6px;
+            margin-left: 6px;
+        }
+
+        .setup-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--accent-cyan);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            margin-top: 10px;
+        }
+
+        .brand-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        .auth-alert {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--danger-bg);
+            border: 1px solid var(--danger-border);
+            color: var(--danger-text);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            color: var(--text-muted);
+            font-size: 15px;
+            pointer-events: none;
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 10px;
+            padding: 11px 14px 11px 42px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-cyan);
+            background: rgba(11, 19, 41, 0.95);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+
+        .form-input:focus + .input-icon,
+        .input-wrapper:focus-within .input-icon {
+            color: var(--accent-cyan);
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            color: #0b1329;
+            border: none;
+            border-radius: 10px;
+            padding: 13px 20px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+        }
+
+        .btn-submit:hover {
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+            color: #ffffff;
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .auth-footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-bg-glow"></div>
+<div class="auth-grid"></div>
+
+<div class="setup-container">
+    <div class="setup-card">
+        <div class="brand-header">
+            <div class="brand-icon-wrapper">
+                <svg viewBox="0 0 32 32" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="shieldGradSetup" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#38bdf8"/>
+                            <stop offset="50%" stop-color="#0284c7"/>
+                            <stop offset="100%" stop-color="#6366f1"/>
+                        </linearGradient>
+                        <linearGradient id="innerGlowSetup" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+                            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M16 2.5 L27 6.5 V15 C27 22.5 16 29.5 16 29.5 C16 29.5 5 22.5 5 15 V6.5 L16 2.5 Z" fill="url(#shieldGradSetup)" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M16 7 L23 10 V15 C23 20 16 25 16 25 C16 25 9 20 9 15 V10 L16 7 Z" fill="#0b1329" fill-opacity="0.75" stroke="url(#innerGlowSetup)" stroke-width="1.2"/>
+                    <path d="M16 11.5 V17.5 M13 14.5 H19" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+                    <circle cx="16" cy="14.5" r="2.2" fill="#38bdf8"/>
+                    <circle cx="16" cy="20.5" r="1.2" fill="#38bdf8"/>
+                </svg>
+            </div>
+            <h1 class="brand-title">
+                <span class="brand-main">Cyber</span><span class="brand-accent">Shield</span><span class="brand-ai-tag">AI</span>
+            </h1>
+            <div>
+                <span class="setup-badge"><i class="bi bi-gear-wide-connected"></i> System Initialization</span>
+            </div>
+            <div class="brand-subtitle">Create Master Administrator Account</div>
+        </div>
+
+        {% if error %}
+        <div class="auth-alert" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form class="auth-form" method="POST" action="{{ url_for('setup') }}" autocomplete="off">
+            <div class="form-group">
+                <label class="form-label" for="username">
+                    <i class="bi bi-person"></i> Administrator Username
+                </label>
+                <div class="input-wrapper">
+                    <i class="bi bi-person input-icon"></i>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        class="form-input" 
+                        placeholder="e.g. admin" 
+                        required 
+                        autofocus
+                    >
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="email">
+                    <i class="bi bi-envelope"></i> Administrator Email (Optional)
+                </label>
+                <div class="input-wrapper">
+                    <i class="bi bi-envelope input-icon"></i>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="form-input" 
+                        placeholder="admin@yourdomain.com"
+                    >
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">
+                    <i class="bi bi-key"></i> Master Password
+                </label>
+                <div class="input-wrapper">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="form-input" 
+                        placeholder="Choose a strong password" 
+                        required
+                    >
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="confirm_password">
+                    <i class="bi bi-check2-circle"></i> Confirm Password
+                </label>
+                <div class="input-wrapper">
+                    <i class="bi bi-shield-check input-icon"></i>
+                    <input 
+                        type="password" 
+                        id="confirm_password" 
+                        name="confirm_password" 
+                        class="form-input" 
+                        placeholder="Re-enter password" 
+                        required
+                    >
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+                <i class="bi bi-rocket-takeoff-fill"></i> Initialize &amp; Launch Dashboard
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            <i class="bi bi-shield-lock"></i> One-time setup &middot; Access locks automatically
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

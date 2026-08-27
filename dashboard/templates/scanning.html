@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanning... | CyberShieldAI</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("csa-theme");
+          if (t === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+          } else if (t === "dark") {
+            document.documentElement.removeAttribute("data-theme");
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <style>
+        :root{
+            --void:        var(--bg-0, #0A0E14);
+            --panel:       var(--panel-solid, #10151F);
+            --panel-alt:   var(--overlay-1, #141B29);
+            --line:        var(--border, #212A3B);
+            --line-bright: var(--border-strong, #2F3C54);
+
+            --cyan:        var(--accent, #22D3C8);
+            --cyan-dim:    var(--overlay-2, rgba(34,211,200,.14));
+            --amber:       var(--med, #FFB454);
+            --amber-dim:   rgba(255,180,84,.14);
+            --red:         var(--crit, #FF5470);
+            --red-dim:     rgba(255,84,112,.14);
+            --green:       var(--ok, #38E88B);
+            --green-dim:   rgba(56,232,139,.14);
+
+            --text-hi:     var(--text-0, #EAEFF6);
+            --text-mid:    var(--text-1, #A6B0C3);
+            --text-low:    var(--text-2, #5C6779);
+
+            --nav-bg:      rgba(10,14,20,.86);
+            --grid-line:   var(--line);
+            --radial-glow: rgba(34,211,200,.09);
+
+            --mono: 'JetBrains Mono', ui-monospace, monospace;
+            --sans: 'Inter', system-ui, sans-serif;
+            --radius: 6px;
+        }
+
+        html[data-theme="light"] {
+            --void:        var(--bg-0, #f6f7fb);
+            --panel:       var(--panel-solid, #ffffff);
+            --panel-alt:   var(--overlay-1, rgba(15,23,42,0.035));
+            --line:        var(--border, rgba(15,23,42,0.12));
+            --line-bright: var(--border-strong, rgba(15,23,42,0.22));
+
+            --cyan:        var(--accent, #0891b2);
+            --cyan-dim:    var(--overlay-2, rgba(8,145,178,0.12));
+            --amber:       var(--med, #d97706);
+            --amber-dim:   rgba(217,119,6,0.12);
+            --red:         var(--crit, #dc2626);
+            --red-dim:     rgba(220,38,38,0.12);
+            --green:       var(--ok, #16a34a);
+            --green-dim:   rgba(22,163,74,0.12);
+
+            --text-hi:     var(--text-0, #0f172a);
+            --text-mid:    var(--text-1, #334155);
+            --text-low:    var(--text-2, #64748b);
+
+            --nav-bg:      rgba(255,255,255,0.88);
+            --grid-line:   rgba(15,23,42,0.06);
+            --radial-glow: rgba(8,145,178,0.06);
+        }
+
+        *{ box-sizing: border-box; }
+
+        html, body{
+            background: var(--void);
+            color: var(--text-hi);
+            font-family: var(--sans);
+            margin: 0;
+        }
+
+        body{
+            background-color: var(--void);
+            background-image:
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 42px 42px;
+            background-position: -1px -1px;
+            background-attachment: fixed;
+            position: relative;
+            min-height: 100vh;
+        }
+        body::before{
+            content:"";
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse 900px 500px at 50% -10%, var(--radial-glow), transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        a{ color: var(--cyan); text-decoration: none; }
+
+        .csa-nav{
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background: var(--nav-bg);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--line);
+        }
+        .csa-nav-inner{
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: .85rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .csa-brand{
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            font-family: var(--mono);
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: var(--text-hi);
+        }
+        .csa-brand i{ color: var(--cyan); font-size: 1.15rem; }
+        .csa-brand .tag{
+            font-size: .62rem;
+            font-weight: 600;
+            color: var(--cyan);
+            border: 1px solid var(--cyan-dim);
+            background: var(--cyan-dim);
+            padding: .1rem .4rem;
+            border-radius: var(--radius);
+        }
+
+        .csa-shell{
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem 4rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .eyebrow{
+            font-family: var(--mono);
+            font-size: .72rem;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: var(--text-low);
+        }
+        .eyebrow::before{ content: "// "; color: var(--cyan); }
+
+        h1{
+            font-family: var(--mono);
+            font-weight: 800;
+            font-size: clamp(1.4rem, 3vw, 1.9rem);
+            margin: .3rem 0 .4rem;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        .csa-target{
+            font-family: var(--mono);
+            color: var(--cyan);
+        }
+
+        .csa-panel{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            margin-top: 1.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+
+        .csa-status-row{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.1rem 1.4rem;
+            border-bottom: 1px solid var(--line);
+        }
+        .csa-status{
+            font-family: var(--mono);
+            font-size: .8rem;
+            font-weight: 600;
+            letter-spacing: .05em;
+            padding: .45rem .9rem;
+            border-radius: var(--radius);
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+        }
+        .csa-status.running{
+            color: var(--amber);
+            background: var(--amber-dim);
+            border: 1px solid var(--amber);
+        }
+        .csa-status.done{
+            color: var(--green);
+            background: var(--green-dim);
+            border: 1px solid var(--green);
+        }
+        .csa-status.error{
+            color: var(--red);
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+        }
+        .csa-status .dot{
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 3px currentColor;
+            opacity: .9;
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+        .csa-status.done .dot, .csa-status.error .dot{ animation: none; }
+        @keyframes pulse{
+            0%, 100%{ opacity: 1; }
+            50%{ opacity: .3; }
+        }
+
+        .csa-bar-track{
+            height: 4px;
+            width: 100%;
+            background: var(--line);
+            overflow: hidden;
+        }
+        .csa-bar-fill{
+            height: 100%;
+            width: 30%;
+            background: linear-gradient(90deg, var(--cyan), var(--green));
+            animation: slide 1.6s ease-in-out infinite;
+        }
+        .csa-bar-fill.done{ width: 100%; animation: none; background: var(--green); }
+        .csa-bar-fill.error{ width: 100%; animation: none; background: var(--red); }
+        @keyframes slide{
+            0%{ transform: translateX(-100%); }
+            50%{ transform: translateX(150%); }
+            100%{ transform: translateX(400%); }
+        }
+
+        .csa-console{
+            font-family: var(--mono);
+            font-size: .84rem;
+            line-height: 1.9;
+            padding: 1.2rem 1.4rem;
+            max-height: 360px;
+            overflow-y: auto;
+            color: var(--text-mid);
+            background: var(--panel);
+        }
+        .csa-console .line{
+            display: flex;
+            gap: .6rem;
+            border-bottom: 1px dashed var(--line);
+            padding: .3rem 0;
+            color: var(--text-mid);
+        }
+        .csa-console .line:last-child{ border-bottom: none; color: var(--text-hi); }
+        .csa-console .n{ color: var(--text-low); flex-shrink: 0; }
+        .csa-console .msg::before{ content: "\203A"; color: var(--cyan); margin-right: .5rem; }
+        .csa-console .empty{ color: var(--text-low); }
+
+        .csa-error-box{
+            margin: 1.2rem 1.4rem 1.4rem;
+            padding: 1rem 1.1rem;
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+            border-radius: var(--radius);
+            color: var(--text-hi);
+            font-family: var(--mono);
+            font-size: .85rem;
+        }
+
+        .csa-actions{
+            padding: 1.2rem 1.4rem 1.4rem;
+            display: flex;
+            gap: .7rem;
+            flex-wrap: wrap;
+        }
+        .csa-btn{
+            font-family: var(--mono);
+            font-size: .85rem;
+            font-weight: 600;
+            border-radius: var(--radius);
+            border: 1px solid var(--line-bright);
+            padding: .7rem 1.2rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: var(--panel-alt);
+            color: var(--text-hi);
+            text-decoration: none;
+        }
+        .csa-btn:hover{ border-color: var(--cyan); color: var(--cyan); }
+        .csa-btn-primary{
+            background: var(--cyan);
+            color: #ffffff;
+            border-color: var(--cyan);
+        }
+        html[data-theme="dark"] .csa-btn-primary,
+        :root:not([data-theme="light"]) .csa-btn-primary {
+            color: #06231F;
+        }
+        .csa-btn-primary:hover{ filter: brightness(1.08); }
+
+        .csa-hint{
+            margin-top: 1rem;
+            color: var(--text-low);
+            font-size: .82rem;
+        }
+    </style>
+</head>
+
+<body>
+
+<nav class="csa-nav">
+    <div class="csa-nav-inner">
+        <a class="csa-brand" href="/">
+            <i class="bi bi-shield-lock-fill"></i>
+            CyberShieldAI
+        </a>
+    </div>
+</nav>
+
+<div class="csa-shell">
+    <span class="eyebrow">{{ 'Website scan' if job.type == 'url' else 'Network scan' }} in progress</span>
+    <h1><i class="bi bi-radar"></i> Scanning <span class="csa-target">{{ job.target }}</span></h1>
+    <p style="color:var(--text-mid); margin:0;">
+        This page updates automatically. You'll be redirected to the results as soon as the scan finishes.
+    </p>
+
+    <div class="csa-panel">
+        <div class="csa-status-row">
+            <span id="statusPill" class="csa-status running"><span class="dot"></span> RUNNING</span>
+            <span id="jobId" style="font-family:var(--mono); font-size:.72rem; color:var(--text-low);">
+                job: {{ job.job_id }}
+            </span>
+        </div>
+
+        <div class="csa-bar-track">
+            <div id="barFill" class="csa-bar-fill"></div>
+        </div>
+
+        <div id="console" class="csa-console">
+            <div class="empty">Waiting for scan output...</div>
+        </div>
+
+        <div id="errorBox" class="csa-error-box" style="display:none;"></div>
+
+        <div id="actions" class="csa-actions" style="display:none;"></div>
+    </div>
+
+    <p class="csa-hint">
+        Quick Scan checks the 1000 most common ports (usually under a minute).
+        Full Scan checks all 65,535 ports and can take several minutes depending on the target.
+    </p>
+</div>
+
+<script>
+    const jobId = {{ job.job_id | tojson }};
+    const jobType = {{ job.type | tojson }};
+    let lastLogCount = 0;
+    let redirected = false;
+
+    function renderLogs(logs){
+        const box = document.getElementById('console');
+        if (!logs || logs.length === 0){
+            box.innerHTML = '<div class="empty">Waiting for scan output...</div>';
+            return;
+        }
+        if (logs.length === lastLogCount) return;
+        lastLogCount = logs.length;
+
+        box.innerHTML = logs.map(function(msg, i){
+            return '<div class="line"><span class="n">' + String(i + 1).padStart(2, '0') +
+                   '</span><span class="msg">' + escapeHtml(msg) + '</span></div>';
+        }).join('');
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function escapeHtml(str){
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function setStatus(state){
+        const pill = document.getElementById('statusPill');
+        const bar = document.getElementById('barFill');
+        pill.className = 'csa-status ' + state;
+        bar.className = 'csa-bar-fill ' + state;
+
+        if (state === 'running'){
+            pill.innerHTML = '<span class="dot"></span> RUNNING';
+        } else if (state === 'done'){
+            pill.innerHTML = '<i class="bi bi-check-circle-fill"></i> COMPLETE';
+        } else if (state === 'error'){
+            pill.innerHTML = '<i class="bi bi-x-circle-fill"></i> ERROR';
+        }
+    }
+
+    function showActions(links){
+        const box = document.getElementById('actions');
+        box.style.display = 'flex';
+        box.innerHTML = links;
+    }
+
+    let pollCount = 0;
+    const maxPolls = 250;
+
+    function poll(){
+        pollCount++;
+        if (pollCount > maxPolls) {
+            setStatus('error');
+            document.getElementById('errorBox').style.display = 'block';
+            document.getElementById('errorBox').textContent = 'Scan execution timed out on the client after 300 seconds. Target host or network may be unresponsive.';
+            let target = (jobType === 'url') ? '/url-scan-result' : '/ip-scan-result';
+            showActions('<a class="csa-btn csa-btn-primary" href="' + target + '"><i class="bi bi-graph-up"></i> View Partial Results</a>' +
+                        '<a class="csa-btn" href="/"><i class="bi bi-house"></i> Dashboard</a>');
+            return;
+        }
+
+        fetch('/scan-status/' + jobId)
+            .then(function(res){
+                if (!res.ok) throw new Error('status endpoint returned ' + res.status);
+                return res.json();
+            })
+            .then(function(job){
+                renderLogs(job.logs);
+
+                if (job.status === 'running'){
+                    setStatus('running');
+                    setTimeout(poll, 1200);
+                    return;
+                }
+
+                if (job.status === 'error'){
+                    setStatus('error');
+                    document.getElementById('errorBox').style.display = 'block';
+                    document.getElementById('errorBox').textContent = job.error || 'Unknown error occurred during the scan.';
+                    showActions('<a class="csa-btn csa-btn-primary" href="/"><i class="bi bi-house"></i> Back to Dashboard</a>');
+                    return;
+                }
+
+                if (job.status === 'done'){
+                    setStatus('done');
+
+                    // Each scan type now has its own dedicated result
+                    // dashboard page (IP Scan Result / URL Scan Result),
+                    // reachable from its own button - instead of URL scans
+                    // dropping onto an unrelated, disconnected page.
+                    let target = (jobType === 'url') ? '/url-scan-result' : '/ip-scan-result';
+                    let extraLink = '';
+                    if (jobType === 'url' && job.result_ip){
+                        extraLink = '<a class="csa-btn" href="/url-result/' + job.result_ip + '"><i class="bi bi-file-earmark-text"></i> Full URL Report</a>';
+                    }
+
+                    showActions(
+                        '<a class="csa-btn csa-btn-primary" href="' + target + '"><i class="bi bi-graph-up"></i> View Results</a>' +
+                        extraLink +
+                        '<a class="csa-btn" href="/"><i class="bi bi-house"></i> Dashboard</a>'
+                    );
+
+                    if (!redirected){
+                        redirected = true;
+                        setTimeout(function(){ window.location.href = target; }, 1200);
+                    }
+                    return;
+                }
+
+                setTimeout(poll, 1500);
+            })
+            .catch(function(err){
+                setTimeout(poll, 2000);
+            });
+    }
+
+    poll();
+</script>
+
+</body>
+</html>

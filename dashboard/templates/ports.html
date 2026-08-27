@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Open Ports{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>📡 Open Ports &amp; Service Banners</h2>
+    <span class="sub">{{ rows|length }} port{{ 's' if rows|length != 1 else '' }} on {{ latest_ip or "the latest scan" }}</span>
+</div>
+
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Port</th>
+                <th>State</th>
+                <th>Service</th>
+                <th>Banner</th>
+                <th>What This Means</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="mono">{{ row[0] }}</td>
+            <td class="mono">{{ row[1] }}</td>
+            <td>
+                {% if row[2] == 'open' %}
+                    <span class="badge badge-ok">{{ row[2] }}</span>
+                {% else %}
+                    <span class="badge badge-unknown">{{ row[2] }}</span>
+                {% endif %}
+            </td>
+            <td>{{ row[3] }}</td>
+            <td style="max-width:380px; word-wrap:break-word;">{{ row[4] }}</td>
+            <td style="max-width:320px; word-wrap:break-word; color:var(--text-1); font-style:italic;">{{ meanings[loop.index0] }}</td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="6">No open ports found for the latest scan.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

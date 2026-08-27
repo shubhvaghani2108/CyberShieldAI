@@ -1,0 +1,149 @@
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <a href="{{ url_for('dashboard') }}" class="sidebar-brand-link">
+            <div class="brand-logo-badge">
+                <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#38bdf8"/>
+                            <stop offset="50%" stop-color="#0284c7"/>
+                            <stop offset="100%" stop-color="#6366f1"/>
+                        </linearGradient>
+                        <linearGradient id="innerGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+                            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- Shield Outline -->
+                    <path d="M16 2.5 L27 6.5 V15 C27 22.5 16 29.5 16 29.5 C16 29.5 5 22.5 5 15 V6.5 L16 2.5 Z" fill="url(#shieldGrad)" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round"/>
+                    <!-- Inner Core -->
+                    <path d="M16 7 L23 10 V15 C23 20 16 25 16 25 C16 25 9 20 9 15 V10 L16 7 Z" fill="#0b1329" fill-opacity="0.75" stroke="url(#innerGlow)" stroke-width="1.2"/>
+                    <path d="M16 11.5 V17.5 M13 14.5 H19" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+                    <circle cx="16" cy="14.5" r="2.2" fill="#38bdf8"/>
+                    <circle cx="16" cy="20.5" r="1.2" fill="#38bdf8"/>
+                </svg>
+            </div>
+            <div class="brand-text">
+                <div class="brand-title">
+                    <span class="brand-main">Cyber</span><span class="brand-accent">Shield</span><span class="brand-ai-tag">AI</span>
+                </div>
+                <div class="brand-subtitle">
+                    <span class="pulse-dot"></span> AI Security Platform
+                </div>
+            </div>
+        </a>
+        <button class="sidebar-close" type="button" data-close-sidebar aria-label="Close menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+    </div>
+
+    <!-- Scrollable Nav Body -->
+    <div class="sidebar-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 12px;">
+        <!-- 1. OPERATIONS / GENERAL -->
+        <div class="nav-section-label">Operations</div>
+        <ul class="sidebar-nav">
+            <li><a href="{{ url_for('dashboard') }}" class="{{ 'active' if active_page == 'dashboard' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+                Overview
+            </a></li>
+            <li><a href="{{ url_for('monitoring_page') }}" class="{{ 'active' if active_page == 'monitoring' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Live Monitoring
+            </a></li>
+        </ul>
+
+        <!-- 2. SCAN RESULTS -->
+        <div class="nav-section-label">Scan Results</div>
+        <ul class="sidebar-nav">
+            <li><a href="{{ url_for('ip_scan_result_page') }}" class="{{ 'active' if active_page == 'ip_scan_result' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+                IP Scan Result
+            </a></li>
+            <li><a href="{{ url_for('url_scan_result_page') }}" class="{{ 'active' if active_page == 'url_scan_result' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                URL Scan Result
+            </a></li>
+        </ul>
+
+        <!-- 3. FINDINGS & THREATS -->
+        <div class="nav-section-label">Findings &amp; Threats</div>
+        <ul class="sidebar-nav">
+            <li><a href="{{ url_for('view_vulnerabilities') }}" class="{{ 'active' if active_page == 'vulnerabilities' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                Vulnerabilities
+            </a></li>
+            <li><a href="{{ url_for('view_ports') }}" class="{{ 'active' if active_page == 'ports' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h16"/><path d="M4 7h16"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+                Open Ports
+            </a></li>
+            <li><a href="{{ url_for('view_cves') }}" class="{{ 'active' if active_page == 'cves' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6"/><path d="M9 16h6"/><path d="M13 3v4a1 1 0 0 0 1 1h4"/><path d="M17.5 21H6.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H14l6 6v10a2 2 0 0 1-2 2Z"/></svg>
+                CVE Database
+            </a></li>
+            <li><a href="{{ url_for('risk_report') }}" class="{{ 'active' if active_page == 'risk_report' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                Risk Report
+            </a></li>
+        </ul>
+
+        <!-- 4. HISTORY & LOGS -->
+        <div class="nav-section-label">History &amp; Logs</div>
+        <ul class="sidebar-nav">
+            <li><a href="{{ url_for('history') }}" class="{{ 'active' if active_page == 'history' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                IP Scan History
+            </a></li>
+            <li><a href="{{ url_for('url_history') }}" class="{{ 'active' if active_page == 'url_history' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                URL Scan History
+            </a></li>
+        </ul>
+
+        <!-- 5. SETTINGS -->
+        <div class="nav-section-label">Settings</div>
+        <ul class="sidebar-nav">
+            <li><a href="{{ url_for('profile_page') }}" class="{{ 'active' if active_page == 'profile' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                User Profile
+            </a></li>
+            {% if session.get('role') == 'ADMIN' %}
+            <li><a href="{{ url_for('users_list') }}" class="{{ 'active' if active_page == 'users' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                User Management
+            </a></li>
+            <li><a href="{{ url_for('email_settings_page') }}" class="{{ 'active' if active_page == 'email_settings' else '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Email Alerts
+            </a></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <!-- Sidebar Footer with User Profile & Logout -->
+    <div class="sidebar-footer-wrapper">
+        <div class="sidebar-status-row">
+            <span class="status-dot"></span>
+            <span class="status-text">Engine Online</span>
+        </div>
+
+        <div class="sidebar-user-section">
+            <a href="{{ url_for('profile_page') }}" class="user-meta" style="text-decoration:none;" title="View User Profile">
+                <div class="user-avatar-icon" style="overflow: hidden; border-radius: 50%;">
+                    {% if session.get('avatar_url') %}
+                        <img src="{{ session.get('avatar_url') }}" alt="Avatar" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ session.get('username', 'User') }}&background=0284c7&color=ffffff&bold=true&rounded=true';" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    {% else %}
+                        <img src="https://ui-avatars.com/api/?name={{ session.get('username', 'User') }}&background=0284c7&color=ffffff&bold=true&rounded=true" alt="Avatar" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    {% endif %}
+                </div>
+                <div class="user-text-col">
+                    <span class="user-display-name">{{ session.get('username', 'Admin') }}</span>
+                    <span class="user-role-tag">{{ session.get('role', 'ADMIN') }}</span>
+                </div>
+            </a>
+            <a href="{{ url_for('logout') }}" class="user-logout-link" title="Logout">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                <span>Logout</span>
+            </a>
+        </div>
+    </div>
+</aside>

@@ -1,0 +1,25 @@
+<div class="split-grid">
+<div>
+    <div class="panel-heading">
+        <h2>🕒 Recent Activity</h2>
+        <span class="sub">Latest scanned hosts</span>
+    </div>
+    <div class="glass feed">
+        {% for item in recent_activity %}
+            <div class="feed-item">
+                <div class="feed-dot {{ 'ok' if item.status == 'Alive' else 'crit' if item.status == 'Dead' else '' }}"></div>
+                <div class="feed-body">
+                    <div class="feed-title">{{ item.target_ip }} &mdash; {{ item.status }}</div>
+                    <div class="feed-meta">{{ item.scan_time }}</div>
+                </div>
+            </div>
+        {% else %}
+            <div class="feed-item">
+                <div class="feed-body">
+                    <div class="feed-title">No activity yet</div>
+                    <div class="feed-meta">Run a scan to see it appear here in real time.</div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>

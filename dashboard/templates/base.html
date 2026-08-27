@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CyberShieldAI{% endblock %} — Security Operations Center</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    <!-- Applies the saved theme before first paint, so there's no flash of
+         the wrong theme when a page loads. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("csa-theme");
+          if (t === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+          } else if (t === "dark") {
+            document.documentElement.removeAttribute("data-theme");
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <meta name="csrf-token" content="{{ csrf_token() if csrf_token is defined else '' }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div class="particles"></div>
+
+<div class="app-shell">
+
+    {% include 'dashboard/sidebar.html' %}
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <div class="main">
+        {% include 'dashboard/topbar.html' %}
+
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+
+        {% include 'dashboard/footer.html' %}
+    </div>
+</div>
+
+<div class="toast-stack"></div>
+
+{% block extra_scripts_before %}{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

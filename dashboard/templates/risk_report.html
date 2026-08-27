@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Risk Assessment Report — CyberShieldAI{% endblock %}
+
+{% block content %}
+<style>
+.risk-meter-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 12px 0 8px;
+    background: var(--overlay-2);
+}
+.risk-segment {
+    flex: 1;
+    position: relative;
+    transition: opacity 0.2s;
+}
+.risk-segment.low { background: #22c55e; }
+.risk-segment.medium { background: #eab308; }
+.risk-segment.high { background: #f97316; }
+.risk-segment.critical { background: #ef4444; }
+.risk-segment.active {
+    box-shadow: 0 0 12px currentColor;
+    filter: brightness(1.2);
+}
+.remediation-card {
+    background: var(--panel-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    transition: transform 0.15s, border-color 0.15s;
+    margin-bottom: 12px;
+}
+.remediation-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+}
+.remediation-card.critical-card { border-left: 4px solid #ef4444; }
+.remediation-card.high-card { border-left: 4px solid #f97316; }
+.remediation-card.medium-card { border-left: 4px solid #eab308; }
+.remediation-card.low-card { border-left: 4px solid #38bdf8; }
+</style>{% if target_ip %}
+
+<!-- ========================================================
+     1. RISK STATUS & OVERVIEW CARD
+     ======================================================== -->
+<div class="glass" style="padding:22px 24px; border-radius:var(--radius-md); margin-bottom:18px; border:1px solid var(--border); border-top:3px solid {% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:center;">
+
+        
+        <!-- Left: Simple Big Status Badge -->
+        <div>
+            <div style="font-size:11px; font-weight:800; color:var(--text-2); text-transform:uppercase; letter-spacing:1px;">Security Risk Status</div>
+            <div style="display:flex; align-items:baseline; gap:12px; margin-top:4px;">
+                <div style="font-size:32px; font-weight:900; color:{% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+                    {% if risk_level|lower == 'critical' %}🚨 CRITICAL RISK
+                    {% elif risk_level|lower == 'high' %}⚠️ HIGH RISK
+                    {% elif risk_level|lower == 'medium' %}⚡ MEDIUM RISK
+                    {% else %}✅ LOW RISK / SECURE
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div style="font-size:13px; color:var(--text-1); margin-top:6px; line-height:1.5;">
+                {% if risk_level|lower == 'critical' or risk_level|lower == 'high' %}
+                This host has vulnerabilities that could allow attackers to access services or steal sensitive data. <strong>Immediate action recommended.</strong>
+                {% elif risk_level|lower == 'medium' %}
+                This host has moderate security warnings that should be reviewed and hardened.
+                {% else %}
+                This host has no major security risks detected. Good security hygiene!
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: Visual Risk Spectrum Meter -->
+        <div style="background:var(--overlay-1); padding:16px 18px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                <span style="font-weight:700; color:var(--text-0);">Threat Severity Meter</span>
+                <span style="font-weight:800; color:var(--text-0); font-family:var(--font-mono);">
+                    Score: {{ total_score }} pts
+                </span>
+            </div>
+
+            <!-- Color Bar Meter -->
+            <div class="risk-meter-bar">
+                <div class="risk-segment low {% if risk_level|lower == 'low' %}active{% endif %}" title="Low Risk (0-4 pts)"></div>
+                <div class="risk-segment medium {% if risk_level|lower == 'medium' %}active{% endif %}" title="Medium Risk (5-14 pts)"></div>
+                <div class="risk-segment high {% if risk_level|lower == 'high' %}active{% endif %}" title="High Risk (15-24 pts)"></div>
+                <div class="risk-segment critical {% if risk_level|lower == 'critical' %}active{% endif %}" title="Critical Risk (25+ pts)"></div>
+            </div>
+
+            <!-- Range Labels -->
+            <div style="display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-2); font-weight:600;">
+                <span>Low (0-4)</span>
+                <span>Medium (5-14)</span>
+                <span style="color:#f97316; font-weight:700;">High (15-24)</span>
+                <span>Critical (25+)</span>
+            </div>
+
+            <!-- Simple Count Badges -->
+            <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                <span class="badge {% if critical_count > 0 %}badge-critical{% else %}badge-ok{% endif %}" style="font-size:11px;">{{ critical_count }} Critical</span>
+                <span class="badge {% if high_count > 0 %}badge-high{% else %}badge-ok{% endif %}" style="font-size:11px;">{{ high_count }} High</span>
+                <span class="badge {% if medium_count > 0 %}badge-medium{% else %}badge-ok{% endif %}" style="font-size:11px;">{{ medium_count }} Medium</span>
+                <span class="badge badge-low" style="font-size:11px;">{{ low_count }} Low</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ========================================================
+     2. WHAT IS HAPPENING (Clear Summary Cards)
+     ======================================================== -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:20px;">
+    
+    <!-- Summary Card -->
+    <div class="glass" style="padding:16px 18px; border-radius:var(--radius-sm); border-left:3px solid var(--neon-blue);">
+        <div style="font-size:11px; font-weight:800; color:var(--neon-blue); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">
+            📌 What Was Detected
+        </div>
+        <p style="margin:0; font-size:13px; color:var(--text-1); line-height:1.6;">
+            {{ summary_text }}
+        </p>
+    </div>
+
+    <!-- Top Threat Item -->
+    {% if top_driver %}
+    <div class="glass" style="padding:16px 18px; border-radius:var(--radius-sm); border-left:3px solid #ef4444;">
+        <div style="font-size:11px; font-weight:800; color:#ef4444; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">
+            🚨 Biggest Vulnerability To Fix First
+        </div>
+        <p style="margin:0; font-size:13px; color:var(--text-1); line-height:1.6;">
+            <strong style="color:var(--text-0);">{{ top_driver['service'] }}</strong> is running on port <strong class="mono" style="color:var(--text-0);">{{ top_driver['port'] }}</strong>. This is your biggest security risk. Fixing this item will give the largest immediate security boost.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ========================================================
+     3. EASY STEP-BY-STEP FIX GUIDE (Ranked by Importance)
+     ======================================================== -->
+<div class="glass" style="padding:22px; border-radius:var(--radius-md); margin-bottom:18px; border:1px solid var(--border);">
+    <div style="margin-bottom:16px;">
+        <h2 style="font-size:16px; font-weight:800; margin:0; color:var(--text-0); display:flex; align-items:center; gap:8px;">
+            🔧 How to Fix These Issues (Step-by-Step)
+        </h2>
+        <div style="font-size:12px; color:var(--text-2); margin-top:2px;">Simple, prioritized instructions to secure this server</div>
+    </div>
+
+
+    {% if remediation_items %}
+    <div>
+        {% for item in remediation_items %}
+        <div class="remediation-card {% if item.risk|lower == 'critical' %}critical-card{% elif item.risk|lower == 'high' %}high-card{% elif item.risk|lower == 'medium' %}medium-card{% else %}low-card{% endif %}">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <!-- Step Badge -->
+                    <span style="display:inline-block; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; background:var(--overlay-2); color:var(--text-0);">
+                        STEP {{ loop.index }}
+                    </span>
+                    <strong style="font-size:14.5px; color:var(--text-0);">
+                        {{ item.service }}
+                    </strong>
+                    <span class="mono" style="font-size:12px; color:var(--accent); font-weight:700;">
+                        Port {{ item.port }}
+                    </span>
+                </div>
+
+                <span class="badge {% if item.risk|lower == 'critical' %}badge-critical{% elif item.risk|lower == 'high' %}badge-high{% elif item.risk|lower == 'medium' %}badge-medium{% else %}badge-ok{% endif %}" style="font-size:11px; font-weight:700;">
+                    {{ item.risk|upper }} SEVERITY
+                </span>
+            </div>
+
+            <!-- Problem Statement -->
+            <div style="font-size:13px; color:var(--text-1); margin-bottom:10px; line-height:1.5;">
+                <span style="color:var(--text-2); font-weight:600;">The Problem:</span> {{ item.description }}
+            </div>
+
+            <!-- Solution Box -->
+            <div style="background:rgba(34,197,94,0.08); border-left:3px solid var(--ok); padding:10px 14px; border-radius:4px; font-size:12.5px; color:var(--text-0); line-height:1.5;">
+                <strong style="color:var(--ok); display:block; margin-bottom:2px;">💡 Recommended Solution:</strong>
+                {{ item.action }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding:24px; text-align:center; color:var(--ok); font-size:14px; font-weight:600;">
+        🎉 All ports are properly secured. No active vulnerabilities found!
+    </div>
+    {% endif %}
+</div>
+
+<!-- ========================================================
+     4. SCAN HISTORY TIMELINE (Simple & Minimal)
+     ======================================================== -->
+<div class="glass" style="padding:18px 20px; border-radius:var(--radius-md); border:1px solid var(--border);">
+    <div style="font-size:13px; font-weight:700; color:var(--text-0); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+        <span>🕒</span> Previous Scans for {{ target_ip }}
+    </div>
+
+    <div class="table-wrap" style="border:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Scan Date</th>
+                    <th>Critical</th>
+                    <th>High</th>
+                    <th>Medium</th>
+                    <th>Low</th>
+                    <th>Risk Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="mono" style="font-size:12px; color:var(--text-1);">{{ row['scan_time'] }}</td>
+                    <td class="mono" style="color:{% if row['critical_count'] > 0 %}#ef4444{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['critical_count'] or 0 }}</td>
+                    <td class="mono" style="color:{% if row['high_count'] > 0 %}#f97316{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['high_count'] or 0 }}</td>
+                    <td class="mono" style="color:{% if row['medium_count'] > 0 %}#eab308{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['medium_count'] or 0 }}</td>
+                    <td class="mono" style="color:var(--text-2);">{{ row['low_count'] or 0 }}</td>
+                    <td>
+                        {% set lvl = (row['risk_level'] or 'low')|lower %}
+                        <span class="badge badge-{{ lvl }}">{{ row['risk_level'] }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% else %}
+<div class="glass content-panel" style="padding:40px; text-align:center;">
+    <div style="font-size:36px; margin-bottom:12px;">🛡</div>
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 6px; color:var(--text-0);">No Scanned Targets Found</h3>
+    <p style="color:var(--text-2); font-size:13px; margin:0 0 16px;">Initiate a new scan to generate a Risk Assessment Report.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Start New Scan</a>
+</div>
+{% endif %}
+
+{% endblock %}

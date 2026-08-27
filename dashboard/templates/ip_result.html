@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% block title %}IP Scan Result{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>🖥 IP Scan Result</h2>
+    <span class="sub">{{ latest_ip or "No IP scanned yet" }}</span>
+    {% if latest_ip %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;">
+        <a class="btn btn-primary" href="{{ url_for('download_full_report_pdf') }}?type=ip" style="text-decoration:none; font-size:13px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px;"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M20 21H4"/></svg>
+            Export PDF
+        </a>
+        <a class="btn btn-secondary" href="{{ url_for('download_report_json') }}" style="text-decoration:none; font-size:13px; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);">
+            📄 Export JSON
+        </a>
+        <a class="btn btn-secondary" href="{{ url_for('download_report_csv') }}" style="text-decoration:none; font-size:13px; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3);">
+            📊 Export CSV
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% if latest_ip %}
+
+<div class="glass content-panel">
+    <span class="eyebrow">Target Overview</span>
+    <table class="info-table">
+        <tr><th>IP Address</th><td class="mono">{{ latest_ip }}</td></tr>
+        <tr><th>Status</th><td>{{ host.status if host else "Unknown" }}</td></tr>
+        <tr>
+            <th>Estimated Operating System</th>
+            <td>
+                {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
+                    <b>{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color:var(--text-muted); font-size:12.5px;">({{ os_info.device_type }})</span>{% endif %}
+                {% else %}
+                    <span style="color:var(--text-muted);">Not Identified</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>OS Details</th>
+            <td>
+                {% if os_info and os_info.os_details and os_info.os_details not in ['Unknown', 'OS could not be determined', 'None', '-'] %}
+                    {{ os_info.os_details }}
+                {% else %}
+                    <span style="color:var(--text-muted);">-</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% if risk %}
+        <tr><th>Risk Level</th><td><span class="risk-pill {{ risk.risk_level|lower }}">{{ risk.risk_level|upper }}</span></td></tr>
+        <tr><th>Total Score</th><td class="mono">{{ risk.total_score }}</td></tr>
+        {% endif %}
+    </table>
+</div>
+
+
+<div class="panel-heading"><h2>Open Ports &amp; Services ({{ ports_data|length }})</h2></div>
+{% if ports_data %}
+<div class="glass table-wrap">
+    <table>
+        <thead><tr><th>Port</th><th>State</th><th>Service</th><th>Banner</th></tr></thead>
+        <tbody>
+        {% for p in ports_data %}
+        <tr>
+            <td class="mono">{{ p.port }}</td>
+            <td>{% if p.state == 'open' %}<span class="badge badge-ok">{{ p.state }}</span>{% else %}<span class="badge badge-unknown">{{ p.state }}</span>{% endif %}</td>
+            <td>{{ p.service or "-" }}</td>
+            <td style="max-width:360px; word-wrap:break-word;">{{ p.banner or "-" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel"><p class="empty-note">No open ports found.</p></div>
+{% endif %}
+
+<div class="panel-heading"><h2>Service Versions ({{ services|length }})</h2></div>
+{% if services %}
+<div class="glass table-wrap">
+    <table>
+        <thead><tr><th>Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
+        <tbody>
+        {% for s in services %}
+        <tr>
+            <td class="mono">{{ s.port }}</td>
+            <td>{{ s.service or "-" }}</td>
+            <td>{{ s.product or "-" }}</td>
+            <td class="mono">{{ s.version or "-" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel"><p class="empty-note">No service version data found.</p></div>
+{% endif %}
+
+<div class="panel-heading"><h2>Vulnerabilities &amp; Threats ({{ vulnerabilities_data|length }})</h2></div>
+{% if vulnerabilities_data %}
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th style="width:150px;">Port / Service</th>
+                <th style="width:110px;">Severity</th>
+                <th>Identified Threat / Risk</th>
+                <th>Recommended Solution</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for v in vulnerabilities_data %}
+        {% set port_num = v.port if v.port is defined else v[2] %}
+        {% set srv_name = v.service if v.service is defined else v[3] %}
+        {% set risk_val = v.risk if v.risk is defined else v[4] %}
+        {% set desc_val = v.description if (v.description is defined and v.description) else "" %}
+        {% set rem_val = v.remediation if (v.remediation is defined and v.remediation) else "" %}
+        
+        {% if not desc_val %}
+            {% if port_num == 21 or srv_name|lower == 'ftp' %}
+                {% set desc_val = "Plaintext File Transfer Protocol (FTP) allows transmission of credentials and data without encryption." %}
+                {% set rem_val = "Disable plain FTP and switch to SFTP (SSH Port 22) or FTPS (FTP over TLS)." %}
+            {% elif port_num == 3306 or srv_name|lower == 'mysql' %}
+                {% set desc_val = "MySQL database listener exposed publicly to the internet, increasing vulnerability to brute force." %}
+                {% set rem_val = "Bind MySQL to localhost (127.0.0.1) and restrict inbound access via firewall rules." %}
+            {% elif port_num == 80 or srv_name|lower == 'http' %}
+                {% set desc_val = "Unencrypted HTTP web service is exposed. Data in transit is vulnerable to interception." %}
+                {% set rem_val = "Install SSL/TLS certificates and enforce HTTP 301 Permanent Redirect to HTTPS (Port 443)." %}
+            {% elif port_num == 443 or srv_name|lower == 'https' %}
+                {% set desc_val = "HTTPS web service is active. Verify strong TLS ciphers (TLS 1.2/1.3) and HSTS headers." %}
+                {% set rem_val = "Maintain valid SSL certificates and ensure weak SSLv3/TLS 1.0 protocols are disabled." %}
+            {% else %}
+                {% set desc_val = "Service is active and listening on public port " ~ port_num ~ "." %}
+                {% set rem_val = "Review port access requirements and restrict exposure using firewall rules." %}
+            {% endif %}
+        {% endif %}
+
+        <tr>
+            <td class="mono">
+                <strong style="color:var(--text-0);">Port {{ port_num }}</strong>
+                <span style="color:var(--accent); font-size:12px; display:block;">{{ srv_name or "-" }}</span>
+            </td>
+            <td><span class="badge badge-{{ (risk_val or 'low')|lower }}" style="font-weight:700;">{{ risk_val|upper }}</span></td>
+            <td style="font-size:12.5px; color:var(--text-1); line-height:1.5;">
+                {{ desc_val }}
+            </td>
+            <td style="font-size:12.5px; color:var(--text-0); line-height:1.5;">
+                <div style="background:rgba(34,197,94,0.08); border-left:3px solid var(--ok); padding:6px 10px; border-radius:4px;">
+                    {{ rem_val }}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+{% else %}
+<div class="glass content-panel"><p class="empty-note">No vulnerabilities detected.</p></div>
+{% endif %}
+
+<div class="panel-heading"><h2>CVE Findings &amp; CWE Weakness Mapping ({{ cves_data|length }})</h2></div>
+{% if cves_data %}
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>CVE ID</th>
+                <th>Port / Service</th>
+                <th>CWE Mapping</th>
+                <th>Severity</th>
+                <th>Exploit Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in cves_data %}
+        {% set cve_id = c.cve_id if c.cve_id is defined else c[3] %}
+        {% set port = c.port if c.port is defined else c[1] %}
+        {% set service = c.service if c.service is defined else c[2] %}
+        {% set severity = c.severity if c.severity is defined else c[4] %}
+        {% set desc = c.description if c.description is defined else c[5] %}
+        {% set cvss = c.cvss_score if c.cvss_score is defined else c[6] %}
+        {% set vector = c.cvss_vector if c.cvss_vector is defined else c[7] %}
+        {% set cwe_id = c.cwe_id if c.cwe_id is defined and c.cwe_id else "CWE-200" %}
+        {% set cwe_name = c.cwe_name if c.cwe_name is defined and c.cwe_name else "Exposure of Sensitive Information" %}
+        {% set pub_date = c.published_date if c.published_date is defined else c[8] %}
+        {% set exploit = c.exploit_available if c.exploit_available is defined else c[9] %}
+
+        <tr style="cursor:pointer;" onclick="toggleIpCve('ip-cve-{{ loop.index }}')">
+            <td class="mono">
+                <span style="color:var(--accent); font-weight:700; text-decoration:underline;">{{ cve_id }}</span>
+            </td>
+            <td class="mono"><b>Port {{ port }}</b> ({{ service or "-" }})</td>
+            <td>
+                <span class="badge" style="background:rgba(147,51,234,0.15); color:#c084fc; border:1px solid rgba(147,51,234,0.3); font-weight:600;">
+                    {{ cwe_id }}: {{ cwe_name|truncate(26, True, '...') }}
+                </span>
+            </td>
+            <td><span class="badge badge-{{ (severity or 'low')|lower }}">{{ severity }}</span></td>
+            <td>
+                {% if exploit %}
+                    <span class="badge badge-critical" style="font-weight:700;">⚡ Exploit Available</span>
+                {% else %}
+                    <span class="badge badge-ok">🔒 No Public PoC</span>
+                {% endif %}
+            </td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toggleIpCve('ip-cve-{{ loop.index }}')" style="padding:4px 10px; font-size:11px; cursor:pointer;">
+                    🔍 Inspect
+                </button>
+            </td>
+        </tr>
+
+        <tr id="ip-cve-{{ loop.index }}" class="detail-drawer-row" style="display:none;">
+            <td colspan="6" style="padding:16px 20px; border-bottom:2px solid var(--border-strong);">
+
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                        <div style="font-size:15px; font-weight:800; color:var(--text-0); display:flex; align-items:center; gap:10px;">
+                            <span style="color:var(--accent); text-decoration:underline;">{{ cve_id }}</span>
+                            <span class="badge badge-{{ (severity or 'low')|lower }}">{{ severity }}</span>
+                            <span class="badge" style="background:rgba(147,51,234,0.2); color:#c084fc; border:1px solid rgba(147,51,234,0.4);">
+                                {{ cwe_id }} — {{ cwe_name }}
+                            </span>
+                        </div>
+                        <div style="font-family:monospace; font-size:14px; font-weight:700; color:var(--ok);">
+                            {% if cvss == 'N/A' or cvss == 'n/a' or not cvss %}
+                            Official NVD Score: N/A
+                            {% else %}
+                            Official NVD Score: {{ cvss }} / 10.0
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; font-size:12px;">
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">NVD Vector String</div>
+                            <div style="font-family:monospace; font-weight:700; color:var(--accent); word-break:break-all;">
+                                {{ vector or "N/A (NVD assessment not yet provided)" }}
+                            </div>
+                        </div>
+
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">CWE Weakness Mapping</div>
+                            <div style="font-weight:700; color:#c084fc;">
+                                {{ cwe_id }}: {{ cwe_name }}
+                            </div>
+                        </div>
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">Exploit Availability</div>
+                            <div style="font-weight:700; color:{% if exploit %}var(--crit){% else %}var(--ok){% endif %};">
+                                {% if exploit %}
+                                ⚡ Public Exploit Code / Metasploit PoC Verified
+                                {% else %}
+                                🔒 No Known Public Exploit Code
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">Published Date</div>
+                            <div style="font-weight:700; color:var(--text-1); font-family:monospace;">
+                                {{ pub_date or "2024-01-01" }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card-box" style="font-size:13px; color:var(--text-1); line-height:1.5;">
+                        <b style="color:var(--text-0);">Vulnerability Impact Summary:</b> {{ desc or "Exposed vulnerability requiring security patch application and perimeter firewall restriction." }}
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:12px; font-size:12px; margin-top:4px;">
+                        <b style="color:var(--text-2);">Official References:</b>
+                        {% if cve_id and not cve_id.startswith('CVE-GENERIC') %}
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">
+                            🔗 NVD NIST Reference Page ({{ cve_id }})
+                        </a>
+                        {% else %}
+                        <a href="https://nvd.nist.gov/vuln/search/results?query={{ service or 'security' }}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">
+                            🔗 Search NVD NIST Database
+                        </a>
+                        {% endif %}
+                        {% if cwe_id and cwe_id.startswith('CWE-') %}
+                        <a href="https://cwe.mitre.org/data/definitions/{{ cwe_id.replace('CWE-', '') }}.html" target="_blank" rel="noopener" style="color:#c084fc; text-decoration:underline;">
+                            🔗 MITRE CWE Def: {{ cwe_id }}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function toggleIpCve(id) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.style.display = (el.style.display === "none" || el.style.display === "") ? "table-row" : "none";
+    }
+}
+</script>
+{% else %}
+<div class="glass content-panel"><p class="empty-note">No CVEs found.</p></div>
+{% endif %}
+
+<div class="panel-heading"><h2>💡 Recommended Actions</h2></div>
+<div class="glass">
+    {% for r in recommendations %}
+    <div class="rec-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></svg>
+        <span>{{ r }}</span>
+    </div>
+    {% else %}
+    <div class="rec-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>No recommendations available.</span>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="glass content-panel">
+    <p class="empty-note">No IP scan has been run yet. Click <strong>New Scan</strong> above to get started.</p>
+</div>
+{% endif %}
+{% endblock %}

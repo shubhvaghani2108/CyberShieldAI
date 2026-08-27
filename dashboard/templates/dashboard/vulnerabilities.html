@@ -1,0 +1,28 @@
+<div>
+    <div class="panel-heading">
+        <h2>⚠ Top Vulnerabilities</h2>
+        <span class="sub">{{ vulnerabilities_data|length }} found</span>
+    </div>
+    <div class="glass feed">
+        {% for v in vulnerabilities_data[:8] %}
+            <div class="feed-item">
+                {% set lvl = (v.risk or 'low')|lower %}
+                <div class="feed-dot {{ 'crit' if lvl in ['critical','high'] else '' }}"></div>
+                <div class="feed-body">
+                    <div class="feed-title">Port {{ v.port }} &mdash; {{ v.service }}</div>
+                    <div class="feed-meta">
+                        <span class="badge badge-{{ lvl }}">{{ v.risk }}</span>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="feed-item">
+                <div class="feed-body">
+                    <div class="feed-title">No vulnerabilities found</div>
+                    <div class="feed-meta">Either nothing has been scanned yet, or the latest target came back clean.</div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+</div>

@@ -1,0 +1,45 @@
+<div class="panel-heading">
+    <h2>🖥 Asset Inventory</h2>
+    <span class="sub">Recent Scan Result</span>
+</div>
+
+
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Status</th>
+                <th>Risk Level</th>
+                <th>Risk Score</th>
+                <th>Last Scan</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for asset in assets %}
+            <tr>
+                <td class="mono">{{ asset.target_ip }}</td>
+                <td>
+                    {% if 'Alive' in asset.status or asset.status == 'Online' or asset.status == 'Up' %}
+                        <span class="badge badge-alive">{{ asset.status }}</span>
+                    {% elif 'Dead' in asset.status or 'Unreachable' in asset.status or asset.status == 'Offline' or asset.status == 'Down' %}
+                        <span class="badge badge-dead">{{ asset.status }}</span>
+                    {% else %}
+                        <span class="badge badge-unknown">{{ asset.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set lvl = (asset.risk_level or 'unknown')|lower %}
+                    <span class="badge badge-{{ lvl }}">{{ asset.risk_level }}</span>
+                </td>
+                <td>{{ asset.total_score }}</td>
+                <td class="mono">{{ asset.scan_time }}</td>
+            </tr>
+        {% else %}
+            <tr class="empty-row">
+                <td colspan="5">No assets scanned yet. Click <strong>New Scan</strong> to discover your first host.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

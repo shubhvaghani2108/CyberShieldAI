@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>🚨 Vulnerabilities &amp; Risk Findings</h2>
+    <span class="sub">{{ rows|length }} active finding{{ 's' if rows|length != 1 else '' }} on target <strong>{{ latest_ip or "latest scan" }}</strong></span>
+</div>
+
+{% if rows %}
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Target IP / Host</th>
+                <th>Port</th>
+                <th>Service</th>
+                <th>Risk Severity</th>
+                <th>Vulnerability Description</th>
+                <th>Recommended Remediation</th>
+                <th>Detected At</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+        {% set ip_val = row['ip'] if row['ip'] is defined else row[0] %}
+        {% set port_val = row['port'] if row['port'] is defined else row[1] %}
+        {% set service_val = row['service'] if row['service'] is defined else row[2] %}
+        {% set risk_val = row['risk'] if row['risk'] is defined else row[3] %}
+        {% set desc_val = row['description'] if row['description'] is defined else row[4] %}
+        {% set rem_val = row['remediation'] if row['remediation'] is defined else row[5] %}
+        {% set time_val = row['scan_time'] if row['scan_time'] is defined else (row[6] if row|length > 6 else '—') %}
+        <tr>
+            <td class="mono">
+                <span style="color: #38bdf8; font-weight: 600;">
+                    {{ ip_val }}
+                </span>
+            </td>
+            <td class="mono"><strong>{{ port_val }}</strong></td>
+            <td><span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">{{ service_val|upper }}</span></td>
+            <td>
+                {% set lvl = (risk_val or 'low')|lower %}
+                <span class="badge badge-{{ lvl }}">{{ risk_val|capitalize }}</span>
+            </td>
+            <td style="max-width:320px; line-height: 1.5; font-size: 13px;">{{ desc_val or "—" }}</td>
+            <td style="max-width:340px; line-height: 1.5; font-size: 13px; color: #94a3b8;">{{ rem_val or "—" }}</td>
+            <td class="mono" style="font-size: 12px; color: #64748b; white-space: nowrap;">{{ time_val }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="glass content-panel" style="padding: 40px; text-align: center;">
+    <p class="empty-note" style="font-size: 14px; color: var(--text-2);">No active vulnerabilities detected for the latest scan target.</p>
+</div>
+{% endif %}
+{% endblock %}
+

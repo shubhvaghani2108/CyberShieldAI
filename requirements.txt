@@ -1,0 +1,17 @@
+Flask
+requests
+python-nmap
+reportlab
+Jinja2
+Werkzeug
+MarkupSafe
+itsdangerous
+click
+blinker
+beautifulsoup4
+scapy
+python-whois
+dnspython
+gunicorn
+apscheduler
+pytest

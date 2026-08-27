@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}CVE Database &amp; Weakness Mapping{% endblock %}
+
+{% block content %}
+<div class="panel-heading">
+    <h2>🚨 Common Vulnerabilities and Exposures (CVEs) &amp; CWE Mapping</h2>
+    <span class="sub">{{ rows|length }} matched CVE{{ 's' if rows|length != 1 else '' }} on target {{ latest_ip or "latest scan" }} — Click any CVE row to inspect detailed CVSS vector, CWE weakness, and exploit links.</span>
+</div>
+
+{% if rows %}
+<div class="glass table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Port / Service</th>
+                <th>CVE ID</th>
+                <th>CWE Mapping</th>
+                <th>Severity</th>
+                <th>Exploit Status</th>
+                <th>Published Date</th>
+                <th>Interactive Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in rows %}
+        {% set cve_id = r.cve_id if r.cve_id is defined else r[3] %}
+        {% set port = r.port if r.port is defined else r[1] %}
+        {% set service = r.service if r.service is defined else r[2] %}
+        {% set severity = r.severity if r.severity is defined else r[4] %}
+        {% set desc = r.description if r.description is defined else r[5] %}
+        {% set cvss = r.cvss_score if r.cvss_score is defined else r[6] %}
+        {% set vector = r.cvss_vector if r.cvss_vector is defined else r[7] %}
+        {% set cwe_id = r.cwe_id if r.cwe_id is defined and r.cwe_id else "CWE-200" %}
+        {% set cwe_name = r.cwe_name if r.cwe_name is defined and r.cwe_name else "Exposure of Sensitive Information" %}
+        {% set refs = r.references if r.references is defined and r.references else ("https://nvd.nist.gov/vuln/detail/" ~ cve_id) %}
+        {% set pub_date = r.published_date if r.published_date is defined else r[8] %}
+        {% set exploit = r.exploit_available if r.exploit_available is defined else r[9] %}
+        
+        <tr style="cursor:pointer;" onclick="toggleCveDetail('cve-detail-{{ loop.index }}')">
+            <td class="mono"><b>Port {{ port }}</b> ({{ service or "http" }})</td>
+            <td class="mono">
+                <span style="color:#60a5fa; font-weight:700; text-decoration:underline;">
+                    {{ cve_id }}
+                </span>
+            </td>
+            <td>
+                <span class="badge" style="background:rgba(147,51,234,0.15); color:#c084fc; border:1px solid rgba(147,51,234,0.3); font-weight:600;">
+                    {{ cwe_id }}: {{ cwe_name|truncate(28, True, '...') }}
+                </span>
+            </td>
+            <td>
+                <span class="risk-pill {{ (severity or 'low')|lower }}">{{ severity }}</span>
+            </td>
+            <td>
+                {% if exploit %}
+                    <span class="badge badge-critical" style="font-weight:700;">⚡ Exploit Available</span>
+                {% else %}
+                    <span class="badge badge-ok">🔒 No Public PoC</span>
+                {% endif %}
+            </td>
+            <td class="mono" style="font-size:12px; color:var(--text-2);">{{ pub_date or "2024-01-01" }}</td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); toggleCveDetail('cve-detail-{{ loop.index }}')" style="padding:4px 10px; font-size:11px; cursor:pointer;">
+                    🔍 Expand Details
+                </button>
+            </td>
+        </tr>
+
+        <!-- Expandable Detail Drawer Row -->
+        <tr id="cve-detail-{{ loop.index }}" class="detail-drawer-row" style="display:none;">
+            <td colspan="7" style="padding:16px 20px; border-bottom:2px solid var(--border-strong);">
+
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                        <div style="font-size:15px; font-weight:800; color:var(--text-0); display:flex; align-items:center; gap:10px;">
+                            <span style="color:var(--accent); text-decoration:underline;">{{ cve_id }}</span>
+                            <span class="risk-pill {{ (severity or 'low')|lower }}">{{ severity }}</span>
+                            <span class="badge" style="background:rgba(147,51,234,0.2); color:#c084fc; border:1px solid rgba(147,51,234,0.4);">
+                                {{ cwe_id }} — {{ cwe_name }}
+                            </span>
+                        </div>
+                        <div style="font-family:monospace; font-size:14px; font-weight:700; color:var(--ok);">
+                            {% if cvss == 'N/A' or cvss == 'n/a' or not cvss %}
+                            Official NVD Score: N/A
+                            {% else %}
+                            Official NVD Score: {{ cvss }} / 10.0
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; font-size:12px;">
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">NVD Vector String</div>
+                            <div style="font-family:monospace; font-weight:700; color:var(--accent); word-break:break-all;">
+                                {{ vector or "N/A (NVD assessment not yet provided)" }}
+                            </div>
+                        </div>
+
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">CWE Weakness Mapping</div>
+                            <div style="font-weight:700; color:#c084fc;">
+                                {{ cwe_id }}: {{ cwe_name }}
+                            </div>
+                        </div>
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">Exploit Availability</div>
+                            <div style="font-weight:700; color:{% if exploit %}var(--crit){% else %}var(--ok){% endif %};">
+                                {% if exploit %}
+                                ⚡ Public Exploit Code / Metasploit PoC Verified
+                                {% else %}
+                                🔒 No Known Public Exploit Code
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="detail-card-box">
+                            <div class="detail-card-sub">Published Date</div>
+                            <div style="font-weight:700; color:var(--text-1); font-family:monospace;">
+                                {{ pub_date or "2024-01-01" }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card-box" style="font-size:13px; color:var(--text-1); line-height:1.5;">
+                        <b style="color:var(--text-0);">Vulnerability Impact Summary:</b> {{ desc or "Exposed vulnerability requiring security patch application and perimeter firewall restriction." }}
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:12px; font-size:12px; margin-top:4px;">
+                        <b style="color:var(--text-2);">Official References:</b>
+                        {% if cve_id and not cve_id.startswith('CVE-GENERIC') %}
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">
+                            🔗 NVD NIST Reference Page ({{ cve_id }})
+                        </a>
+                        {% else %}
+                        <a href="https://nvd.nist.gov/vuln/search/results?query={{ service or 'security' }}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">
+                            🔗 Search NVD NIST Database
+                        </a>
+                        {% endif %}
+                        {% if cwe_id and cwe_id.startswith('CWE-') %}
+                        <a href="https://cwe.mitre.org/data/definitions/{{ cwe_id.replace('CWE-', '') }}.html" target="_blank" rel="noopener" style="color:#c084fc; text-decoration:underline;">
+                            🔗 MITRE CWE Def: {{ cwe_id }}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function toggleCveDetail(elementId) {
+    var el = document.getElementById(elementId);
+    if (el) {
+        if (el.style.display === "none" || el.style.display === "") {
+            el.style.display = "table-row";
+        } else {
+            el.style.display = "none";
+        }
+    }
+}
+</script>
+
+{% else %}
+<div class="glass content-panel">
+    <p class="empty-note">No CVE data recorded for this scan.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,47 @@
+<div class="cards">
+
+    <div class="card">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            </div>
+        </div>
+        <h2>{{ stats.total_assets }}</h2>
+        <p>Total Assets</p>
+        <div class="trend">{{ stats.live_hosts }} live &middot; {{ stats.offline_hosts }} offline</div>
+    </div>
+
+    <div class="card accent-ok">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h16"/><path d="M4 7h16"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+            </div>
+        </div>
+        <h2>{{ stats.open_ports }}</h2>
+        <p>Open Ports</p>
+        <div class="trend">{{ stats.services }} services fingerprinted</div>
+    </div>
+
+    <div class="card accent-crit">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            </div>
+        </div>
+        <h2>{{ stats.vulnerabilities }}</h2>
+        <p>Vulnerabilities</p>
+        <div class="trend">{{ stats.cves }} matched CVEs</div>
+    </div>
+
+    <div class="card accent-purple">
+        <div class="card-top">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5.5 3.8 9.7 9 11 5.2-1.3 9-5.5 9-11V6z"/></svg>
+            </div>
+        </div>
+        <h2>{{ stats.avg_risk }}</h2>
+        <p>Risk Score &middot; {{ stats.risk_level }}</p>
+        <div class="trend">Target: {{ stats.latest_ip }} &middot; {{ stats.latest_scan }}</div>
+    </div>
+
+</div>
