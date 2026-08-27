@@ -325,6 +325,22 @@ def init_db():
             last_seen TIMESTAMP
         )
     """)
+
+    # Auto-seed authentic user accounts if database is fresh
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        from werkzeug.security import generate_password_hash
+        default_pass = generate_password_hash("Admin@1234")
+        cursor.executemany("""
+            INSERT OR IGNORE INTO users (id, username, password_hash, role, email, full_name, auth_provider, is_active, created_at, last_login)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, [
+            (1, "admin", default_pass, "ADMIN", "admin@cybershield.ai", "Shubh Vaghani (SOC Admin)", "local"),
+            (2, "23se02cb016", default_pass, "ADMIN", "23se02cb016@ppsu.ac.in", "Shubh Vaghani", "google"),
+            (3, "defenderr0809", default_pass, "ANALYST", "defenderr0809@gmail.com", "Security Lead Defender", "google"),
+            (4, "shubhvaghani21", default_pass, "VIEWER", "shubhvaghani21@gmail.com", "Shubh Vaghani", "google")
+        ])
+
     conn.commit()
     conn.close()
 
