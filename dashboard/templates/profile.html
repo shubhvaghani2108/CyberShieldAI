@@ -75,6 +75,7 @@
             <input type="hidden" name="avatar_url" id="selected_avatar_url" value="{{ user.avatar_url or '' }}">
 
             <!-- Avatar Section -->
+            {% set avatar_display_name = user.full_name or (user.email.split('@')[0] if user.email else user.username) %}
             <div style="
                 display: flex;
                 align-items: center;
@@ -86,10 +87,10 @@
             ">
                 <img 
                     id="avatarPreviewImg" 
-                    src="{{ user.avatar_url if user.avatar_url else 'https://ui-avatars.com/api/?name=' ~ ((user.full_name or (user.email.split('@')[0] if user.email else user.username)) | urlencode) ~ '&background=0284c7&color=ffffff&bold=true&rounded=true' }}" 
+                    src="{{ user.avatar_url if user.avatar_url else 'https://ui-avatars.com/api/?name=' ~ (avatar_display_name | urlencode) ~ '&background=0284c7&color=ffffff&bold=true&rounded=true' }}" 
                     alt="{{ user.email or user.username }} Avatar" 
                     referrerpolicy="no-referrer"
-                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((user.full_name or (user.email.split(\'@\')[0] if user.email else user.username)) | urlencode) }}&background=0284c7&color=ffffff&bold=true&rounded=true';"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ avatar_display_name | urlencode }}&background=0284c7&color=ffffff&bold=true&rounded=true';"
                     style="
                         width: 64px;
                         height: 64px;
