@@ -600,6 +600,27 @@ class OTPRegistrationTestCase(unittest.TestCase):
         self.assertFalse(success)
         self.assertNotIn(secret_api_key, err_msg)
 
+    # 26. Admin test email function works via HTTPS API
+    @patch("requests.post")
+    def test_26_admin_test_email_functionality(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "re_admin_test_123"}
+        mock_post.return_value = mock_response
+
+        with patch.dict(os.environ, {
+            "EMAIL_PROVIDER": "resend",
+            "EMAIL_API_KEY": "re_valid_key_123",
+            "EMAIL_FROM": "alerts@verifieddomain.com",
+        }):
+            from alerts.email_api import send_admin_test_email
+            success, msg = send_admin_test_email("admin_tester@example.com")
+            self.assertTrue(success)
+            mock_post.assert_called_once()
+            args, kwargs = mock_post.call_args
+            self.assertEqual(kwargs["json"]["to"], ["admin_tester@example.com"])
+            self.assertEqual(kwargs["json"]["from"], "CyberShieldAI <alerts@verifieddomain.com>")
+
 
 if __name__ == "__main__":
     unittest.main()

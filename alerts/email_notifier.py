@@ -144,13 +144,19 @@ def send_smtp_email(
 
 def send_test_email(to_email: str = None) -> tuple:
     """
-    Sends a test verification email to validate SMTP configuration.
+    Sends a test verification email to validate SMTP or HTTPS Email API configuration.
     """
     settings = get_email_settings()
     recipient = to_email or settings.get("recipient_email") or settings.get("from_email")
 
     if not recipient:
         return False, "Please specify a recipient email address for testing."
+
+    # If an HTTPS Email API is configured (e.g. Resend, SendGrid), use the HTTPS dispatcher
+    from alerts.email_api import get_email_api_config, send_admin_test_email
+    api_cfg = get_email_api_config()
+    if api_cfg.get("api_key") or api_cfg.get("provider") in ("resend", "sendgrid", "mailgun"):
+        return send_admin_test_email(to_email=recipient)
 
     subject = "[CyberShieldAI] Test Alert Notification - SMTP Verification"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -177,7 +183,7 @@ def send_test_email(to_email: str = None) -> tuple:
           <h1>🛡 CyberShieldAI SOC Platform</h1>
         </div>
         <div class="content">
-          <h2 style="color:#ffffff; margin-top:0; font-size:16px;">SMTP Notification System Verified</h2>
+          <h2 style="color:#ffffff; margin-top:0; font-size:16px;">Notification System Verified</h2>
           <p>This is a test notification confirming that your CyberShieldAI email alerting system is properly connected and functioning.</p>
           <div class="card">
             <p style="margin:4px 0;"><strong>Status:</strong> <span class="badge">Active & Connected</span></p>
@@ -198,7 +204,7 @@ def send_test_email(to_email: str = None) -> tuple:
     text_content = f"""
     CyberShieldAI - Test Alert Notification
     --------------------------------------------------
-    SMTP Notification System Verified successfully.
+    Notification System Verified successfully.
     Timestamp: {timestamp}
     Server: {settings.get('smtp_server')}:{settings.get('smtp_port')}
     """

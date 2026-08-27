@@ -199,3 +199,57 @@ def send_https_email(
     else:
         logger.error(f"[EMAIL_API_ERROR] unknown_provider={provider}")
         return False, f"Unsupported email provider '{provider}'."
+
+
+def send_admin_test_email(to_email: str) -> tuple:
+    """
+    Dispatches a test verification email via the active HTTPS Email API to confirm delivery.
+    """
+    clean_recipient = (to_email or "").strip()
+    if not clean_recipient:
+        return False, "Recipient email is required for testing."
+
+    cfg = get_email_api_config()
+    provider = cfg.get("provider", "resend").capitalize()
+    from_addr = cfg.get("from_email", "onboarding@resend.dev")
+
+    subject = "[CyberShieldAI] Email Delivery System Test"
+    text_body = f"""CyberShieldAI — Email Delivery Test
+--------------------------------------------------
+This is a test notification confirming that your CyberShieldAI email delivery system is functioning properly.
+
+Provider: {provider} (HTTPS API)
+Sender: {from_addr}
+Recipient: {clean_recipient}
+
+If you received this message, your verified domain and email configuration are working correctly.
+
+— CyberShieldAI Security Team
+"""
+
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin: 0; padding: 20px; background-color: #070d19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f8fafc;">
+    <table role="presentation" width="100%" style="max-width: 520px; margin: 0 auto; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 24px;">
+        <tr>
+            <td>
+                <h2 style="color: #38bdf8; margin-top: 0;">🛡️ CyberShieldAI Email Test</h2>
+                <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
+                    This is an automated test verifying that your <strong>{provider} HTTPS API</strong> email delivery pipeline is operational.
+                </p>
+                <div style="background: rgba(11, 19, 41, 0.9); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 14px; margin: 16px 0; font-size: 13px; color: #94a3b8;">
+                    <p style="margin: 4px 0;"><strong>Status:</strong> <span style="color: #22c55e;">● Verified & Operational</span></p>
+                    <p style="margin: 4px 0;"><strong>Sender:</strong> {from_addr}</p>
+                    <p style="margin: 4px 0;"><strong>Recipient:</strong> {clean_recipient}</p>
+                </div>
+                <p style="color: #64748b; font-size: 11px; margin-bottom: 0;">
+                    CyberShieldAI Security Operations Center
+                </p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    return send_https_email(to_email=clean_recipient, subject=subject, html_body=html_body, text_body=text_body)
