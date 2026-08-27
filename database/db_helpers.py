@@ -267,21 +267,64 @@ def init_db():
     """
     )
 
+    # MONITORED TARGETS & MONITORING LOGS
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitored_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target TEXT UNIQUE,
+            scan_frequency INTEGER DEFAULT 24,
+            enabled INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitoring_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target TEXT,
+            status TEXT,
+            score INTEGER,
+            checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS email_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            smtp_server TEXT DEFAULT '',
+            smtp_port INTEGER DEFAULT 587,
+            smtp_user TEXT DEFAULT '',
+            smtp_password TEXT DEFAULT '',
+            from_email TEXT DEFAULT '',
+            recipient_email TEXT DEFAULT '',
+            use_tls INTEGER DEFAULT 1,
+            use_ssl INTEGER DEFAULT 0,
+            enabled INTEGER DEFAULT 0,
+            alert_score_drop INTEGER DEFAULT 1,
+            alert_new_vuln INTEGER DEFAULT 1,
+            alert_critical INTEGER DEFAULT 1,
+            alert_ssl_expiry INTEGER DEFAULT 1,
+            alert_new_port INTEGER DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # USERS TABLE (LOCAL AUTHENTICATION)
-    cursor.execute(
-        """
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'ANALYST',
             email TEXT DEFAULT '',
+            full_name TEXT DEFAULT '',
+            avatar_url TEXT DEFAULT '',
+            google_sub TEXT,
+            auth_provider TEXT DEFAULT 'local',
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP
+            last_login TIMESTAMP,
+            last_seen TIMESTAMP
         )
-    """
-    )
+    """)
     conn.commit()
     conn.close()
 
