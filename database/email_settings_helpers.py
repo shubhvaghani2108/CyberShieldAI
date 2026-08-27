@@ -73,7 +73,7 @@ def get_email_settings() -> dict:
         row = conn.execute("SELECT * FROM email_settings WHERE id = 1").fetchone()
         env_from = os.environ.get("EMAIL_FROM", "").strip() or "defenderr0809@gmail.com"
         env_user = os.environ.get("SMTP_USERNAME", "").strip() or env_from
-        env_recip = os.environ.get("ALERT_RECIPIENT", "").strip() or "smvaghani2005@gmail.com"
+        env_recip = os.environ.get("ALERT_RECIPIENT", "").strip() or "defenderr0809@gmail.com"
         
         if row:
             d = dict(row)
@@ -81,7 +81,7 @@ def get_email_settings() -> dict:
                 d["from_email"] = env_from
             if not d.get("smtp_user"):
                 d["smtp_user"] = env_user
-            if not d.get("recipient_email"):
+            if not d.get("recipient_email") or d.get("recipient_email") == "smvaghani2005@gmail.com":
                 d["recipient_email"] = env_recip
             return d
 
