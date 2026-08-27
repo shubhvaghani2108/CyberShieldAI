@@ -144,16 +144,20 @@ def send_smtp_email(
 
 def send_test_email(to_email: str = None) -> tuple:
     """
-    Sends a test verification email to validate SMTP configuration.
+    Sends a test verification email to validate SMTP or HTTPS email configuration.
     """
+    from alerts.email_api import get_email_api_config, send_https_email
     settings = get_email_settings()
-    recipient = to_email or settings.get("recipient_email") or settings.get("from_email")
+    api_cfg = get_email_api_config()
+    
+    recipient = to_email or settings.get("recipient_email") or api_cfg.get("from_email") or settings.get("from_email")
 
     if not recipient:
         return False, "Please specify a recipient email address for testing."
 
-    subject = "[CyberShieldAI] Test Alert Notification - SMTP Verification"
+    subject = "[CyberShieldAI] Test Alert Notification - Delivery Verification"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    provider_name = api_cfg.get("provider", "smtp").upper()
 
     html_content = f"""
     <!DOCTYPE html>
@@ -181,7 +185,7 @@ def send_test_email(to_email: str = None) -> tuple:
           <p>This is a test notification confirming that your CyberShieldAI email alerting system is properly connected and functioning.</p>
           <div class="card">
             <p style="margin:4px 0;"><strong>Status:</strong> <span class="badge">Active & Connected</span></p>
-            <p style="margin:4px 0;"><strong>SMTP Server:</strong> {settings.get('smtp_server')}:{settings.get('smtp_port')}</p>
+            <p style="margin:4px 0;"><strong>Provider:</strong> {provider_name}</p>
             <p style="margin:4px 0;"><strong>Recipient:</strong> {recipient}</p>
             <p style="margin:4px 0;"><strong>Timestamp:</strong> {timestamp}</p>
           </div>
@@ -200,8 +204,12 @@ def send_test_email(to_email: str = None) -> tuple:
     --------------------------------------------------
     Notification System Verified successfully.
     Timestamp: {timestamp}
-    Server: {settings.get('smtp_server')}:{settings.get('smtp_port')}
+    Provider: {provider_name}
+    Recipient: {recipient}
     """
+
+    if api_cfg.get("api_key") and api_cfg.get("provider") in ("brevo", "sendinblue", "sendgrid", "resend", "mailgun"):
+        return send_https_email(to_email=recipient, subject=subject, html_body=html_content, text_body=text_content)
 
     return send_smtp_email(recipient, subject, html_content, text_content, settings=settings)
 
@@ -371,7 +379,13 @@ def dispatch_alert_email(alert: dict):
             html_body = format_alert_email_html(alert)
             text_body = f"CyberShieldAI Security Alert\nSeverity: {severity}\nType: {alert_type}\nTarget: {target}\nMessage: {alert.get('message', '')}\nRecommendation: {alert.get('recommendation', '')}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-            success, msg = send_smtp_email(recipient, subject, html_body, text_body, settings=settings)
+            from alerts.email_api import get_email_api_config, send_https_email
+            api_cfg = get_email_api_config()
+            if api_cfg.get("api_key") and api_cfg.get("provider") in ("brevo", "sendinblue", "sendgrid", "resend", "mailgun"):
+                success, msg = send_https_email(to_email=recipient, subject=subject, html_body=html_body, text_body=text_body)
+            else:
+                success, msg = send_smtp_email(recipient, subject, html_body, text_body, settings=settings)
+
             if success:
                 print(f"[EMAIL NOTIFIER] Dispatched email alert to {recipient} for {target} ({alert_type})")
             else:

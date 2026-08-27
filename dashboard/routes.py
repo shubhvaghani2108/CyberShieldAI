@@ -1781,13 +1781,16 @@ def register_routes(app):
             return redirect(url_for("profile_page"))
 
         from database.email_settings_helpers import get_email_settings
+        from alerts.email_api import get_email_api_config
         settings = get_email_settings()
+        api_config = get_email_api_config()
         return render_template(
             "settings_email.html",
             active_page="email_settings",
             page_title="Email Alert Settings",
-            page_subtitle="SMTP relay credentials and automated incident notification preferences",
+            page_subtitle="Email relay credentials, cloud API providers, and automated incident notification preferences",
             settings=settings,
+            api_config=api_config,
         )
 
     @app.route("/settings/email/save", methods=["POST"])

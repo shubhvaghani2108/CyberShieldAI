@@ -51,18 +51,24 @@
 <!-- Top Status Cards -->
 <div class="cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 24px;">
     
-    <div class="card {% if settings.enabled %}accent-ok{% else %}accent-med{% endif %}">
+    <div class="card {% if settings.enabled or (api_config and api_config.api_key) %}accent-ok{% else %}accent-med{% endif %}">
         <div class="card-top">
             <div class="icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             </div>
         </div>
-        <h2 style="{% if settings.enabled %}color:var(--ok);{% else %}color:var(--med);{% endif %}">
-            {{ 'ENABLED' if settings.enabled else 'DISABLED' }}
+        <h2 style="{% if settings.enabled or (api_config and api_config.api_key) %}color:var(--ok);{% else %}color:var(--med);{% endif %}">
+            {{ 'ENABLED' if (settings.enabled or (api_config and api_config.api_key)) else 'DISABLED' }}
         </h2>
         <p>Email Alert Engine</p>
         <div class="trend">
-            {% if settings.enabled %}Real-time dispatch active{% else %}Alert emails paused{% endif %}
+            {% if api_config and api_config.api_key and api_config.provider in ['brevo', 'sendinblue', 'sendgrid', 'resend', 'mailgun'] %}
+                {{ api_config.provider|upper }} Cloud Engine
+            {% elif settings.enabled %}
+                Real-time SMTP dispatch active
+            {% else %}
+                Alert emails paused
+            {% endif %}
         </div>
     </div>
 
@@ -73,10 +79,20 @@
             </div>
         </div>
         <h2 style="font-size: 15px; font-weight: 700; line-height: 1.35; margin: 15px 0 4px; font-family: var(--font-mono, monospace);">
-            {{ settings.smtp_server or 'Not Configured' }}:{{ settings.smtp_port or 587 }}
+            {% if api_config and api_config.api_key and api_config.provider in ['brevo', 'sendinblue', 'sendgrid', 'resend', 'mailgun'] %}
+                {{ api_config.provider|upper }} API
+            {% else %}
+                {{ settings.smtp_server or 'Not Configured' }}:{{ settings.smtp_port or 587 }}
+            {% endif %}
         </h2>
-        <p>SMTP Relay Server</p>
-        <div class="trend">Port {{ settings.smtp_port }} &middot; {% if settings.use_ssl %}SSL/TLS{% elif settings.use_tls %}STARTTLS{% else %}Plain{% endif %}</div>
+        <p>Active Mail Relay</p>
+        <div class="trend">
+            {% if api_config and api_config.api_key and api_config.provider in ['brevo', 'sendinblue', 'sendgrid', 'resend', 'mailgun'] %}
+                HTTPS Port 443 &middot; REST Relay
+            {% else %}
+                Port {{ settings.smtp_port or 587 }} &middot; {% if settings.use_ssl %}SSL/TLS{% elif settings.use_tls %}STARTTLS{% else %}Plain{% endif %}
+            {% endif %}
+        </div>
     </div>
 
     <div class="card accent-purple">
@@ -86,7 +102,7 @@
             </div>
         </div>
         <h2 style="font-size: 14px; font-weight: 700; line-height: 1.35; margin: 15px 0 4px; font-family: var(--font-mono, monospace); word-break: break-all;">
-            {{ settings.recipient_email or 'No Recipient Set' }}
+            {{ settings.recipient_email or (api_config.from_email if api_config else 'No Recipient Set') }}
         </h2>
         <p>Primary Recipient</p>
         <div class="trend">Target email for incident alerts</div>
