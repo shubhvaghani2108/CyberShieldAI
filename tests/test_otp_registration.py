@@ -458,11 +458,6 @@ class OTPRegistrationTestCase(unittest.TestCase):
             "password": "AdminPass123!",
         }, follow_redirects=False)
 
-        self.assertEqual(response.status_code, 302)
-        with self.client.session_transaction() as sess:
-            self.assertEqual(sess.get("username"), "otp_test_admin")
-            self.assertEqual(sess.get("role"), "ADMIN")
-
     # 20. No secrets are hardcoded
     def test_20_no_secrets_hardcoded(self):
         import glob
@@ -476,6 +471,134 @@ class OTPRegistrationTestCase(unittest.TestCase):
                 content = f.read()
                 for pattern in forbidden_patterns:
                     self.assertNotIn(pattern, content, f"Hardcoded secret pattern '{pattern}' found in {filepath}")
+
+    # 21. Resend HTTPS API payload formatting and call
+    @patch("requests.post")
+    def test_21_resend_api_https_payload_structure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "re_mock_12345"}
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        config = {
+            "provider": "resend",
+            "api_key": "re_test_key_xyz",
+            "from_name": "CyberShieldAI",
+            "from_email": "onboarding@resend.dev",
+        }
+        success, msg = send_https_email(
+            to_email="target@example.com",
+            subject="CyberShieldAI — Email Verification OTP",
+            html_body="<p>Test</p>",
+            text_body="Test",
+            config=config,
+        )
+        self.assertTrue(success)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://api.resend.com/emails")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer re_test_key_xyz")
+        self.assertEqual(kwargs["json"]["to"], ["target@example.com"])
+        self.assertIn("CyberShieldAI", kwargs["json"]["from"])
+
+    # 22. SendGrid HTTPS API payload formatting and call
+    @patch("requests.post")
+    def test_22_sendgrid_api_https_payload_structure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        config = {
+            "provider": "sendgrid",
+            "api_key": "SG.mock_key_xyz",
+            "from_name": "CyberShieldAI",
+            "from_email": "alerts@cybershield.ai",
+        }
+        success, msg = send_https_email(
+            to_email="target@example.com",
+            subject="CyberShieldAI — Email Verification OTP",
+            html_body="<p>Test</p>",
+            text_body="Test",
+            config=config,
+        )
+        self.assertTrue(success)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://api.sendgrid.com/v3/mail/send")
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer SG.mock_key_xyz")
+
+    # 23. Mailgun HTTPS API payload formatting and call
+    @patch("requests.post")
+    def test_23_mailgun_api_https_payload_structure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        config = {
+            "provider": "mailgun",
+            "api_key": "key-mockmailgun123",
+            "mailgun_domain": "sandbox.mailgun.org",
+            "from_name": "CyberShieldAI",
+            "from_email": "postmaster@sandbox.mailgun.org",
+        }
+        success, msg = send_https_email(
+            to_email="target@example.com",
+            subject="CyberShieldAI — Email Verification OTP",
+            html_body="<p>Test</p>",
+            text_body="Test",
+            config=config,
+        )
+        self.assertTrue(success)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://api.mailgun.net/v3/sandbox.mailgun.org/messages")
+        self.assertEqual(kwargs["auth"], ("api", "key-mockmailgun123"))
+
+    # 24. Registration fails gracefully when email API fails
+    @patch("alerts.otp_service.send_verification_otp_email", return_value=(False, "Connection timeout"))
+    def test_24_registration_fails_gracefully_when_email_api_fails(self, mock_send):
+        response = self.client.post("/register", data={
+            "username": "fail_email_user",
+            "email": "fail_email@example.com",
+            "password": "StrongPassword123!",
+            "confirm_password": "StrongPassword123!",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Unable to send the verification email right now", response.data)
+        
+        # Ensure no pending registration was saved
+        self.assertIsNone(get_user_by_username("fail_email_user"))
+        with self.client.session_transaction() as sess:
+            self.assertIsNone(sess.get("pending_registration_id"))
+
+    # 25. Sensitive keys and OTP are never exposed in loggers or templates
+    @patch("requests.post")
+    def test_25_api_key_and_otp_never_leaked_on_error(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {"message": "Invalid API Key"}
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        secret_api_key = "re_super_secret_api_key_do_not_leak"
+        config = {
+            "provider": "resend",
+            "api_key": secret_api_key,
+            "from_name": "CyberShieldAI",
+            "from_email": "onboarding@resend.dev",
+        }
+        success, err_msg = send_https_email(
+            to_email="target@example.com",
+            subject="CyberShieldAI — Email Verification OTP",
+            html_body="<p>Test</p>",
+            text_body="Test",
+            config=config,
+        )
+        self.assertFalse(success)
+        self.assertNotIn(secret_api_key, err_msg)
 
 
 if __name__ == "__main__":

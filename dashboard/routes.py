@@ -147,7 +147,7 @@ def register_routes(app):
                     try:
                         from werkzeug.security import generate_password_hash
                         from alerts.otp_service import generate_secure_otp, hash_otp, get_otp_config, send_verification_otp_email
-                        from database.otp_helpers import create_pending_registration
+                        from database.otp_helpers import create_pending_registration, delete_pending_registration
 
                         # 2. Hash password & generate secure 6-digit OTP
                         password_hash = generate_password_hash(password)
@@ -155,7 +155,24 @@ def register_routes(app):
                         otp_hash = hash_otp(otp)
                         otp_cfg = get_otp_config()
 
-                        # 3. Store pending registration
+                        # 3. Send OTP email via HTTPS Email API first
+                        sent, send_msg = send_verification_otp_email(
+                            to_email=email,
+                            username=username,
+                            otp=otp,
+                            expires_in_minutes=otp_cfg["expiry_minutes"],
+                        )
+
+                        if not sent:
+                            error = "Unable to send the verification email right now. Please try again later."
+                            return render_template(
+                                "register.html",
+                                error=error,
+                                username=username,
+                                email=email,
+                            )
+
+                        # 4. Store pending registration once email is successfully dispatched
                         reg_id = create_pending_registration(
                             username=username,
                             email=email,
@@ -165,27 +182,15 @@ def register_routes(app):
                             max_attempts=otp_cfg["max_attempts"],
                         )
 
-                        # 4. Save session context
+                        # 5. Save session context
                         session["pending_registration_id"] = reg_id
                         session["pending_email"] = email
                         session.modified = True
 
-                        # 5. Send OTP email via SMTP
-                        sent, send_msg = send_verification_otp_email(
-                            to_email=email,
-                            username=username,
-                            otp=otp,
-                            expires_in_minutes=otp_cfg["expiry_minutes"],
-                        )
-
-                        if sent:
-                            flash(f"A 6-digit verification code has been sent to {email}. Please enter it below to activate your account.", "info")
-                        else:
-                            flash(f"Notice: {send_msg}. Please check your spam folder or request a new code if needed.", "warning")
-
+                        flash(f"A 6-digit verification code has been sent to {email}. Please enter it below to activate your account.", "info")
                         return redirect(url_for("verify_otp"))
                     except Exception as e:
-                        error = f"Registration initiation failed: {str(e)}"
+                        error = "Unable to send the verification email right now. Please try again later."
 
         return render_template(
             "register.html",
@@ -347,7 +352,7 @@ def register_routes(app):
         if sent:
             flash(f"A new 6-digit verification code has been sent to {pending['email']}.", "success")
         else:
-            flash(f"Notice: {send_msg}. Please check your email configuration.", "warning")
+            flash("Unable to send the verification email right now. Please try again later.", "error")
 
         return redirect(url_for("verify_otp"))
 

@@ -107,31 +107,28 @@ def get_smtp_effective_settings() -> dict:
 
 def send_verification_otp_email(to_email: str, username: str, otp: str, expires_in_minutes: int = 10) -> tuple:
     """
-    Constructs and sends a professional CyberShieldAI branded OTP verification email.
+    Constructs and sends a professional CyberShieldAI branded OTP verification email via HTTPS API.
     Returns (success: bool, message: str).
     """
     clean_email = (to_email or "").strip()
     if not clean_email:
         return False, "Recipient email address is required."
 
-    subject = f"{otp} is your CyberShieldAI verification code"
+    subject = "CyberShieldAI — Email Verification OTP"
 
-    text_body = f"""CyberShieldAI — Security Operations Center
-Email Verification Code
+    text_body = f"""Hello {username},
 
-Hello {username},
+Your CyberShieldAI email verification code is:
 
-Use the following 6-digit verification code to complete your CyberShieldAI account registration:
+{otp}
 
-    {otp}
+This code expires in {expires_in_minutes} minutes.
 
-This code will expire in {expires_in_minutes} minutes.
+Do not share this code with anyone.
 
-SECURITY NOTICE:
-Never share this verification code with anyone. CyberShieldAI support and security personnel will never ask for your code.
-If you did not request this verification code, please disregard this email.
+If you did not request this account, you can safely ignore this email.
 
-— CyberShieldAI Automated Security System
+CyberShieldAI Security Team
 """
 
     html_body = f"""<!DOCTYPE html>
@@ -164,7 +161,7 @@ If you did not request this verification code, please disregard this email.
                             <h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; color: #f8fafc;">Verify Your Email Address</h2>
                             <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #94a3b8;">
                                 Hello <strong style="color: #ffffff;">{username}</strong>,<br>
-                                Thank you for registering with CyberShieldAI. Enter the 6-digit verification code below to activate your account:
+                                Your CyberShieldAI email verification code is:
                             </p>
                             
                             <!-- OTP Box -->
@@ -173,14 +170,14 @@ If you did not request this verification code, please disregard this email.
                                     <span style="font-family: 'Courier New', Courier, monospace, 'JetBrains Mono'; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #38bdf8; text-align: center;">{otp}</span>
                                 </div>
                                 <p style="margin: 12px 0 0 0; font-size: 12px; color: #64748b;">
-                                    ⏱️ Valid for <strong style="color: #cbd5e1;">{expires_in_minutes} minutes</strong>
+                                    ⏱️ This code expires in <strong style="color: #cbd5e1;">{expires_in_minutes} minutes</strong>.
                                 </p>
                             </div>
 
                             <!-- Security Alert Box -->
                             <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 24px 0 0 0;">
                                 <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #fca5a5;">
-                                    <strong>🔒 Security Notice:</strong> Never share this OTP with anyone. CyberShieldAI staff will never ask for your verification code. If you did not create an account, you can safely ignore this email.
+                                    <strong>🔒 Security Notice:</strong> Do not share this code with anyone. If you did not request this account, you can safely ignore this email.
                                 </p>
                             </div>
                         </td>
@@ -189,8 +186,8 @@ If you did not request this verification code, please disregard this email.
                     <tr>
                         <td style="padding: 20px 32px; background: #0b1329; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
                             <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.5;">
-                                CyberShieldAI SOC Automated Identity &amp; Access Protection<br>
-                                This is an automated email &mdash; please do not reply directly.
+                                CyberShieldAI Security Team<br>
+                                Automated Identity &amp; Access Protection
                             </p>
                         </td>
                     </tr>
@@ -202,11 +199,18 @@ If you did not request this verification code, please disregard this email.
 </html>
 """
 
-    effective_settings = get_smtp_effective_settings()
-    return send_smtp_email(
+    from alerts.email_api import send_https_email
+    return send_https_email(
         to_email=clean_email,
         subject=subject,
         html_body=html_body,
         text_body=text_body,
-        settings=effective_settings,
     )
+
+
+# Alias helper function matching prompt specification
+def send_otp_email(recipient_email: str, username: str, otp: str) -> tuple:
+    """
+    Sends an OTP verification email using the HTTPS Email API.
+    """
+    return send_verification_otp_email(to_email=recipient_email, username=username, otp=otp)
