@@ -114,21 +114,20 @@ def send_verification_otp_email(to_email: str, username: str, otp: str, expires_
     if not clean_email:
         return False, "Recipient email address is required."
 
-    subject = "CyberShieldAI — Email Verification OTP"
+    subject = f"{otp} is your CyberShieldAI verification code"
 
-    text_body = f"""Hello {username},
+    text_body = f"""Your CyberShieldAI verification code is: {otp}
 
-Your CyberShieldAI email verification code is:
+Enter this code on the verification page to activate your account.
+This verification code expires in {expires_in_minutes} minutes.
 
-{otp}
+Security Notice:
+Do not share this security code with anyone. CyberShieldAI will never ask you for this code.
+If you did not request this verification, no action is required.
 
-This code expires in {expires_in_minutes} minutes.
-
-Do not share this code with anyone.
-
-If you did not request this account, you can safely ignore this email.
-
-CyberShieldAI Security Team
+—
+CyberShieldAI Security Operations
+https://cybershieldai-nqhd.onrender.com
 """
 
     html_body = f"""<!DOCTYPE html>
@@ -136,9 +135,14 @@ CyberShieldAI Security Team
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberShieldAI Email Verification</title>
+    <title>{otp} is your CyberShieldAI verification code</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #070d19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+    <!-- Preheader preview text to prevent spam snippet parsing -->
+    <div style="display: none; max-height: 0px; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: #070d19;">
+        Your CyberShieldAI security verification code is {otp}. This code expires in {expires_in_minutes} minutes.
+    </div>
+
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #070d19; padding: 30px 15px;">
         <tr>
             <td align="center">
@@ -161,7 +165,7 @@ CyberShieldAI Security Team
                             <h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; color: #f8fafc;">Verify Your Email Address</h2>
                             <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #94a3b8;">
                                 Hello <strong style="color: #ffffff;">{username}</strong>,<br>
-                                Your CyberShieldAI email verification code is:
+                                Use the verification code below to complete your account registration:
                             </p>
                             
                             <!-- OTP Box -->

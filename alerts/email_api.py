@@ -191,11 +191,21 @@ def _send_via_brevo(api_key: str, from_name: str, from_email: str, to_email: str
         "Accept": "application/json",
     }
 
+    import uuid
+    ref_id = f"csa-{uuid.uuid4().hex[:12]}"
+
     payload = {
         "sender": {"name": from_name, "email": from_email},
         "to": [{"email": to_email.strip()}],
+        "replyTo": {"name": from_name, "email": from_email},
         "subject": subject,
         "htmlContent": html_body,
+        "headers": {
+            "X-Mailin-Tag": "auth-verification",
+            "X-Entity-Ref-ID": ref_id,
+            "Auto-Submitted": "auto-generated",
+            "X-Auto-Response-Suppress": "All",
+        },
     }
     if text_body:
         payload["textContent"] = text_body
