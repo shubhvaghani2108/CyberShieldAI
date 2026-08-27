@@ -26,6 +26,7 @@ def get_email_api_config() -> dict:
     # Check general API key or provider-specific keys
     api_key = (
         os.environ.get("EMAIL_API_KEY") or
+        os.environ.get("BREVO_API_KEY") or
         os.environ.get("RESEND_API_KEY") or
         os.environ.get("SENDGRID_API_KEY") or
         os.environ.get("MAILGUN_API_KEY") or
@@ -172,6 +173,43 @@ def _send_via_mailgun(api_key: str, domain: str, from_name: str, from_email: str
         return False, "Failed to connect to Mailgun API over HTTPS."
 
 
+def _send_via_brevo(api_key: str, from_name: str, from_email: str, to_email: str, subject: str, html_body: str, text_body: str) -> tuple:
+    """
+    Sends email via Brevo (Sendinblue) HTTPS REST API (https://api.brevo.com/v3/smtp/email).
+    Free tier allows 300 emails/day to any recipient worldwide without requiring a custom domain.
+    """
+    if not api_key:
+        logger.warning("[EMAIL_API_WARNING] provider=brevo error=missing_api_key")
+        return False, "Brevo API key is missing. Please configure EMAIL_API_KEY in environment variables."
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    payload = {
+        "sender": {"name": from_name, "email": from_email},
+        "to": [{"email": to_email.strip()}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+    if text_body:
+        payload["textContent"] = text_body
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        if response.status_code in (200, 201, 202):
+            return True, "Email successfully sent via Brevo."
+
+        logger.error(f"[EMAIL_API_ERROR] provider=brevo status={response.status_code}")
+        return False, f"Brevo API responded with status {response.status_code}."
+    except requests.RequestException as e:
+        logger.error(f"[EMAIL_API_ERROR] provider=brevo exception={type(e).__name__}")
+        return False, "Failed to connect to Brevo API over HTTPS."
+
+
 def send_https_email(
     to_email: str,
     subject: str,
@@ -180,7 +218,7 @@ def send_https_email(
     config: dict = None,
 ) -> tuple:
     """
-    Sends an email using configured HTTPS Email API provider (Resend, SendGrid, Mailgun).
+    Sends an email using configured HTTPS Email API provider (Resend, SendGrid, Brevo, Mailgun).
     Never attempts direct raw SMTP ports (25/465/587) unless provider is explicitly set to 'smtp'.
     Returns (success: bool, safe_message: str).
     """
@@ -195,6 +233,8 @@ def send_https_email(
 
     if provider == "resend":
         return _send_via_resend(api_key, from_name, from_email, to_email, subject, html_body, text_body)
+    elif provider in ("brevo", "sendinblue"):
+        return _send_via_brevo(api_key, from_name, from_email, to_email, subject, html_body, text_body)
     elif provider == "sendgrid":
         return _send_via_sendgrid(api_key, from_name, from_email, to_email, subject, html_body, text_body)
     elif provider == "mailgun":
