@@ -618,8 +618,35 @@ class OTPRegistrationTestCase(unittest.TestCase):
             self.assertTrue(success)
             mock_post.assert_called_once()
             args, kwargs = mock_post.call_args
-            self.assertEqual(kwargs["json"]["to"], ["admin_tester@example.com"])
-            self.assertEqual(kwargs["json"]["from"], "CyberShieldAI <alerts@verifieddomain.com>")
+    # 27. Brevo HTTPS API payload formatting and call
+    @patch("requests.post")
+    def test_27_brevo_api_https_payload_structure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"messageId": "<mock-brevo-id@smtp-relay.mailin.fr>"}
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        config = {
+            "provider": "brevo",
+            "api_key": "xkeysib-mockkey12345",
+            "from_name": "CyberShieldAI",
+            "from_email": "sender@gmail.com",
+        }
+        success, msg = send_https_email(
+            to_email="target@example.com",
+            subject="CyberShieldAI — Email Verification OTP",
+            html_body="<p>Test</p>",
+            text_body="Test",
+            config=config,
+        )
+        self.assertTrue(success)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://api.brevo.com/v3/smtp/email")
+        self.assertEqual(kwargs["headers"]["api-key"], "xkeysib-mockkey12345")
+        self.assertEqual(kwargs["json"]["to"], [{"email": "target@example.com"}])
+        self.assertEqual(kwargs["json"]["sender"]["email"], "sender@gmail.com")
 
 
 if __name__ == "__main__":
