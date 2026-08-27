@@ -18,11 +18,19 @@ services:
       - key: VIRUSTOTAL_API_KEY
         sync: false
       - key: EMAIL_PROVIDER
-        value: "resend"
-      - key: EMAIL_API_KEY
+        value: "smtp"
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
         sync: false
-      - key: EMAIL_FROM
-        value: "onboarding@resend.dev"
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_FROM_EMAIL
+        sync: false
       - key: EMAIL_FROM_NAME
         value: "CyberShieldAI"
       - key: OTP_EXPIRY_MINUTES
