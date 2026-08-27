@@ -418,19 +418,21 @@ class AuthenticationTestCase(unittest.TestCase):
 
     # 18. Local Registration Flow
     def test_18_local_registration_flow(self):
-        """18. Create account page allows local registration."""
-        res = self.client.post(
-            "/register",
-            data={
-                "username": "new_registered_user",
-                "email": "registered@cybershield.ai",
-                "password": "SecurePassword123!",
-                "confirm_password": "SecurePassword123!",
-            },
-            follow_redirects=True,
-        )
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"new_registered_user", res.data)
+        """18. Create account page allows local registration and redirects to OTP verification."""
+        with patch("alerts.otp_service.send_verification_otp_email", return_value=(True, "Success")):
+            res = self.client.post(
+                "/register",
+                data={
+                    "username": "new_registered_user",
+                    "email": "registered@cybershield.ai",
+                    "password": "SecurePassword123!",
+                    "confirm_password": "SecurePassword123!",
+                },
+                follow_redirects=True,
+            )
+            self.assertEqual(res.status_code, 200)
+            self.assertIn(b"Email OTP Verification", res.data)
+            self.assertIn(b"registered@cybershield.ai", res.data)
 
     # 19. /users Requires Authentication
     def test_19_users_route_requires_authentication(self):

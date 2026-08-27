@@ -87,8 +87,8 @@ def login_required(view_func):
 from database.user_helpers import verify_user_credentials, get_user_by_id, has_users
 
 # Public endpoints and path prefixes that bypass authentication
-PUBLIC_ENDPOINTS = {"login", "logout", "register", "setup", "health", "readiness", "static", "google_login", "google_callback"}
-PUBLIC_PATH_PREFIXES = ("/static/", "/health", "/readiness", "/login", "/register", "/setup", "/auth/google")
+PUBLIC_ENDPOINTS = {"login", "logout", "register", "verify_otp", "resend_otp", "setup", "health", "readiness", "static", "google_login", "google_callback"}
+PUBLIC_PATH_PREFIXES = ("/static/", "/health", "/readiness", "/login", "/register", "/verify-otp", "/resend-otp", "/setup", "/auth/google")
 
 
 def setup_auth_middleware(app):

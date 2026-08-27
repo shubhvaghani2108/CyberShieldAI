@@ -342,14 +342,14 @@
             <h1 class="brand-title">
                 <span class="brand-main">Cyber</span><span class="brand-accent">Shield</span><span class="brand-ai-tag">AI</span>
             </h1>
-            <div class="brand-subtitle">Create New Analyst Account</div>
+            <div class="brand-subtitle">Create New User Account</div>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="auth-alert" style="{% if category == 'success' %}background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4); color: #86efac;{% endif %}" role="alert">
-                        <i class="bi {% if category == 'success' %}bi-check-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %}"></i>
+                    <div class="auth-alert" style="{% if category == 'success' %}background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4); color: #86efac;{% elif category == 'info' %}background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc;{% endif %}" role="alert">
+                        <i class="bi {% if category == 'success' %}bi-check-circle-fill{% elif category == 'info' %}bi-info-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %}"></i>
                         <span>{{ message }}</span>
                     </div>
                 {% endfor %}
@@ -395,6 +395,7 @@
                         name="email" 
                         class="form-input" 
                         placeholder="name@example.com"
+                        required
                         value="{{ email or '' }}"
                     >
                 </div>
@@ -411,7 +412,7 @@
                         id="password" 
                         name="password" 
                         class="form-input" 
-                        placeholder="Create a password (min. 4 chars)" 
+                        placeholder="Create a strong password (min. 6 chars)" 
                         required
                     >
                 </div>
@@ -435,7 +436,7 @@
             </div>
 
             <button type="submit" class="btn-register">
-                <i class="bi bi-person-plus-fill"></i> Create Account
+                <i class="bi bi-shield-lock-fill"></i> Create Account &amp; Send Verification Code
             </button>
         </form>
 

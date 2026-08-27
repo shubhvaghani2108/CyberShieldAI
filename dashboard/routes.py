@@ -116,40 +116,76 @@ def register_routes(app):
 
         error = None
         if request.method == "POST":
+            import re
             username = request.form.get("username", "").strip()
-            email = request.form.get("email", "").strip()
+            email = request.form.get("email", "").strip().lower()
             password = request.form.get("password", "")
             confirm_password = request.form.get("confirm_password", "")
 
+            # 1. Validation
             if not username:
                 error = "Username is required."
-            elif len(username) < 3:
-                error = "Username must be at least 3 characters long."
-            elif len(password) < 4:
-                error = "Password must be at least 4 characters long."
+            elif len(username) < 3 or len(username) > 30:
+                error = "Username must be between 3 and 30 characters long."
+            elif not re.match(r"^[a-zA-Z0-9_.-]+$", username):
+                error = "Username can only contain letters, numbers, underscores, dots, and hyphens."
+            elif not email:
+                error = "Email address is required."
+            elif not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email):
+                error = "Please enter a valid email address."
+            elif not password or len(password) < 6:
+                error = "Password must be at least 6 characters long."
             elif password != confirm_password:
                 error = "Passwords do not match."
             else:
-                from database.user_helpers import get_user_by_username
+                from database.user_helpers import get_user_by_username, get_user_by_email
                 if get_user_by_username(username):
                     error = "This username is already taken. Please choose another."
+                elif get_user_by_email(email):
+                    error = "An account with this email address already exists. Please sign in."
                 else:
                     try:
-                        create_user(
+                        from werkzeug.security import generate_password_hash
+                        from alerts.otp_service import generate_secure_otp, hash_otp, get_otp_config, send_verification_otp_email
+                        from database.otp_helpers import create_pending_registration
+
+                        # 2. Hash password & generate secure 6-digit OTP
+                        password_hash = generate_password_hash(password)
+                        otp = generate_secure_otp(6)
+                        otp_hash = hash_otp(otp)
+                        otp_cfg = get_otp_config()
+
+                        # 3. Store pending registration
+                        reg_id = create_pending_registration(
                             username=username,
-                            password=password,
-                            role="ANALYST",
                             email=email,
-                            is_active=1,
+                            password_hash=password_hash,
+                            otp_hash=otp_hash,
+                            expires_in_minutes=otp_cfg["expiry_minutes"],
+                            max_attempts=otp_cfg["max_attempts"],
                         )
-                        user = verify_user_credentials(username, password)
-                        if user:
-                            login_user(user)
-                            flash(f"Welcome to CyberShieldAI, {username}! Your account was created successfully.", "success")
-                            return redirect(url_for("dashboard"))
-                        return redirect(url_for("login"))
+
+                        # 4. Save session context
+                        session["pending_registration_id"] = reg_id
+                        session["pending_email"] = email
+                        session.modified = True
+
+                        # 5. Send OTP email via SMTP
+                        sent, send_msg = send_verification_otp_email(
+                            to_email=email,
+                            username=username,
+                            otp=otp,
+                            expires_in_minutes=otp_cfg["expiry_minutes"],
+                        )
+
+                        if sent:
+                            flash(f"A 6-digit verification code has been sent to {email}. Please enter it below to activate your account.", "info")
+                        else:
+                            flash(f"Notice: {send_msg}. Please check your spam folder or request a new code if needed.", "warning")
+
+                        return redirect(url_for("verify_otp"))
                     except Exception as e:
-                        error = f"Registration failed: {str(e)}"
+                        error = f"Registration initiation failed: {str(e)}"
 
         return render_template(
             "register.html",
@@ -157,6 +193,163 @@ def register_routes(app):
             username=request.form.get("username", "") if request.method == "POST" else "",
             email=request.form.get("email", "") if request.method == "POST" else "",
         )
+
+    @app.route("/verify-otp", methods=["GET", "POST"])
+    def verify_otp():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        reg_id = session.get("pending_registration_id")
+        if not reg_id:
+            flash("No active registration verification session found. Please register first.", "error")
+            return redirect(url_for("register"))
+
+        from database.otp_helpers import (
+            get_pending_registration,
+            increment_pending_attempts,
+            delete_pending_registration,
+        )
+        pending = get_pending_registration(reg_id)
+        if not pending:
+            session.pop("pending_registration_id", None)
+            session.pop("pending_email", None)
+            flash("Your verification session has expired or was already completed. Please register or sign in.", "error")
+            return redirect(url_for("register"))
+
+        error = None
+        if request.method == "POST":
+            otp = request.form.get("otp", "").strip()
+
+            if not otp or len(otp) != 6 or not otp.isdigit():
+                error = "Please enter a valid 6-digit numeric verification code."
+            else:
+                from datetime import datetime, timezone
+                # Check expiration
+                try:
+                    exp_time = datetime.fromisoformat(pending["expires_at"])
+                    if exp_time.tzinfo is None:
+                        exp_time = exp_time.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc)
+                    is_expired = now_utc > exp_time
+                except Exception:
+                    is_expired = False
+
+                if is_expired:
+                    error = "Your verification code has expired. Please click 'Resend Code' to receive a new one."
+                elif pending["attempts"] >= pending["max_attempts"]:
+                    delete_pending_registration(reg_id)
+                    session.pop("pending_registration_id", None)
+                    session.pop("pending_email", None)
+                    flash("Maximum verification attempts exceeded. For security, your pending registration has been cancelled. Please register again.", "error")
+                    return redirect(url_for("register"))
+                else:
+                    # Increment attempts
+                    new_attempts = increment_pending_attempts(reg_id)
+                    from alerts.otp_service import verify_otp_hash
+                    
+                    if not verify_otp_hash(pending["otp_hash"], otp):
+                        remaining = max(0, pending["max_attempts"] - new_attempts)
+                        if remaining == 0:
+                            delete_pending_registration(reg_id)
+                            session.pop("pending_registration_id", None)
+                            session.pop("pending_email", None)
+                            flash("Maximum verification attempts exceeded. Pending registration cancelled. Please register again.", "error")
+                            return redirect(url_for("register"))
+                        else:
+                            error = f"Invalid verification code. {remaining} attempt(s) remaining."
+                    else:
+                        # Correct OTP! Activate account as normal USER role
+                        from database.user_helpers import create_user_with_hash, get_user_by_username, get_user_by_email
+                        
+                        # Guard against race conditions
+                        if get_user_by_username(pending["username"]) or get_user_by_email(pending["email"]):
+                            delete_pending_registration(reg_id)
+                            session.pop("pending_registration_id", None)
+                            session.pop("pending_email", None)
+                            flash("An account with this username or email already exists. Please sign in.", "error")
+                            return redirect(url_for("login"))
+
+                        create_user_with_hash(
+                            username=pending["username"],
+                            password_hash=pending["password_hash"],
+                            role="USER",
+                            email=pending["email"],
+                            is_active=1,
+                            auth_provider="local",
+                        )
+
+                        # Clean up pending record and session
+                        delete_pending_registration(reg_id)
+                        session.pop("pending_registration_id", None)
+                        session.pop("pending_email", None)
+
+                        flash("Your email has been verified and your account is active! Please sign in below.", "success")
+                        return redirect(url_for("login"))
+
+        return render_template(
+            "verify_otp.html",
+            error=error,
+            email=pending["email"],
+            expires_at=pending["expires_at"],
+        )
+
+    @app.route("/resend-otp", methods=["GET", "POST"])
+    def resend_otp():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        reg_id = session.get("pending_registration_id")
+        if not reg_id:
+            flash("No active registration verification session found. Please register first.", "error")
+            return redirect(url_for("register"))
+
+        from database.otp_helpers import get_pending_registration, update_pending_otp
+        pending = get_pending_registration(reg_id)
+        if not pending:
+            session.pop("pending_registration_id", None)
+            session.pop("pending_email", None)
+            flash("Your registration session expired. Please register again.", "error")
+            return redirect(url_for("register"))
+
+        from datetime import datetime, timezone
+        from alerts.otp_service import get_otp_config, generate_secure_otp, hash_otp, send_verification_otp_email
+
+        otp_cfg = get_otp_config()
+        cooldown = otp_cfg["resend_cooldown"]
+
+        # Check rate-limit cooldown
+        try:
+            last_resend = datetime.fromisoformat(pending["last_resend_at"])
+            if last_resend.tzinfo is None:
+                last_resend = last_resend.replace(tzinfo=timezone.utc)
+            now_utc = datetime.now(timezone.utc)
+            elapsed = (now_utc - last_resend).total_seconds()
+            if elapsed < cooldown:
+                wait_sec = int(cooldown - elapsed)
+                flash(f"Please wait {wait_sec} seconds before requesting a new verification code.", "error")
+                return redirect(url_for("verify_otp"))
+        except Exception:
+            pass
+
+        # Generate new OTP, hash, and invalidate old OTP
+        new_otp = generate_secure_otp(6)
+        new_otp_hash = hash_otp(new_otp)
+        update_pending_otp(reg_id, new_otp_hash, expires_in_minutes=otp_cfg["expiry_minutes"])
+
+        # Send new OTP email
+        sent, send_msg = send_verification_otp_email(
+            to_email=pending["email"],
+            username=pending["username"],
+            otp=new_otp,
+            expires_in_minutes=otp_cfg["expiry_minutes"],
+        )
+
+        if sent:
+            flash(f"A new 6-digit verification code has been sent to {pending['email']}.", "success")
+        else:
+            flash(f"Notice: {send_msg}. Please check your email configuration.", "warning")
+
+        return redirect(url_for("verify_otp"))
 
     @app.route("/auth/google")
     def google_login():

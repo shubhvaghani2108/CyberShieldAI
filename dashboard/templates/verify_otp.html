@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email — CyberShieldAI</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    <style>
+        :root {
+            --bg-auth: #070d19;
+            --card-auth: rgba(15, 23, 42, 0.85);
+            --card-border: rgba(56, 189, 248, 0.28);
+            --primary-glow: rgba(56, 189, 248, 0.2);
+            --accent-cyan: #38bdf8;
+            --accent-blue: #0284c7;
+            --accent-indigo: #6366f1;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --input-bg: rgba(11, 19, 41, 0.9);
+            --input-border: rgba(148, 163, 184, 0.25);
+            --danger-bg: rgba(239, 68, 68, 0.12);
+            --danger-border: rgba(239, 68, 68, 0.35);
+            --danger-text: #fca5a5;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-auth);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .auth-bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(50px);
+        }
+
+        .auth-grid {
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 36px 36px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .auth-container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 440px;
+            padding: 24px;
+            margin: 20px auto;
+        }
+
+        .auth-card {
+            background: var(--card-auth);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: 22px;
+            padding: 36px 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px var(--primary-glow);
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .brand-icon-wrapper {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            margin-bottom: 14px;
+            box-shadow: 0 0 24px rgba(56, 189, 248, 0.25);
+        }
+
+        .brand-title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .brand-main { color: #ffffff; }
+        .brand-accent { color: var(--accent-cyan); }
+        .brand-ai-tag {
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(56, 189, 248, 0.18);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 6px;
+            padding: 2px 7px;
+            margin-left: 6px;
+        }
+
+        .brand-subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            letter-spacing: 0.2px;
+        }
+
+        .email-target-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 12.5px;
+            color: #bae6fd;
+            margin-top: 10px;
+            word-break: break-all;
+        }
+
+        .auth-alert {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            background: var(--danger-bg);
+            border: 1px solid var(--danger-border);
+            color: var(--danger-text);
+        }
+
+        .auth-alert-success {
+            background: rgba(34, 197, 94, 0.12);
+            border-color: rgba(34, 197, 94, 0.35);
+            color: #86efac;
+        }
+
+        .otp-input-group {
+            margin: 24px 0 20px 0;
+            text-align: center;
+        }
+
+        .otp-input-label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .otp-code-input {
+            width: 100%;
+            height: 60px;
+            background: var(--input-bg);
+            border: 2px solid var(--input-border);
+            border-radius: 12px;
+            color: #38bdf8;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 12px;
+            text-align: center;
+            box-sizing: border-box;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .otp-code-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .otp-code-input::placeholder {
+            color: rgba(148, 163, 184, 0.25);
+            letter-spacing: 8px;
+        }
+
+        .timer-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12.5px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            padding: 0 4px;
+        }
+
+        .timer-display {
+            font-family: 'JetBrains Mono', monospace;
+            color: #38bdf8;
+            font-weight: 600;
+        }
+
+        .btn-verify {
+            width: 100%;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 13px 20px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+        }
+
+        .btn-verify:hover {
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .resend-section {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .btn-resend {
+            background: transparent;
+            border: none;
+            color: var(--accent-cyan);
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 13px;
+            transition: all 0.2s;
+            text-decoration: underline;
+        }
+
+        .btn-resend:hover:not(:disabled) {
+            color: #ffffff;
+        }
+
+        .btn-resend:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            text-decoration: none;
+            opacity: 0.6;
+        }
+
+        .auth-footer-nav {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .auth-footer-nav a {
+            color: var(--accent-cyan);
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .auth-footer-nav a:hover {
+            color: #ffffff;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-bg-glow"></div>
+<div class="auth-grid"></div>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="brand-header">
+            <div class="brand-icon-wrapper">
+                <svg viewBox="0 0 32 32" width="34" height="34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="shieldGradOtp" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#38bdf8"/>
+                            <stop offset="50%" stop-color="#0284c7"/>
+                            <stop offset="100%" stop-color="#6366f1"/>
+                        </linearGradient>
+                        <linearGradient id="innerGlowOtp" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+                            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M16 2.5 L27 6.5 V15 C27 22.5 16 29.5 16 29.5 C16 29.5 5 22.5 5 15 V6.5 L16 2.5 Z" fill="url(#shieldGradOtp)" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round"/>
+                    <path d="M16 7 L23 10 V15 C23 20 16 25 16 25 C16 25 9 20 9 15 V10 L16 7 Z" fill="#0b1329" fill-opacity="0.75" stroke="url(#innerGlowOtp)" stroke-width="1.2"/>
+                    <path d="M16 11.5 V17.5 M13 14.5 H19" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+                    <circle cx="16" cy="14.5" r="2.2" fill="#38bdf8"/>
+                    <circle cx="16" cy="20.5" r="1.2" fill="#38bdf8"/>
+                </svg>
+            </div>
+            <h1 class="brand-title">
+                <span class="brand-main">Cyber</span><span class="brand-accent">Shield</span><span class="brand-ai-tag">AI</span>
+            </h1>
+            <div class="brand-subtitle">Email OTP Verification</div>
+            
+            {% if email %}
+            <div>
+                <span class="email-target-badge">
+                    <i class="bi bi-envelope-check"></i> {{ email }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="auth-alert {% if category == 'success' or category == 'info' %}auth-alert-success{% endif %}" role="alert">
+                        <i class="bi {% if category == 'success' or category == 'info' %}bi-check-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %}"></i>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if error %}
+        <div class="auth-alert" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form class="auth-form" method="POST" action="{{ url_for('verify_otp') }}" autocomplete="off">
+            <div class="otp-input-group">
+                <label class="otp-input-label" for="otp">Enter 6-Digit Code</label>
+                <input 
+                    type="text" 
+                    id="otp" 
+                    name="otp" 
+                    class="otp-code-input" 
+                    maxlength="6" 
+                    pattern="[0-9]{6}" 
+                    inputmode="numeric" 
+                    placeholder="······" 
+                    required 
+                    autofocus
+                    autocomplete="one-time-code"
+                >
+            </div>
+
+            <div class="timer-info">
+                <span><i class="bi bi-shield-lock"></i> Code expires in:</span>
+                <span id="countdownDisplay" class="timer-display">--:--</span>
+            </div>
+
+            <button type="submit" class="btn-verify">
+                <i class="bi bi-shield-check"></i> Verify Email &amp; Activate
+            </button>
+        </form>
+
+        <div class="resend-section">
+            Didn't receive the code? 
+            <form method="POST" action="{{ url_for('resend_otp') }}" style="display: inline;">
+                <button type="submit" id="resendBtn" class="btn-resend">
+                    Resend Code
+                </button>
+            </form>
+            <span id="resendCountdown" style="display: none; font-size: 12px; color: var(--text-muted); margin-left: 4px;"></span>
+        </div>
+
+        <div class="auth-footer-nav">
+            <a href="{{ url_for('register') }}">
+                <i class="bi bi-arrow-left"></i> Change Email
+            </a>
+            <a href="{{ url_for('login') }}">
+                Back to Login <i class="bi bi-box-arrow-in-right"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Expiration Countdown Timer
+    (function() {
+        var expiresAtStr = "{{ expires_at or '' }}";
+        var countdownEl = document.getElementById("countdownDisplay");
+        var resendBtn = document.getElementById("resendBtn");
+        var resendCountdownEl = document.getElementById("resendCountdown");
+
+        if (expiresAtStr && countdownEl) {
+            var expiresAt = new Date(expiresAtStr).getTime();
+            
+            function updateTimer() {
+                var now = new Date().getTime();
+                var remaining = expiresAt - now;
+
+                if (remaining <= 0) {
+                    countdownEl.textContent = "Expired";
+                    countdownEl.style.color = "#ef4444";
+                    return;
+                }
+
+                var minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                var seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+                countdownEl.textContent = (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+            }
+
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        } else if (countdownEl) {
+            countdownEl.textContent = "10:00";
+        }
+
+        // Auto-focus and numeric filter for OTP input
+        var otpInput = document.getElementById("otp");
+        if (otpInput) {
+            otpInput.addEventListener("input", function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+                if (this.value.length === 6) {
+                    // Auto-focus verify button or visual state
+                }
+            });
+        }
+    })();
+</script>
+
+</body>
+</html>

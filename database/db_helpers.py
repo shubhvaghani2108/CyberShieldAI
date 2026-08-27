@@ -344,6 +344,12 @@ def init_db():
     conn.commit()
     conn.close()
 
+    try:
+        from database.otp_helpers import init_otp_table
+        init_otp_table()
+    except Exception:
+        pass
+
     migrate_db_add_scan_id()
 
 

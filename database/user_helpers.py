@@ -254,7 +254,32 @@ def create_user(username, password, role="ANALYST", email="", is_active=1, full_
         raise ValueError("Username and password are required.")
 
     password_hash = generate_password_hash(password)
-    role = (role or "ANALYST").strip().upper()
+    return create_user_with_hash(
+        username=username,
+        password_hash=password_hash,
+        role=role,
+        email=email,
+        is_active=is_active,
+        full_name=full_name,
+        phone=phone,
+        department=department,
+        timezone=timezone,
+        bio=bio,
+        avatar_url=avatar_url,
+        google_sub=google_sub,
+        auth_provider=auth_provider,
+    )
+
+
+def create_user_with_hash(username, password_hash, role="USER", email="", is_active=1, full_name="", phone="", department="", timezone="Asia/Kolkata", bio="", avatar_url="", google_sub=None, auth_provider="local"):
+    """
+    Creates a new local user with an already securely hashed password (e.g. from OTP verification).
+    """
+    username = (username or "").strip()
+    if not username or not password_hash:
+        raise ValueError("Username and password_hash are required.")
+
+    role = (role or "USER").strip().upper()
     email = (email or "").strip()
 
     conn = get_db_connection()
