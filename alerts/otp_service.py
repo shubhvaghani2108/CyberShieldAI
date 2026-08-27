@@ -199,18 +199,20 @@ CyberShieldAI Security Team
 </html>
 """
 
-    from alerts.email_api import send_https_email
-    return send_https_email(
+    effective_settings = get_smtp_effective_settings()
+    from alerts.email_notifier import send_smtp_email
+    return send_smtp_email(
         to_email=clean_email,
         subject=subject,
         html_body=html_body,
         text_body=text_body,
+        settings=effective_settings,
     )
 
 
-# Alias helper function matching prompt specification
+# Alias helper function
 def send_otp_email(recipient_email: str, username: str, otp: str) -> tuple:
     """
-    Sends an OTP verification email using the HTTPS Email API.
+    Sends an OTP verification email using the SMTP service.
     """
     return send_verification_otp_email(to_email=recipient_email, username=username, otp=otp)
