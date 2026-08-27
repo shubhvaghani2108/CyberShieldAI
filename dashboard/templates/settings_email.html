@@ -126,15 +126,34 @@
 <!-- Main Settings Form Grid -->
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: flex-start; margin-bottom: 30px;">
 
-    <!-- Left Form: SMTP Configuration -->
+    <!-- Left Form: Email Alert Configuration -->
     <div class="glass content-panel" style="padding: 24px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--panel-solid);">
-        <h3 style="margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; color: var(--accent);"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            SMTP Server Credentials
-        </h3>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; color: var(--accent);"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Email Alert & Dispatch Configuration
+            </h3>
+            {% if api_config and api_config.api_key and api_config.provider in ['brevo', 'sendinblue', 'sendgrid', 'resend', 'mailgun'] %}
+                <span class="badge" style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); color: var(--ok); font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px;">
+                    ⚡ {{ api_config.provider|upper }} HTTPS CLOUD RELAY
+                </span>
+            {% endif %}
+        </div>
+        
         <p style="margin: 0 0 20px; font-size: 12.5px; color: var(--text-2);">
-            Configure your outgoing mail server parameters (Gmail, Outlook, AWS SES, SendGrid, or custom SMTP).
+            Manage outgoing alert parameters for security incidents, score drops, new vulnerabilities, and SSL expirations.
         </p>
+
+        {% if api_config and api_config.api_key and api_config.provider in ['brevo', 'sendinblue', 'sendgrid', 'resend', 'mailgun'] %}
+            <div style="margin-bottom: 20px; padding: 14px 16px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: var(--radius-sm);">
+                <strong style="color: var(--accent); font-size: 13px; display: block; margin-bottom: 4px;">
+                    ✓ Active Cloud Engine: {{ api_config.provider|upper }} REST API
+                </strong>
+                <span style="color: var(--text-1); font-size: 12px; line-height: 1.4; display: block;">
+                    Render is configured to dispatch emails over secure HTTPS (Port 443) using verified sender <strong>{{ api_config.from_email or settings.from_email }}</strong>.
+                </span>
+            </div>
+        {% endif %}
 
         <form action="{{ url_for('email_settings_save') }}" method="POST">
             
@@ -145,13 +164,13 @@
                     <span style="font-size: 12px; color: var(--text-2);">Automatically send emails when security anomalies are detected</span>
                 </div>
                 <label style="position: relative; display: inline-block; width: 44px; height: 24px; margin: 0; cursor: pointer;">
-                    <input type="checkbox" name="enabled" value="1" {% if settings.enabled %}checked{% endif %} style="opacity: 0; width: 0; height: 0;" onchange="this.nextElementSibling.style.backgroundColor = this.checked ? 'var(--accent)' : 'var(--overlay-2)';">
-                    <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: {% if settings.enabled %}var(--accent){% else %}var(--overlay-2){% endif %}; transition: .3s; border-radius: 24px; border: 1px solid var(--border-strong);"></span>
+                    <input type="checkbox" name="enabled" value="1" {% if settings.enabled or (api_config and api_config.api_key) %}checked{% endif %} style="opacity: 0; width: 0; height: 0;" onchange="this.nextElementSibling.style.backgroundColor = this.checked ? 'var(--accent)' : 'var(--overlay-2)';">
+                    <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: {% if settings.enabled or (api_config and api_config.api_key) %}var(--accent){% else %}var(--overlay-2){% endif %}; transition: .3s; border-radius: 24px; border: 1px solid var(--border-strong);"></span>
                 </label>
             </div>
 
             <!-- Server & Port Grid -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 14px; margin-bottom: 14px;">
                 <div class="field" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
                         SMTP Server / Host <span style="color: var(--crit);">*</span>
@@ -159,10 +178,10 @@
                     <input 
                         type="text" 
                         name="smtp_server" 
-                        value="{{ settings.smtp_server or '' }}" 
-                        placeholder="e.g. smtp.gmail.com" 
+                        value="{{ settings.smtp_server or 'smtp.gmail.com' }}" 
+                        placeholder="smtp.gmail.com" 
                         required 
-                        style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px; font-family: var(--font-mono, monospace);"
+                        style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                     >
                 </div>
                 <div class="field" style="margin-bottom: 0;">
@@ -176,9 +195,8 @@
                         value="{{ settings.smtp_port or 587 }}" 
                         placeholder="587" 
                         required 
-                        style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px; font-family: var(--font-mono, monospace);"
+                        style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                     >
-
                 </div>
             </div>
 
@@ -224,8 +242,8 @@
                             type="password" 
                             id="smtpPassInput"
                             name="smtp_password" 
-                            value="{{ settings.smtp_password or (api_config.api_key if api_config else '') }}" 
-                            placeholder="••••••••••••••••" 
+                            value="{{ settings.smtp_password or '' }}" 
+                            placeholder="{% if api_config and api_config.api_key %}•••••••••••••••• (Brevo API Key Connected){% else %}Google App Password{% endif %}" 
                             autocomplete="new-password"
                             style="width: 100%; padding: 10px 38px 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px;"
                         >
@@ -296,7 +314,7 @@
 
             <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-weight: 700;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Save SMTP Settings
+                Save Email Settings
             </button>
         </form>
     </div>
@@ -308,7 +326,7 @@
             Send Test Email
         </h3>
         <p style="margin: 0 0 16px; font-size: 12.5px; color: var(--text-2);">
-            Dispatch a test email to verify that your SMTP credentials and delivery routing work properly.
+            Dispatch a test email to verify that your email relay credentials and delivery routing work properly.
         </p>
 
         <form action="{{ url_for('email_settings_test') }}" method="POST">
@@ -333,10 +351,10 @@
         </form>
 
         <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-2); line-height: 1.5;">
-            <strong style="color: var(--text-1); display: block; margin-bottom: 4px;">💡 Common Provider Setup:</strong>
-            • <strong>Gmail:</strong> `smtp.gmail.com`, Port `587`, TLS enabled. Generate an <em>App Password</em> in your Google Account security settings.<br>
-            • <strong>Outlook/Office365:</strong> `smtp.office365.com`, Port `587`, TLS enabled.<br>
-            • <strong>AWS SES / SendGrid:</strong> Use dedicated API/SMTP credentials on port `587`.
+            <strong style="color: var(--text-1); display: block; margin-bottom: 4px;">💡 Delivery Engine Info:</strong>
+            • <strong>Cloud Engine:</strong> Powered by <strong>Brevo HTTPS REST API</strong> for 100% cloud reliability on Render without blocked SMTP ports.<br>
+            • <strong>Verified Sender:</strong> `defenderr0809@gmail.com`<br>
+            • <strong>Alert Recipient:</strong> `smvaghani2005@gmail.com`
         </div>
     </div>
 

@@ -65,49 +65,37 @@ init_email_settings_table()
 
 def get_email_settings() -> dict:
     """
-    Retrieves the email and SMTP settings with intelligent environment variable fallbacks.
+    Retrieves the email and SMTP settings.
     """
     init_email_settings_table()
     conn = _get_conn()
     try:
         row = conn.execute("SELECT * FROM email_settings WHERE id = 1").fetchone()
+        env_from = os.environ.get("EMAIL_FROM", "").strip() or "defenderr0809@gmail.com"
+        env_user = os.environ.get("SMTP_USERNAME", "").strip() or env_from
+        env_recip = os.environ.get("ALERT_RECIPIENT", "").strip() or "smvaghani2005@gmail.com"
         
-        env_from = (os.environ.get("EMAIL_FROM") or os.environ.get("SMTP_USERNAME") or "defenderr0809@gmail.com").strip()
-        env_recipient = (os.environ.get("ALERT_RECIPIENT_EMAIL") or "smvaghani2005@gmail.com").strip()
-        env_smtp_user = (os.environ.get("SMTP_USERNAME") or env_from).strip()
-        env_smtp_pass = (os.environ.get("SMTP_PASSWORD") or os.environ.get("EMAIL_API_KEY") or "").strip()
-        env_host = (os.environ.get("SMTP_HOST") or "smtp.gmail.com").strip()
-        env_port = int(os.environ.get("SMTP_PORT", 587) or 587)
-
         if row:
             d = dict(row)
-            if not d.get("smtp_user"):
-                d["smtp_user"] = env_smtp_user
-            if not d.get("smtp_password"):
-                d["smtp_password"] = env_smtp_pass
             if not d.get("from_email"):
                 d["from_email"] = env_from
+            if not d.get("smtp_user"):
+                d["smtp_user"] = env_user
             if not d.get("recipient_email"):
-                d["recipient_email"] = env_recipient
-            if not d.get("smtp_server"):
-                d["smtp_server"] = env_host
-            if not d.get("smtp_port"):
-                d["smtp_port"] = env_port
-            if not d.get("enabled") and (os.environ.get("EMAIL_API_KEY") or os.environ.get("EMAIL_PROVIDER")):
-                d["enabled"] = 1
+                d["recipient_email"] = env_recip
             return d
 
         return {
             "id": 1,
-            "smtp_server": env_host,
-            "smtp_port": env_port,
-            "smtp_user": env_smtp_user,
-            "smtp_password": env_smtp_pass,
+            "smtp_server": "smtp.gmail.com",
+            "smtp_port": 587,
+            "smtp_user": env_user,
+            "smtp_password": "",
             "from_email": env_from,
-            "recipient_email": env_recipient,
+            "recipient_email": env_recip,
             "use_tls": 1,
             "use_ssl": 0,
-            "enabled": 1 if os.environ.get("EMAIL_API_KEY") else 0,
+            "enabled": 1,
             "alert_score_drop": 1,
             "alert_new_vuln": 1,
             "alert_critical": 1,
