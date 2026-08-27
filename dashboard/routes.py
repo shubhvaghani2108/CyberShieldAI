@@ -299,13 +299,15 @@ def register_routes(app):
                     link_google_identity(existing_email_user["id"], google_sub, avatar_url=avatar_url)
                     user = get_user_by_id(existing_email_user["id"])
                 else:
-                    # First-time Google login: create local account (defaults to non-admin VIEWER role)
+                    # First-time Google login: if system has 0 users (first setup), grant ADMIN, else default to VIEWER
+                    from database.user_helpers import has_users
+                    initial_role = "ADMIN" if not has_users() else "VIEWER"
                     user = create_google_user(
                         email=google_email,
                         google_sub=google_sub,
                         full_name=google_name,
                         avatar_url=avatar_url,
-                        role="VIEWER",
+                        role=initial_role,
                     )
 
             if not user or not user.get("is_active", 1):
