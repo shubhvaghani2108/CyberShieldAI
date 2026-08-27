@@ -2006,10 +2006,16 @@ def register_routes(app):
             user = {
                 "username": session.get("username", "Operator"),
                 "role": session.get("role", "ADMIN"),
-                "email": "",
+                "email": session.get("email", ""),
                 "created_at": "Active",
                 "last_login": "Active",
             }
+        else:
+            session["email"] = user.get("email", "")
+            if user.get("avatar_url"):
+                session["avatar_url"] = user.get("avatar_url")
+            session.modified = True
+
         return render_template(
             "profile.html",
             active_page="profile",
@@ -2061,8 +2067,10 @@ def register_routes(app):
         )
         if success:
             session["username"] = username
+            session["email"] = email
             if avatar_url:
                 session["avatar_url"] = avatar_url
+            session.modified = True
             flash("Profile information updated successfully.", "success")
         else:
             flash(err or "Failed to update profile.", "error")

@@ -86,10 +86,10 @@
             ">
                 <img 
                     id="avatarPreviewImg" 
-                    src="{{ user.avatar_url if user.avatar_url else 'https://ui-avatars.com/api/?name=' ~ (user.full_name or user.username) ~ '&background=0284c7&color=ffffff&bold=true&rounded=true' }}" 
-                    alt="{{ user.username }} Avatar" 
+                    src="{{ user.avatar_url if user.avatar_url else 'https://ui-avatars.com/api/?name=' ~ ((user.full_name or (user.email.split('@')[0] if user.email else user.username)) | urlencode) ~ '&background=0284c7&color=ffffff&bold=true&rounded=true' }}" 
+                    alt="{{ user.email or user.username }} Avatar" 
                     referrerpolicy="no-referrer"
-                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ user.full_name or user.username }}&background=0284c7&color=ffffff&bold=true&rounded=true';"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((user.full_name or (user.email.split(\'@\')[0] if user.email else user.username)) | urlencode) }}&background=0284c7&color=ffffff&bold=true&rounded=true';"
                     style="
                         width: 64px;
                         height: 64px;
