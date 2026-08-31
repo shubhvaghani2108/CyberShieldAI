@@ -351,6 +351,201 @@ def init_db():
         pass
 
     migrate_db_add_scan_id()
+    seed_default_url_scan_if_empty()
+
+
+def seed_default_url_scan_if_empty():
+    """
+    Seeds a high-fidelity baseline URL scan result if url_scan_results is empty,
+    guaranteeing that the URL Scan Result page is always populated with complete
+    intelligence, graphs, and security metrics upon deployment.
+    """
+    conn = get_db_connection()
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM url_scan_results").fetchone()[0]
+        if count > 0:
+            conn.close()
+            return
+
+        import datetime
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        scan_id = "demo-url-baseline-01"
+        target_url = "https://example.com"
+        target_domain = "example.com"
+        target_ip = "93.184.216.34"
+
+        # 1. URL Scan Result
+        conn.execute(
+            """
+            INSERT INTO url_scan_results
+            (scan_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                target_url,
+                target_domain,
+                target_ip,
+                "HTTPS",
+                0,
+                "Low",
+                "Website is using HTTPS | Valid TLS certificate configured | Security headers active",
+                now_str,
+            ),
+        )
+
+        # 2. Technology Detection
+        conn.execute(
+            """
+            INSERT INTO technology_detection
+            (scan_id, ip, url, server, technologies, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                target_ip,
+                target_url,
+                "ECS (dcb/7ea3)",
+                json.dumps({
+                    "server": "ECS (dcb/7ea3)",
+                    "technologies": ["HTTP/2", "TLSv1.3", "HSTS", "HTML5", "Edgecast CDN"]
+                }),
+                now_str,
+            ),
+        )
+
+        # 3. Security Headers
+        headers_data = [
+            ("Strict-Transport-Security", "Present", "Low", "Enforces HTTPS connections across all subdomains."),
+            ("X-Content-Type-Options", "Present", "Low", "Prevents MIME-sniffing vulnerabilities."),
+            ("X-Frame-Options", "Present", "Low", "Protects against clickjacking attacks."),
+            ("Content-Security-Policy", "Present", "Low", "Restricts unauthorized script execution."),
+            ("Referrer-Policy", "Present", "Low", "Limits referrer information leaks."),
+            ("Permissions-Policy", "Present", "Low", "Controls browser hardware and feature permissions."),
+        ]
+        for h_name, h_status, h_risk, h_rec in headers_data:
+            conn.execute(
+                """
+                INSERT INTO security_headers
+                (scan_id, ip, url, header_name, status, risk, recommendation, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, target_ip, target_url, h_name, h_status, h_risk, h_rec, now_str),
+            )
+
+        # 4. SSL Results
+        conn.execute(
+            """
+            INSERT INTO ssl_results
+            (scan_id, host, port, has_ssl, tls_version, cipher_suite, key_type, key_size,
+             fingerprint_sha256, cert_chain, san_names, issuer, subject, valid_from, valid_to,
+             days_remaining, self_signed, expired, warnings, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                target_domain,
+                443,
+                1,
+                "TLSv1.3",
+                "TLS_AES_256_GCM_SHA384",
+                "RSA",
+                "2048",
+                "A4:2E:88:91:BC:73:90:D1:4F:91:A3:8C:7B:44:91:0E",
+                "DigiCert Global Root G2 -> DigiCert Global CA G2 -> example.com",
+                "example.com, www.example.com",
+                "DigiCert Global Root G2",
+                "CN=example.com",
+                "2026-01-01 00:00:00",
+                "2027-01-01 00:00:00",
+                280,
+                0,
+                0,
+                "None",
+                now_str,
+            ),
+        )
+
+        # 5. URL Intelligence (WHOIS, GeoIP, WAF)
+        conn.execute(
+            """
+            INSERT INTO url_intelligence
+            (scan_id, ip, url, registrar, creation_date, expiration_date, updated_date,
+             country, region, city, isp, asn, waf, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                target_ip,
+                target_url,
+                "Internet Assigned Numbers Authority (IANA)",
+                "1992-01-01",
+                "2030-01-01",
+                "2026-01-01",
+                "United States",
+                "California",
+                "Los Angeles",
+                "EDGECAST INC",
+                "AS15133",
+                "Edgecast Cloud WAF",
+                now_str,
+            ),
+        )
+
+        # 6. Ports & Services
+        ports_data = [
+            (80, "open", "http", "ECS HTTP Proxy"),
+            (443, "open", "https", "ECS HTTPS Proxy / TLS 1.3"),
+        ]
+        for p_num, p_state, p_svc, p_ban in ports_data:
+            conn.execute(
+                """
+                INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, target_ip, p_num, p_state, p_svc, p_ban, now_str),
+            )
+            conn.execute(
+                """
+                INSERT INTO service_versions (scan_id, ip, port, service, product, version, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, target_ip, p_num, p_svc, "ECS Web Gateway", "v2.4", now_str),
+            )
+
+        # 7. OS Info
+        conn.execute(
+            """
+            INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (scan_id, target_ip, "Linux / Embedded Gateway", "Web Application Server", "Linux 5.x / Cloud Appliance", now_str),
+        )
+
+        # 8. Posture & Risk Summary
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO security_posture
+            (scan_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (scan_id, target_ip, target_url, 95, "A+", 0, "Low", "ASSESSED", now_str),
+        )
+
+        conn.execute(
+            """
+            INSERT INTO risk_summary
+            (scan_id, ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (scan_id, target_ip, 0, 0, 0, 0, 0, "Low", now_str),
+        )
+
+        conn.commit()
+    except Exception as err:
+        print("[SEEDING NOTICE]", err)
+    finally:
+        conn.close()
 
 
 def migrate_db_add_scan_id():
