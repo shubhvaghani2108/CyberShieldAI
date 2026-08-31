@@ -1,44 +1,74 @@
 {% extends "base.html" %}
-{% block title %}Open Ports{% endblock %}
+{% block title %}Open Ports &amp; Services{% endblock %}
 
 {% block content %}
 <div class="panel-heading">
-    <h2>📡 Open Ports &amp; Service Banners</h2>
-    <span class="sub">{{ rows|length }} port{{ 's' if rows|length != 1 else '' }} on {{ latest_ip or "the latest scan" }}</span>
+    <h2>📡 Open Ports &amp; Service Fingerprints</h2>
+    <span class="sub">
+        {{ rows|length }} open port{{ 's' if rows|length != 1 else '' }} detected on <strong>{{ latest_ip or "latest scan target" }}</strong>
+    </span>
 </div>
 
+{% if rows %}
 <div class="glass table-wrap">
     <table>
         <thead>
             <tr>
-                <th>IP Address</th>
+                <th>Target IP / Host</th>
                 <th>Port</th>
                 <th>State</th>
-                <th>Service</th>
-                <th>Banner</th>
-                <th>What This Means</th>
+                <th>Service Protocol</th>
+                <th>Service Banner / Server Header</th>
+                <th>Security Significance</th>
             </tr>
         </thead>
         <tbody>
         {% for row in rows %}
+        {% set ip_val = row['ip'] if row['ip'] is defined else row[0] %}
+        {% set port_val = row['port'] if row['port'] is defined else row[1] %}
+        {% set state_val = row['state'] if row['state'] is defined else row[2] %}
+        {% set service_val = row['service'] if row['service'] is defined else row[3] %}
+        {% set banner_val = row['banner'] if row['banner'] is defined else row[4] %}
+        {% set meaning_val = meanings[loop.index0] if (meanings and loop.index0 < meanings|length) else "Active network service endpoint" %}
         <tr>
-            <td class="mono">{{ row[0] }}</td>
-            <td class="mono">{{ row[1] }}</td>
+            <td class="mono">
+                <span style="color: #38bdf8; font-weight: 600;">
+                    {{ ip_val }}
+                </span>
+            </td>
+            <td class="mono">
+                <strong style="color: #f8fafc; font-size: 14px;">{{ port_val }}</strong>
+            </td>
             <td>
-                {% if row[2] == 'open' %}
-                    <span class="badge badge-ok">{{ row[2] }}</span>
+                {% if (state_val or 'open')|lower == 'open' %}
+                    <span class="badge badge-ok" style="font-weight: 700;">OPEN</span>
                 {% else %}
-                    <span class="badge badge-unknown">{{ row[2] }}</span>
+                    <span class="badge badge-unknown">{{ state_val }}</span>
                 {% endif %}
             </td>
-            <td>{{ row[3] }}</td>
-            <td style="max-width:380px; word-wrap:break-word;">{{ row[4] }}</td>
-            <td style="max-width:320px; word-wrap:break-word; color:var(--text-1); font-style:italic;">{{ meanings[loop.index0] }}</td>
+            <td>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; font-weight: 600; text-transform: uppercase;">
+                    {{ service_val or 'unknown' }}
+                </span>
+            </td>
+            <td style="max-width: 380px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #cbd5e1;">
+                {{ banner_val or "No banner responded" }}
+            </td>
+            <td style="max-width: 320px; word-wrap: break-word; color: #94a3b8; font-size: 13px; line-height: 1.4;">
+                {{ meaning_val }}
+            </td>
         </tr>
-        {% else %}
-        <tr class="empty-row"><td colspan="6">No open ports found for the latest scan.</td></tr>
         {% endfor %}
         </tbody>
     </table>
 </div>
+{% else %}
+<div class="glass content-panel" style="padding: 40px; text-align: center;">
+    <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🛡️</div>
+    <h3 style="margin-bottom: 6px; color: #f8fafc;">No Open Ports Detected</h3>
+    <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 480px; margin: 0 auto;">
+        No active open ports were detected on {{ latest_ip or "the target host" }}. Run a new scan from the top navigation bar to profile network ports and services.
+    </p>
+</div>
+{% endif %}
 {% endblock %}

@@ -110,7 +110,7 @@ def _run_ip_scan_job(job_id, target, ports="top-1000"):
                     job_id,
                     f"Host {target} is unreachable (0 open ports found). Stopping scan.",
                 )
-                _job_done(job_id)
+                _job_done(job_id, result_ip=target)
                 return
             else:
                 # Ports were found! Update host status to Alive
