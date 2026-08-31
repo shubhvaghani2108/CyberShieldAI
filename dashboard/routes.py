@@ -1483,6 +1483,31 @@ def register_routes(app):
         suspicious_score = result.get("suspicious_score") if result else 0
         risk_level = result.get("risk_level") if result else risk
 
+        # Build clean URL-specific context dictionary
+        url_info_dict = {
+            "url": url,
+            "domain": domain,
+            "ip": resolved_ip,
+            "protocol": protocol,
+            "score": score,
+            "risk": risk,
+            "remarks": result.get("remarks") if result else "",
+            "scan_time": scan_time,
+            "https_status": https_status,
+            "suspicious_score": suspicious_score,
+            "risk_level": risk_level,
+            "scan_id": current_scan_id,
+            "whois": url_info.get("whois", {}) if isinstance(url_info, dict) else {},
+            "geoip": url_info.get("geoip", {}) if isinstance(url_info, dict) else {},
+            "dns": url_info.get("dns", {}) if isinstance(url_info, dict) else {},
+            "waf": url_info.get("waf", {}) if isinstance(url_info, dict) else {},
+            "security_headers": url_info.get("security_headers", {}) if isinstance(url_info, dict) else {},
+        }
+        if isinstance(url_info, dict):
+            for k, v in url_info.items():
+                if k not in url_info_dict or url_info_dict[k] is None:
+                    url_info_dict[k] = v
+
         print("===== URL RESULT DEBUG =====")
         print("RESULT:", result)
         print("URL:", url)
@@ -1496,7 +1521,7 @@ def register_routes(app):
         print("VULNERABILITIES:", vulnerabilities)
         print("CVES:", cves)
         print("RISK SUMMARY:", risk_summary)
-        print("URL INFO:", url_info)
+        print("URL INFO:", url_info_dict)
         print("============================")
 
         return render_template(
@@ -1527,7 +1552,9 @@ def register_routes(app):
             recommendations=recommendations,
             remarks=remarks,
             ssl_info=ssl_info,
-            url_info=url_info,
+            ssl_data=ssl_info,
+            waf_info=(url_info_dict.get("waf") if isinstance(url_info_dict.get("waf"), dict) else {}),
+            url_info=url_info_dict,
             ai_result=ai_result,
             history_scans=history_scans,
             scan_comparison=scan_comparison,

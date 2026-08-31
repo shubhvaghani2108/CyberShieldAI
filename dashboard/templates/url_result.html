@@ -40,8 +40,8 @@
         <tr><th>Protocol</th><td>{{ result.protocol if (result and result.protocol) else (protocol or "HTTPS") }}</td></tr>
         <tr><th>Security Score</th><td class="mono">{{ (result.score if (result and result.score is not none) else score) or 0 }} / 100</td></tr>
         <tr><th>Risk</th><td><span class="risk-pill {{ (result.risk or risk or 'low')|lower }}">{{ result.risk or risk or "Low" }}</span></td></tr>
-        {% if (result and result.scan_id) or scan_id %}<tr><th>Scan ID</th><td class="mono" style="font-size:12px; color:var(--text-1);">{{ result.scan_id if (result and result.scan_id) else scan_id }}</td></tr>{% endif %}
-        {% if (result and result.scan_time) or scan_time %}<tr><th>Scan Time</th><td class="mono utc-timestamp">{{ result.scan_time if (result and result.scan_time) else scan_time }}</td></tr>{% endif %}
+        <tr><th>Scan ID</th><td class="mono" style="font-size:12px; color:var(--text-1);">{{ (result.scan_id if (result and result.scan_id) else scan_id) or "-" }}</td></tr>
+        <tr><th>Scan Time</th><td class="mono utc-timestamp">{{ (result.scan_time if (result and result.scan_time) else scan_time) or "-" }}</td></tr>
     </table>
     <p class="empty-note" style="margin-top:10px;">
         This score comes from URL-pattern heuristics (protocol, suspicious
