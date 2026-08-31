@@ -1384,11 +1384,25 @@ def register_routes(app):
 
     @app.route("/scan", methods=["POST"])
     def scan():
+        import re
         target = request.form.get("target", "").strip()
         mode = request.form.get("mode", "quick").strip().lower()
 
         if not target:
             return "No target IP provided"
+
+        # Check if the target is a URL or domain name instead of a pure IP
+        is_url = target.startswith("http://") or target.startswith("https://")
+        is_ip = bool(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", target))
+
+        if is_url or (not is_ip and "." in target and not target.replace(".", "").isdigit()):
+            url_target = target if is_url else f"https://{target}"
+            job_id = _new_job(url_target, job_type="url")
+            thread = threading.Thread(
+                target=_run_url_scan_job, args=(job_id, url_target), daemon=True
+            )
+            thread.start()
+            return redirect(url_for("scanning_status_page", job_id=job_id))
 
         ports = "1-65535" if mode == "full" else "top-1000"
         job_id = _new_job(target, job_type="ip")
@@ -1430,6 +1444,9 @@ def register_routes(app):
 
         if not url:
             return redirect(url_for("dashboard"))
+
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = f"https://{url}"
 
         job_id = _new_job(url, job_type="url")
         thread = threading.Thread(
