@@ -37,6 +37,11 @@ from database.db_helpers import (
     get_latest_url_scan,
     get_url_scan_dashboard_context,
 )
+from database.security_activity_helpers import (
+    log_security_activity,
+    get_security_activity_logs,
+    get_security_activity_metrics,
+)
 
 from alerts.dashboard_alerts import (
     get_recent_alerts,
@@ -191,6 +196,14 @@ def register_routes(app):
                         session["pending_email"] = email
                         session.modified = True
 
+                        log_security_activity(
+                            "REGISTRATION",
+                            status="SUCCESS",
+                            username=username,
+                            email=email,
+                            details="Account registration initiated with email verification",
+                        )
+
                         flash(f"A 6-digit verification code has been sent to {email}. Please enter it below to activate your account.", "info")
                         return redirect(url_for("verify_otp"))
                     except Exception as e:
@@ -257,7 +270,15 @@ def register_routes(app):
                     from alerts.otp_service import verify_otp_hash
                     
                     if not verify_otp_hash(pending["otp_hash"], otp):
+                        new_attempts = increment_pending_attempts(reg_id)
                         remaining = max(0, pending["max_attempts"] - new_attempts)
+                        log_security_activity(
+                            "OTP_FAILED",
+                            status="FAILED",
+                            username=pending["username"],
+                            email=pending["email"],
+                            details="Invalid registration OTP entered",
+                        )
                         if remaining == 0:
                             delete_pending_registration(reg_id)
                             session.pop("pending_registration_id", None)
@@ -278,13 +299,22 @@ def register_routes(app):
                             flash("An account with this username or email already exists. Please sign in.", "error")
                             return redirect(url_for("login"))
 
-                        create_user_with_hash(
+                        user_id = create_user_with_hash(
                             username=pending["username"],
                             password_hash=pending["password_hash"],
                             role="USER",
                             email=pending["email"],
                             is_active=1,
                             auth_provider="local",
+                        )
+
+                        log_security_activity(
+                            "OTP_VERIFIED",
+                            status="SUCCESS",
+                            username=pending["username"],
+                            email=pending["email"],
+                            user_id=user_id,
+                            details="Registration OTP verified and user account created",
                         )
 
                         # Clean up pending record and session
@@ -424,12 +454,29 @@ def register_routes(app):
                     session["password_reset_id"] = reset_id
                     session["password_reset_email"] = target_email
                     session.modified = True
+
+                    log_security_activity(
+                        "PASSWORD_RESET_REQUESTED",
+                        status="SUCCESS",
+                        username=user.get("username", input_val),
+                        email=target_email,
+                        user_id=user.get("id"),
+                        details="Password reset recovery code requested",
+                    )
                 else:
                     # Anti-enumeration placeholder session
                     print(f"[EMAIL] Password reset requested for unregistered/inactive account: {input_val} (anti-enumeration active)", flush=True)
                     session["password_reset_id"] = "nonexistent"
                     session["password_reset_email"] = input_val
                     session.modified = True
+
+                    log_security_activity(
+                        "PASSWORD_RESET_REQUESTED",
+                        status="SUCCESS",
+                        username=input_val,
+                        email=input_val if "@" in input_val else "",
+                        details="Password reset recovery code requested (anti-enumeration placeholder)",
+                    )
 
                 # Generic response to prevent user enumeration
                 flash("If this email address is registered, a password reset code has been sent.", "info")
@@ -506,6 +553,12 @@ def register_routes(app):
                     if not verify_otp_hash(record["otp_hash"], otp):
                         new_attempts = increment_password_reset_attempts(reset_id)
                         remaining = max(0, record["max_attempts"] - new_attempts)
+                        log_security_activity(
+                            "OTP_FAILED",
+                            status="FAILED",
+                            email=stored_email,
+                            details="Invalid password recovery OTP entered",
+                        )
                         if remaining <= 0:
                             delete_password_reset(reset_id)
                             session.pop("password_reset_id", None)
@@ -519,6 +572,13 @@ def register_routes(app):
                         authorize_password_reset_token(reset_id, hash_otp(reset_token))
                         session["password_reset_token"] = reset_token
                         session.modified = True
+
+                        log_security_activity(
+                            "OTP_VERIFIED",
+                            status="SUCCESS",
+                            email=stored_email,
+                            details="Password recovery OTP verified successfully",
+                        )
                         return redirect(url_for("reset_password"))
 
         return render_template(
@@ -648,6 +708,15 @@ def register_routes(app):
                 # Securely hash and update user's password
                 update_user_password(user["username"], password)
                 delete_password_reset(reset_id)
+
+                log_security_activity(
+                    "PASSWORD_RESET_COMPLETED",
+                    status="SUCCESS",
+                    username=user["username"],
+                    email=user.get("email", ""),
+                    user_id=user["id"],
+                    details="User password successfully reset",
+                )
 
                 # Send security confirmation email
                 from alerts.otp_service import send_password_changed_notification_email
@@ -831,6 +900,15 @@ def register_routes(app):
 
             login_user(user)
 
+            log_security_activity(
+                "LOGIN_SUCCESS",
+                status="SUCCESS",
+                username=user.get("username", ""),
+                email=user.get("email", ""),
+                user_id=user.get("id"),
+                details="Signed in with Google OAuth 2.0",
+            )
+
             next_url = session.pop("oauth_next", None)
             if next_url and is_safe_url(next_url) and not next_url.startswith("/login") and not next_url.startswith("/auth"):
                 return redirect(next_url)
@@ -861,10 +939,25 @@ def register_routes(app):
             user = verify_user_credentials(username, password)
             if user:
                 login_user(user)
+                log_security_activity(
+                    "LOGIN_SUCCESS",
+                    status="SUCCESS",
+                    username=user.get("username", username),
+                    email=user.get("email", ""),
+                    user_id=user.get("id"),
+                    details="User logged in with local credentials",
+                )
                 if next_url and is_safe_url(next_url) and not next_url.startswith("/login") and not next_url.startswith("/logout"):
                     return redirect(next_url)
                 return redirect(url_for("dashboard"))
             else:
+                log_security_activity(
+                    "LOGIN_FAILED",
+                    status="FAILED",
+                    username=username,
+                    email=username if "@" in username else "",
+                    details="Invalid credentials submitted",
+                )
                 error = "Invalid username, email, or password."
 
         return render_template(
@@ -876,6 +969,15 @@ def register_routes(app):
 
     @app.route("/logout", methods=["GET", "POST"])
     def logout():
+        if session.get("user_id"):
+            log_security_activity(
+                "LOGOUT",
+                status="SUCCESS",
+                username=session.get("username", ""),
+                email=session.get("email", ""),
+                user_id=session.get("user_id"),
+                details="User logged out",
+            )
         logout_user()
         return redirect(url_for("login"))
 
@@ -2412,4 +2514,39 @@ def register_routes(app):
         else:
             flash(err or "Failed to update password.", "error")
         return redirect(url_for("profile_page"))
+
+    @app.route("/admin/security-activity", methods=["GET"])
+    def security_activity_page():
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to access Security Activity.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        event_filter = request.args.get("filter", "all").strip().lower()
+        page = max(1, request.args.get("page", 1, type=int))
+        per_page = 20
+
+        from database.security_activity_helpers import (
+            get_security_activity_logs,
+            get_security_activity_metrics,
+        )
+
+        logs, total_count, total_pages, current_page = get_security_activity_logs(
+            event_filter=event_filter,
+            page=page,
+            per_page=per_page,
+        )
+        metrics = get_security_activity_metrics()
+
+        return render_template(
+            "security_activity.html",
+            active_page="security_activity",
+            page_title="Security Activity & Audit Trail",
+            page_subtitle="Real-time authentication and security event auditing",
+            logs=logs,
+            metrics=metrics,
+            current_filter=event_filter,
+            current_page=current_page,
+            total_pages=total_pages,
+            total_count=total_count,
+        )
 
