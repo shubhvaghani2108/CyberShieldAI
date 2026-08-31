@@ -621,6 +621,42 @@ class OTPRegistrationTestCase(unittest.TestCase):
             self.assertEqual(kwargs["json"]["to"], ["admin_tester@example.com"])
             self.assertEqual(kwargs["json"]["from"], "CyberShieldAI <alerts@verifieddomain.com>")
 
+    # 27. Brevo HTTPS Transactional Email API payload formatting and messageId parsing
+    @patch("requests.post")
+    def test_27_brevo_api_https_payload_structure(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"messageId": "<202608311200.test_msg_id_123@smtp-relay.brevo.com>"}
+        mock_post.return_value = mock_response
+
+        from alerts.email_api import send_https_email
+        config = {
+            "provider": "brevo",
+            "api_key": "xkeysib-mock_brevo_api_key_12345",
+            "from_name": "CyberShieldAI Security",
+            "from_email": "defenderr0809@gmail.com",
+        }
+        success, msg = send_https_email(
+            to_email="recipient_user@gmail.com",
+            subject="CyberShieldAI Password Recovery Code",
+            html_body="<p>Your OTP is 123456</p>",
+            text_body="Your OTP is 123456",
+            config=config,
+        )
+        self.assertTrue(success)
+        self.assertIn("Message ID: <202608311200.test_msg_id_123@smtp-relay.brevo.com>", msg)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertEqual(args[0], "https://api.brevo.com/v3/smtp/email")
+        self.assertEqual(kwargs["headers"]["api-key"], "xkeysib-mock_brevo_api_key_12345")
+        self.assertEqual(kwargs["headers"]["accept"], "application/json")
+        self.assertEqual(kwargs["headers"]["content-type"], "application/json")
+        self.assertEqual(kwargs["json"]["sender"]["email"], "defenderr0809@gmail.com")
+        self.assertEqual(kwargs["json"]["sender"]["name"], "CyberShieldAI Security")
+        self.assertEqual(kwargs["json"]["to"], [{"email": "recipient_user@gmail.com"}])
+        self.assertEqual(kwargs["json"]["subject"], "CyberShieldAI Password Recovery Code")
+        self.assertEqual(kwargs["json"]["htmlContent"], "<p>Your OTP is 123456</p>")
+
 
 if __name__ == "__main__":
     unittest.main()

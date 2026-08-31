@@ -135,7 +135,8 @@ class TestPasswordResetFlow(unittest.TestCase):
         self.assertIsNotNone(new_auth)
         self.assertEqual(new_auth["username"], "reset_test_user")
 
-    def test_rate_limiting_max_attempts_lockout(self):
+    @patch("alerts.email_api.send_https_email", return_value=(True, "ok"))
+    def test_rate_limiting_max_attempts_lockout(self, mock_send):
         """After 5 incorrect OTP attempts, the reset request is destroyed."""
         # Initiate reset
         self.client.post(

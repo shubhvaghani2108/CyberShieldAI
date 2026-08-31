@@ -13,37 +13,69 @@ logger = logging.getLogger("cybershield.email_api")
 
 def get_email_api_config() -> dict:
     """
-    Reads email API configuration from environment variables.
+    Reads email API configuration from environment variables with intelligent fallbacks.
     """
     env_provider = os.environ.get("EMAIL_PROVIDER", "").strip().lower()
-    if env_provider:
-        provider = env_provider
-    elif os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_HOST"):
-        provider = "smtp"
-    else:
-        provider = "resend"
     
     # Check general API key or provider-specific keys
     api_key = (
-        os.environ.get("EMAIL_API_KEY") or
         os.environ.get("BREVO_API_KEY") or
+        os.environ.get("EMAIL_API_KEY") or
+        os.environ.get("SENDINBLUE_API_KEY") or
         os.environ.get("RESEND_API_KEY") or
         os.environ.get("SENDGRID_API_KEY") or
         os.environ.get("MAILGUN_API_KEY") or
         ""
     ).strip()
 
-    from_name = os.environ.get("EMAIL_FROM_NAME", "CyberShieldAI").strip()
-    from_email = os.environ.get("EMAIL_FROM", "").strip()
+    # Determine provider
+    if env_provider:
+        provider = env_provider
+    elif os.environ.get("BREVO_API_KEY") or os.environ.get("SENDINBLUE_API_KEY"):
+        provider = "brevo"
+    elif os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_HOST"):
+        provider = "smtp"
+    elif os.environ.get("SENDGRID_API_KEY"):
+        provider = "sendgrid"
+    elif os.environ.get("MAILGUN_API_KEY"):
+        provider = "mailgun"
+    else:
+        provider = "brevo" if api_key.startswith("xkeysib-") else "resend"
 
-    # Default from_email for Resend testing domain if not specified
+    from_name = (
+        os.environ.get("EMAIL_FROM_NAME") or
+        os.environ.get("BREVO_FROM_NAME") or
+        "CyberShieldAI"
+    ).strip()
+
+    from_email = (
+        os.environ.get("EMAIL_FROM") or
+        os.environ.get("BREVO_SENDER_EMAIL") or
+        os.environ.get("SMTP_FROM_EMAIL") or
+        os.environ.get("SMTP_USER") or
+        os.environ.get("SMTP_USERNAME") or
+        ""
+    ).strip()
+
+    # Fallback to database email settings if available
     if not from_email:
-        if provider == "resend":
+        try:
+            from database.email_settings_helpers import get_email_settings
+            db_s = get_email_settings() or {}
+            from_email = (db_s.get("from_email") or db_s.get("smtp_user") or "").strip()
+        except Exception:
+            pass
+
+    # Verified sender fallback for Brevo
+    if not from_email:
+        if provider in ("brevo", "sendinblue"):
+            from_email = "defenderr0809@gmail.com"
+        elif provider == "resend":
             from_email = "onboarding@resend.dev"
         elif provider == "sendgrid":
             from_email = "alerts@cybershield.ai"
         else:
-            from_email = "alerts@cybershield.ai"
+            from_email = "defenderr0809@gmail.com"
 
     mailgun_domain = os.environ.get("MAILGUN_DOMAIN", "").strip()
 
@@ -62,6 +94,7 @@ def _send_via_resend(api_key: str, from_name: str, from_email: str, to_email: st
     """
     if not api_key:
         logger.warning("[EMAIL_API_WARNING] provider=resend error=missing_api_key")
+        print("[EMAIL] BREVO/EMAIL SEND FAILED: Resend API key is missing.", flush=True)
         return False, "Resend API key is missing. Please configure EMAIL_API_KEY in environment variables."
 
     url = "https://api.resend.com/emails"
@@ -71,7 +104,6 @@ def _send_via_resend(api_key: str, from_name: str, from_email: str, to_email: st
         "User-Agent": "CyberShieldAI/1.0",
     }
 
-    # Format from header
     formatted_from = f"{from_name} <{from_email}>" if from_name else from_email
 
     payload = {
@@ -86,9 +118,15 @@ def _send_via_resend(api_key: str, from_name: str, from_email: str, to_email: st
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=12)
         if response.status_code in (200, 201, 202):
+            try:
+                res_id = response.json().get("id") or "ok"
+            except Exception:
+                res_id = "ok"
+            print(f"[EMAIL] Provider: Resend", flush=True)
+            print(f"[EMAIL] Resend response: success (HTTP {response.status_code})", flush=True)
+            print(f"[EMAIL] Resend message ID: {res_id}", flush=True)
             return True, "Email successfully sent via Resend."
         
-        # Log sanitized error
         try:
             err_data = response.json()
             err_msg = err_data.get("message") or err_data.get("error") or str(response.status_code)
@@ -96,11 +134,11 @@ def _send_via_resend(api_key: str, from_name: str, from_email: str, to_email: st
             err_msg = f"HTTP {response.status_code}"
         
         logger.error(f"[EMAIL_API_ERROR] provider=resend status={response.status_code} error={err_msg}")
-        if response.status_code == 403 or "only send testing emails" in str(err_msg).lower():
-            return False, f"Resend Sandbox Restriction: {err_msg}. (Note: To send to any Gmail address like {to_email}, use Brevo or SendGrid in Render Environment variables)."
+        print(f"[EMAIL] RESEND EMAIL SEND FAILED - Status: {response.status_code} - Error: {err_msg}", flush=True)
         return False, f"Resend API error: {err_msg}"
     except requests.RequestException as e:
         logger.error(f"[EMAIL_API_ERROR] provider=resend exception={type(e).__name__}")
+        print(f"[EMAIL] Resend connection failed: {type(e).__name__}", flush=True)
         return False, "Failed to connect to Resend API over HTTPS."
 
 
@@ -134,9 +172,11 @@ def _send_via_sendgrid(api_key: str, from_name: str, from_email: str, to_email: 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=12)
         if response.status_code in (200, 201, 202):
+            print(f"[EMAIL] Provider: SendGrid - response: success (HTTP {response.status_code})", flush=True)
             return True, "Email successfully sent via SendGrid."
         
         logger.error(f"[EMAIL_API_ERROR] provider=sendgrid status={response.status_code}")
+        print(f"[EMAIL] SENDGRID EMAIL SEND FAILED - Status: {response.status_code}", flush=True)
         return False, f"SendGrid API responded with status {response.status_code}."
     except requests.RequestException as e:
         logger.error(f"[EMAIL_API_ERROR] provider=sendgrid exception={type(e).__name__}")
@@ -166,9 +206,11 @@ def _send_via_mailgun(api_key: str, domain: str, from_name: str, from_email: str
     try:
         response = requests.post(url, auth=("api", api_key), data=data, timeout=12)
         if response.status_code in (200, 201, 202):
+            print(f"[EMAIL] Provider: Mailgun - response: success (HTTP {response.status_code})", flush=True)
             return True, "Email successfully sent via Mailgun."
         
         logger.error(f"[EMAIL_API_ERROR] provider=mailgun status={response.status_code}")
+        print(f"[EMAIL] MAILGUN EMAIL SEND FAILED - Status: {response.status_code}", flush=True)
         return False, f"Mailgun API responded with status {response.status_code}."
     except requests.RequestException as e:
         logger.error(f"[EMAIL_API_ERROR] provider=mailgun exception={type(e).__name__}")
@@ -177,48 +219,100 @@ def _send_via_mailgun(api_key: str, domain: str, from_name: str, from_email: str
 
 def _send_via_brevo(api_key: str, from_name: str, from_email: str, to_email: str, subject: str, html_body: str, text_body: str) -> tuple:
     """
-    Sends email via Brevo (Sendinblue) HTTPS REST API (https://api.brevo.com/v3/smtp/email).
-    Free tier allows 300 emails/day to any recipient worldwide without requiring a custom domain.
+    Sends email via Brevo (Sendinblue) HTTPS REST Transactional API (https://api.brevo.com/v3/smtp/email).
+    Uses api-key header over HTTPS Port 443 with detailed diagnostics and message ID tracking.
     """
+    clean_recipient = (to_email or "").strip()
+    clean_sender = (from_email or "").strip()
+    sender_name = (from_name or "CyberShieldAI").strip()
+
+    print("[EMAIL] Provider: Brevo", flush=True)
+    print(f"[EMAIL] Sending email to: {clean_recipient} (Sender: {sender_name} <{clean_sender}>)", flush=True)
+
     if not api_key:
+        print("[EMAIL] BREVO EMAIL SEND FAILED", flush=True)
+        print("[EMAIL] Status: 400", flush=True)
+        print("[EMAIL] Error: Brevo API key is missing. Set BREVO_API_KEY in environment variables.", flush=True)
         logger.warning("[EMAIL_API_WARNING] provider=brevo error=missing_api_key")
-        return False, "Brevo API key is missing. Please configure EMAIL_API_KEY in environment variables."
+        return False, "Brevo API key is missing. Please configure BREVO_API_KEY in Render environment variables."
+
+    if not clean_sender:
+        print("[EMAIL] BREVO EMAIL SEND FAILED", flush=True)
+        print("[EMAIL] Status: 400", flush=True)
+        print("[EMAIL] Error: Sender email is missing. Set EMAIL_FROM in environment variables.", flush=True)
+        return False, "Sender email is missing. Please configure EMAIL_FROM in Render environment variables."
 
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
         "api-key": api_key,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+        "accept": "application/json",
+        "content-type": "application/json",
     }
 
-    import uuid
-    ref_id = f"csa-{uuid.uuid4().hex[:12]}"
-
     payload = {
-        "sender": {"name": from_name, "email": from_email},
-        "to": [{"email": to_email.strip()}],
-        "replyTo": {"name": from_name, "email": from_email},
+        "sender": {
+            "name": sender_name,
+            "email": clean_sender,
+        },
+        "to": [
+            {
+                "email": clean_recipient,
+            }
+        ],
+        "replyTo": {
+            "name": sender_name,
+            "email": clean_sender,
+        },
         "subject": subject,
         "htmlContent": html_body,
-        "headers": {
-            "X-Mailin-Tag": "auth-verification",
-            "X-Entity-Ref-ID": ref_id,
-            "Auto-Submitted": "auto-generated",
-            "X-Auto-Response-Suppress": "All",
-        },
     }
     if text_body:
         payload["textContent"] = text_body
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        
+        # Brevo returns HTTP 201 Created on successful email submission
         if response.status_code in (200, 201, 202):
-            return True, "Email successfully sent via Brevo."
+            try:
+                res_data = response.json()
+                message_id = res_data.get("messageId") or "accepted"
+            except Exception:
+                message_id = "accepted"
 
-        logger.error(f"[EMAIL_API_ERROR] provider=brevo status={response.status_code}")
-        return False, f"Brevo API responded with status {response.status_code}."
+            print("[EMAIL] BREVO EMAIL SEND SUCCESS", flush=True)
+            print(f"[EMAIL] Brevo response: success (HTTP {response.status_code})", flush=True)
+            print(f"[EMAIL] Brevo message ID: {message_id}", flush=True)
+            logger.info(f"[EMAIL] provider=brevo status={response.status_code} messageId={message_id}")
+            return True, f"Email successfully sent via Brevo. Message ID: {message_id}"
+
+        # Parse Brevo error details safely
+        try:
+            err_json = response.json()
+            safe_err_code = err_json.get("code") or "error"
+            safe_err_msg = err_json.get("message") or f"HTTP {response.status_code}"
+            full_err_str = f"{safe_err_code}: {safe_err_msg}"
+        except Exception:
+            full_err_str = f"HTTP {response.status_code}"
+
+        print("[EMAIL] BREVO EMAIL SEND FAILED", flush=True)
+        print(f"[EMAIL] Status: {response.status_code}", flush=True)
+        print(f"[EMAIL] Error: {full_err_str}", flush=True)
+        logger.error(f"[EMAIL_API_ERROR] provider=brevo status={response.status_code} error={full_err_str}")
+
+        if response.status_code == 400 and "not verified" in full_err_str.lower():
+            return False, f"Sender email '{clean_sender}' is not verified in your Brevo account. Please verify it in Brevo -> Senders & IP."
+        elif response.status_code in (401, 403):
+            return False, "Invalid Brevo API Key. Please verify BREVO_API_KEY in Render environment variables."
+        
+        return False, f"Brevo API error ({response.status_code}): {full_err_str}"
+
     except requests.RequestException as e:
-        logger.error(f"[EMAIL_API_ERROR] provider=brevo exception={type(e).__name__}")
+        err_type = type(e).__name__
+        print("[EMAIL] BREVO EMAIL SEND FAILED", flush=True)
+        print(f"[EMAIL] Status: Connection Error", flush=True)
+        print(f"[EMAIL] Error: {err_type}", flush=True)
+        logger.error(f"[EMAIL_API_ERROR] provider=brevo exception={err_type}")
         return False, "Failed to connect to Brevo API over HTTPS."
 
 
@@ -230,7 +324,7 @@ def send_https_email(
     config: dict = None,
 ) -> tuple:
     """
-    Sends an email using configured HTTPS Email API provider (Resend, SendGrid, Brevo, Mailgun).
+    Sends an email using configured HTTPS Email API provider (Brevo, Resend, SendGrid, Mailgun).
     Never attempts direct raw SMTP ports (25/465/587) unless provider is explicitly set to 'smtp'.
     Returns (success: bool, safe_message: str).
     """
@@ -238,15 +332,15 @@ def send_https_email(
         return False, "Recipient email address is missing."
 
     cfg = config or get_email_api_config()
-    provider = (cfg.get("provider") or "resend").strip().lower()
+    provider = (cfg.get("provider") or "brevo").strip().lower()
     api_key = cfg.get("api_key", "")
     from_name = cfg.get("from_name", "CyberShieldAI")
-    from_email = cfg.get("from_email", "onboarding@resend.dev")
+    from_email = cfg.get("from_email", "defenderr0809@gmail.com")
 
-    if provider == "resend":
-        return _send_via_resend(api_key, from_name, from_email, to_email, subject, html_body, text_body)
-    elif provider in ("brevo", "sendinblue"):
+    if provider in ("brevo", "sendinblue"):
         return _send_via_brevo(api_key, from_name, from_email, to_email, subject, html_body, text_body)
+    elif provider == "resend":
+        return _send_via_resend(api_key, from_name, from_email, to_email, subject, html_body, text_body)
     elif provider == "sendgrid":
         return _send_via_sendgrid(api_key, from_name, from_email, to_email, subject, html_body, text_body)
     elif provider == "mailgun":

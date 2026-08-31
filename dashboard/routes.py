@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import secrets
@@ -6,6 +7,8 @@ import sys
 import threading
 import traceback
 from datetime import datetime
+
+logger = logging.getLogger("cybershield.routes")
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
@@ -404,18 +407,23 @@ def register_routes(app):
                     )
 
                     # Send recovery email via Brevo / HTTPS email API
-                    send_password_reset_otp_email(
+                    print("[EMAIL] Password reset email: sending", flush=True)
+                    sent, send_msg = send_password_reset_otp_email(
                         to_email=email_val,
                         username=user.get("username", ""),
                         otp=otp,
                         expires_in_minutes=otp_cfg["expiry_minutes"],
                     )
+                    if not sent:
+                        print(f"[EMAIL] Password reset email dispatch failed: {send_msg}", flush=True)
+                        logger.warning(f"[EMAIL] Password reset dispatch failed for {email_val}: {send_msg}")
 
                     session["password_reset_id"] = reset_id
                     session["password_reset_email"] = email_val
                     session.modified = True
                 else:
                     # Anti-enumeration placeholder session
+                    print(f"[EMAIL] Password reset requested for unregistered/inactive email (anti-enumeration active)", flush=True)
                     session["password_reset_id"] = "nonexistent"
                     session["password_reset_email"] = email_val
                     session.modified = True
@@ -570,12 +578,16 @@ def register_routes(app):
         user = get_user_by_id(record["user_id"])
         username = user.get("username", "") if user else ""
 
-        send_password_reset_otp_email(
+        print("[EMAIL] Password reset resend email: sending", flush=True)
+        sent, send_msg = send_password_reset_otp_email(
             to_email=record["email"],
             username=username,
             otp=new_otp,
             expires_in_minutes=otp_cfg["expiry_minutes"],
         )
+        if not sent:
+            print(f"[EMAIL] Password reset resend dispatch failed: {send_msg}", flush=True)
+            logger.warning(f"[EMAIL] Password reset resend dispatch failed for {record['email']}: {send_msg}")
 
         flash(f"A new 6-digit recovery code has been sent.", "success")
         return redirect(url_for("verify_forgot_password_otp"))
