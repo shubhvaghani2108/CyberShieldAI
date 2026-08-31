@@ -1472,12 +1472,51 @@ def register_routes(app):
             scan_id=current_scan_id
         )
 
+        url = result.get("url") if result else None
+        domain = result.get("domain") if result else None
+        resolved_ip = result.get("ip") if result else (ip if ip != "Unknown" else None)
+        protocol = result.get("protocol") if result else "HTTPS"
+        score = result.get("score") if result and result.get("score") is not None else 0
+        risk = result.get("risk") if result and result.get("risk") else "Low"
+        scan_time = result.get("scan_time") if result else None
+        https_status = result.get("https_status") if result else (True if protocol and protocol.upper() == "HTTPS" else False)
+        suspicious_score = result.get("suspicious_score") if result else 0
+        risk_level = result.get("risk_level") if result else risk
+
+        print("===== URL RESULT DEBUG =====")
+        print("RESULT:", result)
+        print("URL:", url)
+        print("DOMAIN:", domain)
+        print("IP:", resolved_ip)
+        print("PROTOCOL:", protocol)
+        print("SCAN_ID:", current_scan_id)
+        print("SCORE:", score)
+        print("RISK:", risk)
+        print("TECHNOLOGY:", technology)
+        print("VULNERABILITIES:", vulnerabilities)
+        print("CVES:", cves)
+        print("RISK SUMMARY:", risk_summary)
+        print("URL INFO:", url_info)
+        print("============================")
+
         return render_template(
             "url_result.html",
             active_page="url_scan_result",
             page_title="URL Scan Result",
             page_subtitle="Full detail for this URL scan",
             result=result,
+            url=url,
+            domain=domain,
+            ip=resolved_ip or ip,
+            resolved_ip=resolved_ip or ip,
+            protocol=protocol,
+            scan_id=current_scan_id,
+            score=score,
+            risk=risk,
+            scan_time=scan_time,
+            https_status=https_status,
+            suspicious_score=suspicious_score,
+            risk_level=risk_level,
             technology=technology,
             classified_technology=classified_technology,
             ports=ports,

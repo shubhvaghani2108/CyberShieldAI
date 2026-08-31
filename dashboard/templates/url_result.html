@@ -24,7 +24,7 @@
 {% if not result %}
 <div class="glass content-panel" style="padding: 40px 24px; text-align: center; margin-top: 16px;">
     <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🌐</div>
-    <h3 style="margin-bottom: 8px; color: #f8fafc; font-size: 18px; font-weight: 700;">No URL Scan Results Available</h3>
+    <h3 style="margin-bottom: 8px; color: #fcf8f8; font-size: 18px; font-weight: 700;">No URL Scan Results Available</h3>
     <p class="empty-note" style="font-size: 14px; color: var(--text-1); max-width: 480px; margin: 0 auto; line-height: 1.5;">
         {{ not_found_message or "No URL scan has been conducted yet. Use the scan bar above to initiate a target evaluation." }}
     </p>
@@ -34,14 +34,14 @@
 <div class="glass content-panel">
     <span class="eyebrow">Target Overview</span>
     <table class="info-table">
-        <tr><th>Scanned URL</th><td>{{ result.url }}</td></tr>
-        <tr><th>Domain</th><td>{{ result.domain }}</td></tr>
-        <tr><th>IP Address</th><td class="mono">{{ result.ip }}</td></tr>
-        <tr><th>Protocol</th><td>{{ result.protocol }}</td></tr>
-        <tr><th>URL Threat Score</th><td class="mono">{{ result.score }} / 100</td></tr>
-        <tr><th>URL Threat Level</th><td><span class="risk-pill {{ (result.risk or 'low')|lower }}">{{ result.risk }}</span></td></tr>
-        {% if result.scan_id %}<tr><th>Scan ID</th><td class="mono" style="font-size:12px; color:var(--text-1);">{{ result.scan_id }}</td></tr>{% endif %}
-        {% if result.scan_time %}<tr><th>Scan Time</th><td class="mono utc-timestamp">{{ result.scan_time }}</td></tr>{% endif %}
+        <tr><th>Target URL</th><td>{{ result.url if (result and result.url) else (url or "-") }}</td></tr>
+        <tr><th>Domain</th><td>{{ result.domain if (result and result.domain) else (domain or "-") }}</td></tr>
+        <tr><th>Resolved IP</th><td class="mono">{{ result.ip if (result and result.ip) else (resolved_ip or ip or "Unknown") }}</td></tr>
+        <tr><th>Protocol</th><td>{{ result.protocol if (result and result.protocol) else (protocol or "HTTPS") }}</td></tr>
+        <tr><th>Security Score</th><td class="mono">{{ (result.score if (result and result.score is not none) else score) or 0 }} / 100</td></tr>
+        <tr><th>Risk</th><td><span class="risk-pill {{ (result.risk or risk or 'low')|lower }}">{{ result.risk or risk or "Low" }}</span></td></tr>
+        {% if (result and result.scan_id) or scan_id %}<tr><th>Scan ID</th><td class="mono" style="font-size:12px; color:var(--text-1);">{{ result.scan_id if (result and result.scan_id) else scan_id }}</td></tr>{% endif %}
+        {% if (result and result.scan_time) or scan_time %}<tr><th>Scan Time</th><td class="mono utc-timestamp">{{ result.scan_time if (result and result.scan_time) else scan_time }}</td></tr>{% endif %}
     </table>
     <p class="empty-note" style="margin-top:10px;">
         This score comes from URL-pattern heuristics (protocol, suspicious
@@ -264,10 +264,10 @@
         {% for tech in technology["technologies"] %}<li>{{ tech }}</li>{% endfor %}
     </ul>
     {% else %}
-    <p class="empty-note">No technology detected.</p>
+    <p class="empty-note">No technology data available.</p>
     {% endif %}
     {% else %}
-    <p class="empty-note">No technology information available.</p>
+    <p class="empty-note">No technology data available.</p>
     {% endif %}
 </div>
 
@@ -284,7 +284,7 @@
             <td class="mono">{{ s.version }}</td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="4">No service version data.</td></tr>
+        <tr class="empty-row"><td colspan="4">No service version data available.</td></tr>
         {% endfor %}
         </tbody>
     </table>
@@ -353,7 +353,7 @@
     <p style="margin-top:12px; color:var(--med);"><b>⚠ Warnings:</b> {{ ssl_info.warnings }}</p>
     {% endif %}
     {% else %}
-    <p class="empty-note">SSL / TLS: Not Assessed</p>
+    <p class="empty-note">No SSL/TLS data available.</p>
     {% endif %}
 </div>
 
@@ -416,7 +416,7 @@
                     {% if result.ip == 'Unknown' or (ai_result and ai_result.status == 'INCONCLUSIVE') %}
                     ⚠️ Vulnerability scan not executed (Not Assessed).
                     {% else %}
-                    ✔ No open vulnerabilities recorded on scanned ports.
+                    ✔ No vulnerabilities detected.
                     {% endif %}
                 </td>
             </tr>
@@ -530,7 +530,7 @@
 </div>
 {% else %}
 <div class="glass content-panel" style="margin-bottom:24px;">
-    <p class="empty-note">✔ No direct CVE matches recorded on scanned ports.</p>
+    <p class="empty-note">✔ No vulnerabilities detected / No direct CVE matches recorded on scanned ports.</p>
 </div>
 {% endif %}
 
@@ -696,11 +696,11 @@
         <b>DNS Status: Resolution Failed</b> — Domain could not be resolved to active DNS A/AAAA records.
     </div>
     {% else %}
-    {% set dns_dict = url_info.get("dns", {}) %}
+    {% set dns_dict = url_info.get("dns", {}) if (url_info and url_info.get is defined) else {} %}
     {% set record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME"] %}
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
         {% for rtype in record_types %}
-        {% set recs = dns_dict.get(rtype, []) %}
+        {% set recs = dns_dict.get(rtype, []) if dns_dict else [] %}
         <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <span style="font-weight:700; font-size:14px; color:var(--accent);">{{ rtype }} Records</span>
@@ -729,24 +729,25 @@
         <tr><th>Reason</th><td>Target could not be reached / HTTP response not obtained</td></tr>
     </table>
     {% else %}
+    {% set waf_obj = url_info.get("waf", {}) if (url_info and url_info.get is defined) else {} %}
     <table class="info-table">
         <tr><th>Status</th><td>
-            {% if url_info.waf and url_info.waf.get("detected") %}
+            {% if waf_obj and waf_obj.get("detected") %}
                 <span class="badge badge-ok">✔ Active WAF Detected</span>
             {% else %}
                 <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">No WAF Detected</span>
             {% endif %}
         </td></tr>
         <tr><th>Provider</th><td>
-            {% if url_info.waf and url_info.waf.get("provider") and url_info.waf.get("provider") not in ["None", "none", None] %}
-                <b>{{ url_info.waf.provider }}</b>
+            {% if waf_obj and waf_obj.get("provider") and waf_obj.get("provider") not in ["None", "none", None] %}
+                <b>{{ waf_obj.get("provider") }}</b>
             {% else %}
                 <span style="color:var(--text-2);">None Identified</span>
             {% endif %}
         </td></tr>
         <tr><th>Inspection Confidence</th><td>
-            <span class="mono">{{ (url_info.waf.confidence if url_info.waf else "Low") or "Low" }}</span>
-            {% if not (url_info.waf and url_info.waf.get("detected")) %}
+            <span class="mono">{{ (waf_obj.get("confidence") if waf_obj else "Low") or "Low" }}</span>
+            {% if not (waf_obj and waf_obj.get("detected")) %}
             <span style="font-size:12px; color:var(--text-2); margin-left:8px;">(Passive header inspection did not reveal WAF signatures; site may still use origin-level security or custom proxy)</span>
             {% endif %}
         </td></tr>

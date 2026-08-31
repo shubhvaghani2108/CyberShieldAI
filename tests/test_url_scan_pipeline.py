@@ -1,3 +1,4 @@
+
 """
 tests/test_url_scan_pipeline.py
 
@@ -83,15 +84,15 @@ def test_04_two_different_urls_remain_distinct(client):
     assert resp_a.status_code == 200
     html_a = resp_a.data.decode("utf-8")
     assert "https://target-one.net" in html_a
-    assert "<th>Scanned URL</th><td>https://target-one.net</td>" in html_a
-    assert "<th>Scanned URL</th><td>https://target-two.io/secure</td>" not in html_a
+    assert "<tr><th>Target URL</th><td>https://target-one.net</td></tr>" in html_a
+    assert "<tr><th>Target URL</th><td>https://target-two.io/secure</td></tr>" not in html_a
 
     resp_b = client.get(f"/url-scan-result?scan_id={scan_b}")
     assert resp_b.status_code == 200
     html_b = resp_b.data.decode("utf-8")
     assert "https://target-two.io/secure" in html_b
-    assert "<th>Scanned URL</th><td>https://target-two.io/secure</td>" in html_b
-    assert "<th>Scanned URL</th><td>https://target-one.net</td>" not in html_b
+    assert "<tr><th>Target URL</th><td>https://target-two.io/secure</td></tr>" in html_b
+    assert "<tr><th>Target URL</th><td>https://target-one.net</td></tr>" not in html_b
 
 
 def test_05_same_url_scanned_twice_produces_separate_results(client):
