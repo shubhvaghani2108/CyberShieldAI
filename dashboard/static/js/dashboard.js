@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initScanModal();
   initCharts();
   initThemeToggle();
+  initUtcToLocalTimestamps();
 });
 
 /* ---------------- theme toggle (dark / light) ---------------- */
@@ -370,4 +371,42 @@ function emptyState(message) {
   div.className = "chart-empty";
   div.innerHTML = `<span>📉</span><span>${message}</span>`;
   return div;
+}
+
+/* ---------------- UTC to Local Timezone Auto-Converter ---------------- */
+function initUtcToLocalTimestamps() {
+  function formatUtcTimestamp(utcStr) {
+    if (!utcStr || utcStr === "Never" || utcStr === "None" || utcStr === "-" || utcStr === "—") return null;
+    try {
+      let clean = utcStr.trim();
+      if (!clean.includes("T") && clean.includes(" ")) {
+        clean = clean.replace(" ", "T");
+      }
+      if (!clean.endsWith("Z") && !clean.includes("+") && !clean.slice(10).includes("-")) {
+        clean += "Z";
+      }
+      const d = new Date(clean);
+      if (isNaN(d.getTime())) return null;
+
+      const pad = (n) => String(n).padStart(2, '0');
+      const year = d.getFullYear();
+      const month = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      const seconds = pad(d.getSeconds());
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  document.querySelectorAll("[data-utc], .utc-to-local").forEach((el) => {
+    const rawUtc = el.getAttribute("data-utc") || el.textContent.trim();
+    const formatted = formatUtcTimestamp(rawUtc);
+    if (formatted) {
+      el.textContent = formatted;
+      el.title = `Local Device Time (${Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local'})\nServer UTC: ${rawUtc}`;
+    }
+  });
 }

@@ -224,7 +224,9 @@
                             {% endif %}
                         </td>
                         <td style="padding: 12px 14px; color: var(--text-1); font-size: 12px;">
-                            {{ u.last_seen if u.last_seen else (u.last_login if u.last_login else (u.created_at or 'Never')) }}
+                            <span class="utc-to-local mono" data-utc="{{ u.last_seen if u.last_seen else (u.last_login if u.last_login else (u.created_at or '')) }}">
+                                {{ u.last_seen if u.last_seen else (u.last_login if u.last_login else (u.created_at or 'Never')) }}
+                            </span>
                         </td>
                         <td style="padding: 12px 14px; text-align: right;">
                             <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end;">

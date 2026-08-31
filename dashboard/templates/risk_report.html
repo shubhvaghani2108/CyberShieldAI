@@ -216,7 +216,7 @@
             <tbody>
                 {% for row in rows %}
                 <tr>
-                    <td class="mono" style="font-size:12px; color:var(--text-1);">{{ row['scan_time'] }}</td>
+                    <td class="utc-to-local mono" data-utc="{{ row['scan_time'] }}" style="font-size:12px; color:var(--text-1);">{{ row['scan_time'] }}</td>
                     <td class="mono" style="color:{% if row['critical_count'] > 0 %}#ef4444{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['critical_count'] or 0 }}</td>
                     <td class="mono" style="color:{% if row['high_count'] > 0 %}#f97316{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['high_count'] or 0 }}</td>
                     <td class="mono" style="color:{% if row['medium_count'] > 0 %}#eab308{% else %}var(--text-2){% endif %}; font-weight:700;">{{ row['medium_count'] or 0 }}</td>
