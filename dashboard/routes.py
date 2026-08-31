@@ -2278,101 +2278,11 @@ def register_routes(app):
     # Admin SOC Dashboard & System Management Routes
     # ==========================================================
     @app.route("/admin", methods=["GET"])
-    def admin_dashboard():
+    def admin_page():
         if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to access the Admin Dashboard.", "error")
+            flash("Administrator privileges are required to access Administration.", "error")
             return redirect(url_for("profile_page")), 403
-
-        from database.user_helpers import list_users, get_user_activity_metrics
-        from database.security_activity_helpers import get_security_activity_metrics, get_security_activity_logs
-        from database.db_helpers import get_db_connection
-
-        users = list_users()
-        user_metrics = get_user_activity_metrics()
-        sec_metrics = get_security_activity_metrics()
-        security_logs, _, _, _ = get_security_activity_logs(page=1, per_page=10)
-
-        # Real Scanner & Threat Statistics
-        scan_metrics = {
-            "total_scans": 0,
-            "ip_scans": 0,
-            "url_scans": 0,
-            "successful_scans": 0,
-            "total_vulns": 0,
-            "critical_vulns": 0,
-            "total_cves": 0,
-            "monitoring_targets": 0,
-            "risk_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0},
-        }
-
-        try:
-            conn = get_db_connection()
-            # Scans count
-            try:
-                r = conn.execute("SELECT COUNT(*) FROM scan_history").fetchone()
-                scan_metrics["ip_scans"] = r[0] if r else 0
-            except Exception:
-                pass
-
-            try:
-                r = conn.execute("SELECT COUNT(*) FROM url_scan_results").fetchone()
-                scan_metrics["url_scans"] = r[0] if r else 0
-            except Exception:
-                pass
-
-            scan_metrics["total_scans"] = scan_metrics["ip_scans"] + scan_metrics["url_scans"]
-
-            try:
-                r1 = conn.execute("SELECT COUNT(*) FROM scan_history WHERE status IN ('Alive', 'Completed', 'Up', 'Online')").fetchone()
-                succ_ip = r1[0] if r1 else 0
-                scan_metrics["successful_scans"] = succ_ip + scan_metrics["url_scans"]
-            except Exception:
-                scan_metrics["successful_scans"] = scan_metrics["total_scans"]
-
-            # Vulnerabilities & CVEs
-            try:
-                r = conn.execute("SELECT COUNT(*) FROM vulnerabilities").fetchone()
-                scan_metrics["total_vulns"] = r[0] if r else 0
-            except Exception:
-                pass
-
-            try:
-                r = conn.execute("SELECT COUNT(*) FROM cves").fetchone()
-                scan_metrics["total_cves"] = r[0] if r else 0
-            except Exception:
-                pass
-
-            # Risk breakdown
-            try:
-                crit_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'critical'").fetchone()[0]
-                high_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'high'").fetchone()[0]
-                med_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'medium'").fetchone()[0]
-                low_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'low'").fetchone()[0]
-                scan_metrics["risk_counts"] = {"critical": crit_v, "high": high_v, "medium": med_v, "low": low_v}
-                scan_metrics["critical_vulns"] = crit_v
-            except Exception:
-                pass
-
-            # Monitoring Targets
-            try:
-                r = conn.execute("SELECT COUNT(*) FROM monitored_targets").fetchone()
-                scan_metrics["monitoring_targets"] = r[0] if r else 0
-            except Exception:
-                pass
-
-            conn.close()
-        except Exception as e:
-            logger.warning(f"Error compiling admin stats: {e}")
-
-        return render_template(
-            "admin_dashboard.html",
-            active_page="admin_dashboard",
-            users=users,
-            user_metrics=user_metrics,
-            scan_metrics=scan_metrics,
-            sec_metrics=sec_metrics,
-            security_logs=security_logs,
-        )
+        return redirect(url_for("users_list"))
 
     @app.route("/users", methods=["GET"])
     def users_list():
@@ -2547,39 +2457,4 @@ def register_routes(app):
         else:
             flash(f"Failed to delete user: {error_msg}", "error")
         return redirect(url_for("users_list"))
-
-    @app.route("/admin/security-activity", methods=["GET"])
-    def security_activity_page():
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to access Security Activity.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        event_filter = request.args.get("filter", "all").strip().lower()
-        page = max(1, request.args.get("page", 1, type=int))
-        per_page = 20
-
-        from database.security_activity_helpers import (
-            get_security_activity_logs,
-            get_security_activity_metrics,
-        )
-
-        logs, total_count, total_pages, current_page = get_security_activity_logs(
-            event_filter=event_filter,
-            page=page,
-            per_page=per_page,
-        )
-        metrics = get_security_activity_metrics()
-
-        return render_template(
-            "security_activity.html",
-            active_page="security_activity",
-            page_title="Security Activity & Audit Trail",
-            page_subtitle="Real-time authentication and security event auditing",
-            logs=logs,
-            metrics=metrics,
-            current_filter=event_filter,
-            current_page=current_page,
-            total_pages=total_pages,
-            total_count=total_count,
-        )
 

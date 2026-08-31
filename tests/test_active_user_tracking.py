@@ -139,13 +139,11 @@ class ActiveUserTrackingTestCase(unittest.TestCase):
             sess["role"] = "ADMIN"
             sess["email"] = admin["email"]
 
-        # Access /admin dashboard
+        # Access /admin (redirects to /users)
         resp_admin = self.client.get("/admin", follow_redirects=True)
         self.assertEqual(resp_admin.status_code, 200)
         self.assertIn(b"Total Users", resp_admin.data)
-        self.assertIn(b"Active Users", resp_admin.data)
-        self.assertIn(b"Total Scans", resp_admin.data)
-        self.assertIn(b"Total Vulnerabilities", resp_admin.data)
+        self.assertIn(b"Active Accounts", resp_admin.data)
 
         # Access /users directly
         resp_users = self.client.get("/users")
