@@ -1,6 +1,6 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <a href="{% if session.get('role') == 'ADMIN' %}{{ url_for('admin_page') }}{% else %}{{ url_for('dashboard') }}{% endif %}" class="sidebar-brand-link">
+        <a href="{{ url_for('dashboard') }}" class="sidebar-brand-link">
             <div class="brand-logo-badge">
                 <svg viewBox="0 0 32 32" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
@@ -28,7 +28,7 @@
                     <span class="brand-main">Cyber</span><span class="brand-accent">Shield</span><span class="brand-ai-tag">AI</span>
                 </div>
                 <div class="brand-subtitle">
-                    <span class="pulse-dot"></span> {% if session.get('role') == 'ADMIN' %}Admin SOC Center{% else %}AI Security Platform{% endif %}
+                    <span class="pulse-dot" style="background:#22c55e; box-shadow:0 0 6px #22c55e;"></span> {% if session.get('role') == 'ADMIN' %}ADMIN SOC CENTER{% else %}SECURITY SOC{% endif %}
                 </div>
             </div>
         </a>
@@ -39,126 +39,56 @@
 
     <!-- Scrollable Nav Body -->
     <div class="sidebar-body" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 12px;">
-        {% if session.get('role') == 'ADMIN' %}
-        <!-- ================= ADMIN NAVIGATION (Clean 7 Items) ================= -->
-        <div class="nav-section-label">Admin Controls</div>
+        <div class="nav-section-label">{% if session.get('role') == 'ADMIN' %}ADMIN CONTROLS{% else %}SECURITY CONTROLS{% endif %}</div>
         <ul class="sidebar-nav">
-            <!-- 1. Dashboard -->
-            <li><a href="{{ url_for('admin_page') }}" class="{{ 'active' if active_page in ['admin', 'admin_dashboard'] else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-                Dashboard
-            </a></li>
-
-            <!-- 2. Users -->
-            <li><a href="{{ url_for('users_list') }}" class="{{ 'active' if active_page == 'users' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Users
-            </a></li>
-
-            <!-- 3. Security Activity -->
-            <li><a href="{{ url_for('security_activity_page') }}" class="{{ 'active' if active_page == 'security_activity' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
-                Security Activity
-            </a></li>
-
-            <!-- 4. Scanner -->
-            <li><a href="{{ url_for('ip_scan_result_page') }}" class="{{ 'active' if active_page in ['ip_scan_result', 'url_scan_result', 'monitoring', 'scanner'] else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Scanner
-            </a></li>
-
-            <!-- 5. Reports -->
-            <li><a href="{{ url_for('risk_report') }}" class="{{ 'active' if active_page == 'risk_report' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                Reports
-            </a></li>
-
-            <!-- 6. Settings -->
-            <li><a href="{{ url_for('profile_page') }}" class="{{ 'active' if active_page in ['profile', 'email_settings'] else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
-            </a></li>
-
-            <!-- 7. Logout -->
-            <li><a href="{{ url_for('logout') }}" style="color: #ef4444;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-                Logout
-            </a></li>
+            <li>
+                <a href="{{ url_for('dashboard') }}" class="{{ 'active' if active_page == 'dashboard' else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+                    Dashboard
+                </a>
+            </li>
+            {% if session.get('role') == 'ADMIN' %}
+            <li>
+                <a href="{{ url_for('users_list') }}" class="{{ 'active' if active_page == 'users' else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Users
+                </a>
+            </li>
+            {% endif %}
+            <li>
+                <a href="{{ url_for('monitoring_page') }}" class="{{ 'active' if active_page == 'monitoring' else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    Security Activity
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('ip_scan_result_page') }}" class="{{ 'active' if active_page in ['ip_scan_result', 'url_scan_result', 'scanning'] else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Scanner
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('risk_report') }}" class="{{ 'active' if active_page in ['risk_report', 'vulnerabilities', 'ports', 'cves'] else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    Reports
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('email_settings_page') if session.get('role') == 'ADMIN' else url_for('profile_page') }}" class="{{ 'active' if active_page in ['settings', 'email_settings', 'profile'] else '' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Settings
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('logout') }}" style="color: #ef4444;" title="Logout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                    Logout
+                </a>
+            </li>
         </ul>
-        {% else %}
-        <!-- ================= STANDARD USER NAVIGATION ================= -->
-        <!-- 1. OPERATIONS -->
-        <div class="nav-section-label">Operations</div>
-        <ul class="sidebar-nav">
-            <li><a href="{{ url_for('dashboard') }}" class="{{ 'active' if active_page == 'dashboard' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-                Overview
-            </a></li>
-            <li><a href="{{ url_for('monitoring_page') }}" class="{{ 'active' if active_page == 'monitoring' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Live Monitoring
-            </a></li>
-        </ul>
-
-        <!-- 2. SCAN RESULTS -->
-        <div class="nav-section-label">Scan Results</div>
-        <ul class="sidebar-nav">
-            <li><a href="{{ url_for('ip_scan_result_page') }}" class="{{ 'active' if active_page == 'ip_scan_result' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-                IP Scan Result
-            </a></li>
-            <li><a href="{{ url_for('url_scan_result_page') }}" class="{{ 'active' if active_page == 'url_scan_result' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-                URL Scan Result
-            </a></li>
-        </ul>
-
-        <!-- 3. FINDINGS & THREATS -->
-        <div class="nav-section-label">Findings &amp; Threats</div>
-        <ul class="sidebar-nav">
-            <li><a href="{{ url_for('view_vulnerabilities') }}" class="{{ 'active' if active_page == 'vulnerabilities' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-                Vulnerabilities
-            </a></li>
-            <li><a href="{{ url_for('view_ports') }}" class="{{ 'active' if active_page == 'ports' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17h16"/><path d="M4 7h16"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></svg>
-                Open Ports
-            </a></li>
-            <li><a href="{{ url_for('view_cves') }}" class="{{ 'active' if active_page == 'cves' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6"/><path d="M9 16h6"/><path d="M13 3v4a1 1 0 0 0 1 1h4"/><path d="M17.5 21H6.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H14l6 6v10a2 2 0 0 1-2 2Z"/></svg>
-                CVE Database
-            </a></li>
-            <li><a href="{{ url_for('risk_report') }}" class="{{ 'active' if active_page == 'risk_report' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-                Risk Report
-            </a></li>
-        </ul>
-
-        <!-- 4. HISTORY -->
-        <div class="nav-section-label">History &amp; Logs</div>
-        <ul class="sidebar-nav">
-            <li><a href="{{ url_for('history') }}" class="{{ 'active' if active_page == 'history' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-                IP Scan History
-            </a></li>
-            <li><a href="{{ url_for('url_history') }}" class="{{ 'active' if active_page == 'url_history' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                URL Scan History
-            </a></li>
-        </ul>
-
-        <!-- 5. SETTINGS -->
-        <div class="nav-section-label">Settings</div>
-        <ul class="sidebar-nav">
-            <li><a href="{{ url_for('profile_page') }}" class="{{ 'active' if active_page == 'profile' else '' }}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                User Profile
-            </a></li>
-        </ul>
-        {% endif %}
     </div>
 
-    <!-- Sidebar Footer with User Profile & Logout -->
+    <!-- Sidebar Footer with Engine Status and User -->
     <div class="sidebar-footer-wrapper">
         <div class="sidebar-status-row">
             <span class="status-dot"></span>
