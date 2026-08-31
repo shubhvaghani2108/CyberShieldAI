@@ -370,17 +370,15 @@ def register_routes(app):
             return redirect(url_for("dashboard"))
 
         error = None
-        email_val = ""
+        input_val = ""
 
         if request.method == "POST":
-            email_val = request.form.get("email", "").strip().lower()
+            input_val = request.form.get("email", "").strip()
 
-            if not email_val:
-                error = "Please enter your registered email address."
-            elif not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email_val):
-                error = "Please enter a valid email address format."
+            if not input_val:
+                error = "Please enter your username or registered email address."
             else:
-                from database.user_helpers import get_user_by_email
+                from database.user_helpers import get_user_by_email, get_user_by_username
                 from database.password_reset_helpers import create_password_reset_request
                 from alerts.otp_service import (
                     generate_secure_otp,
@@ -389,10 +387,15 @@ def register_routes(app):
                     send_password_reset_otp_email,
                 )
 
-                user = get_user_by_email(email_val)
+                if "@" in input_val:
+                    user = get_user_by_email(input_val.lower())
+                else:
+                    user = get_user_by_username(input_val)
+
                 otp_cfg = get_otp_config()
 
-                if user and user.get("is_active", 1):
+                if user and user.get("is_active", 1) and user.get("email"):
+                    target_email = user["email"].strip().lower()
                     # Generate cryptographically secure 6-digit OTP
                     otp = generate_secure_otp(6)
                     otp_hash = hash_otp(otp)
@@ -400,39 +403,39 @@ def register_routes(app):
                     # Create single-use 10-minute reset request
                     reset_id = create_password_reset_request(
                         user_id=user["id"],
-                        email=email_val,
+                        email=target_email,
                         otp_hash=otp_hash,
                         expires_in_minutes=otp_cfg["expiry_minutes"],
                         max_attempts=otp_cfg["max_attempts"],
                     )
 
                     # Send recovery email via Brevo / HTTPS email API
-                    print("[EMAIL] Password reset email: sending", flush=True)
+                    print(f"[EMAIL] Password reset email: sending to {target_email}", flush=True)
                     sent, send_msg = send_password_reset_otp_email(
-                        to_email=email_val,
+                        to_email=target_email,
                         username=user.get("username", ""),
                         otp=otp,
                         expires_in_minutes=otp_cfg["expiry_minutes"],
                     )
                     if not sent:
                         print(f"[EMAIL] Password reset email dispatch failed: {send_msg}", flush=True)
-                        logger.warning(f"[EMAIL] Password reset dispatch failed for {email_val}: {send_msg}")
+                        logger.warning(f"[EMAIL] Password reset dispatch failed for {target_email}: {send_msg}")
 
                     session["password_reset_id"] = reset_id
-                    session["password_reset_email"] = email_val
+                    session["password_reset_email"] = target_email
                     session.modified = True
                 else:
                     # Anti-enumeration placeholder session
-                    print(f"[EMAIL] Password reset requested for unregistered/inactive email (anti-enumeration active)", flush=True)
+                    print(f"[EMAIL] Password reset requested for unregistered/inactive account: {input_val} (anti-enumeration active)", flush=True)
                     session["password_reset_id"] = "nonexistent"
-                    session["password_reset_email"] = email_val
+                    session["password_reset_email"] = input_val
                     session.modified = True
 
                 # Generic response to prevent user enumeration
                 flash("If this email address is registered, a password reset code has been sent.", "info")
                 return redirect(url_for("verify_forgot_password_otp"))
 
-        return render_template("forgot_password.html", error=error, email=email_val)
+        return render_template("forgot_password.html", error=error, email=input_val)
 
     @app.route("/forgot-password/verify", methods=["GET", "POST"])
     def verify_forgot_password_otp():
