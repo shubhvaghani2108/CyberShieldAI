@@ -22,8 +22,17 @@
 </div>
 
 {% if not result %}
-<div class="glass content-panel">
-    <p class="empty-note">No URL has been scanned yet. Go back to the dashboard and run a URL scan first.</p>
+<div class="glass content-panel" style="padding: 48px 24px; text-align: center; margin-top: 16px;">
+    <div style="font-size: 40px; margin-bottom: 14px; opacity: 0.85;">🌐</div>
+    <h3 style="margin-bottom: 8px; color: #f8fafc; font-size: 18px; font-weight: 700;">No URL Threat Scans Found</h3>
+    <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 520px; margin: 0 auto 20px auto; line-height: 1.5;">
+        No website or URL scan has been conducted yet. Click <strong>New Scan</strong> in the top navigation bar or return to the Overview dashboard to analyze web applications, SSL certificates, security headers, and domain reputation.
+    </p>
+    <div style="display: flex; justify-content: center; gap: 12px;">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px;">
+            <i class="bi bi-radar"></i> Go to Dashboard &amp; Start Scan
+        </a>
+    </div>
 </div>
 {% else %}
 

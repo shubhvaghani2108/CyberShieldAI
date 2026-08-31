@@ -1008,7 +1008,16 @@ def register_routes(app):
 
     @app.route("/url-scan-result")
     def url_scan_result_page():
-        latest_url_scan = get_latest_url_scan()
+        target_id = request.args.get("id", type=int)
+        latest_url_scan = None
+        if target_id:
+            conn = get_db_connection()
+            latest_url_scan = conn.execute("SELECT * FROM url_scan_results WHERE id=?", (target_id,)).fetchone()
+            conn.close()
+
+        if not latest_url_scan:
+            latest_url_scan = get_latest_url_scan()
+
         if not latest_url_scan:
             return render_template(
                 "url_result.html",
@@ -1035,24 +1044,37 @@ def register_routes(app):
                 cves=[],
             )
 
-        return _render_url_result(latest_url_scan["ip"] or "Unknown")
+        return _render_url_result(
+            ip=latest_url_scan["ip"] or "Unknown",
+            url_result_id=latest_url_scan["id"],
+            scan_id=latest_url_scan["scan_id"] if "scan_id" in latest_url_scan.keys() else None,
+        )
 
-    def _render_url_result(ip):
+    def _render_url_result(ip, url_result_id=None, scan_id=None):
         conn = get_db_connection()
 
-        result = conn.execute(
-            """
-            SELECT *
-            FROM url_scan_results
-            WHERE ip=?
-            ORDER BY id DESC
-            LIMIT 1
-        """,
-            (ip,),
-        ).fetchone()
+        if url_result_id:
+            result = conn.execute(
+                "SELECT * FROM url_scan_results WHERE id=?", (url_result_id,)
+            ).fetchone()
+        elif scan_id:
+            result = conn.execute(
+                "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1", (scan_id,)
+            ).fetchone()
+        else:
+            result = conn.execute(
+                "SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)
+            ).fetchone()
+
+        if not result and ip:
+            result = conn.execute(
+                "SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)
+            ).fetchone()
 
         if result:
             result = dict(result)
+            if not ip or ip == "Unknown":
+                ip = result.get("ip") or "Unknown"
 
         ports = conn.execute(
             """
