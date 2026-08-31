@@ -1320,33 +1320,33 @@ def register_routes(app):
         if result and result.get("domain"):
             ssl_info = get_latest_ssl(result["domain"], scan_id=current_scan_id)
 
-        url_info = {}
+        raw_url_info = {}
         try:
             url_intel_row = get_latest_url_intelligence(ip=ip, url=result.get("url"), scan_id=current_scan_id)
             if url_intel_row:
-                url_info = dict(url_intel_row)
-                url_info["whois"] = {
-                    "registrar": url_info.get("registrar", "Unknown"),
-                    "creation_date": url_info.get("creation_date", "Unknown"),
-                    "expiration_date": url_info.get("expiration_date", "Unknown"),
-                    "updated_date": url_info.get("updated_date", "Unknown"),
+                raw_url_info = dict(url_intel_row)
+                raw_url_info["whois"] = {
+                    "registrar": raw_url_info.get("registrar", "Unknown"),
+                    "creation_date": raw_url_info.get("creation_date", "Unknown"),
+                    "expiration_date": raw_url_info.get("expiration_date", "Unknown"),
+                    "updated_date": raw_url_info.get("updated_date", "Unknown"),
                 }
-                url_info["geoip"] = {
-                    "country": url_info.get("country", "Unknown"),
-                    "region": url_info.get("region", "Unknown"),
-                    "city": url_info.get("city", "Unknown"),
-                    "isp": url_info.get("isp", "Unknown"),
-                    "asn": url_info.get("asn", "Unknown"),
+                raw_url_info["geoip"] = {
+                    "country": raw_url_info.get("country", "Unknown"),
+                    "region": raw_url_info.get("region", "Unknown"),
+                    "city": raw_url_info.get("city", "Unknown"),
+                    "isp": raw_url_info.get("isp", "Unknown"),
+                    "asn": raw_url_info.get("asn", "Unknown"),
                 }
-                url_info["waf"] = {
-                    "detected": bool(url_info.get("waf") and url_info.get("waf") != "None"),
-                    "provider": url_info.get("waf", "None"),
+                raw_url_info["waf"] = {
+                    "detected": bool(raw_url_info.get("waf") and raw_url_info.get("waf") != "None"),
+                    "provider": raw_url_info.get("waf", "None"),
                 }
             elif result and result.get("url"):
-                url_info = analyze_url_intelligence(result["url"], scan_id=current_scan_id)
+                raw_url_info = analyze_url_intelligence(result["url"], scan_id=current_scan_id)
         except Exception as e:
             print("URL Intelligence Error:", e)
-            url_info = {}
+            raw_url_info = {}
 
         # =====================================
         # AI Security Engine
@@ -1367,12 +1367,12 @@ def register_routes(app):
                 ports=ports,
                 vulnerabilities=vulnerabilities,
                 ssl_info=ssl_info,
-                url_info=url_info,
+                url_info=raw_url_info,
                 technology=technology,
                 result=result,
                 ports_scanned=bool(ports and len(ports) > 0),
                 ssl_scanned=bool(ssl_info),
-                dns_scanned=bool(url_info and isinstance(url_info, dict) and url_info.get("dns")),
+                dns_scanned=bool(raw_url_info and isinstance(raw_url_info, dict) and raw_url_info.get("dns")),
                 technology_scanned=bool(technology),
                 vulnerability_scanned=bool(vulnerabilities and len(vulnerabilities) > 0)
             )
@@ -1460,7 +1460,7 @@ def register_routes(app):
         scan_comparison = compare_url_scans(current_scan_dict, previous_scan_dict)
         scan_timeline = generate_scan_timeline(
             scan_time_str=result["scan_time"] if result and "scan_time" in result.keys() else None,
-            url_info=url_info,
+            url_info=raw_url_info,
             ssl_info=ssl_info,
             ai_result=ai_result
         )
@@ -1483,46 +1483,42 @@ def register_routes(app):
         suspicious_score = result.get("suspicious_score") if result else 0
         risk_level = result.get("risk_level") if result else risk
 
-        # Build clean URL-specific context dictionary
-        url_info_dict = {
-            "url": url,
-            "domain": domain,
-            "ip": resolved_ip,
-            "protocol": protocol,
-            "score": score,
-            "risk": risk,
-            "remarks": result.get("remarks") if result else "",
-            "scan_time": scan_time,
-            "https_status": https_status,
-            "suspicious_score": suspicious_score,
-            "risk_level": risk_level,
-            "scan_id": current_scan_id,
-            "whois": url_info.get("whois", {}) if isinstance(url_info, dict) else {},
-            "geoip": url_info.get("geoip", {}) if isinstance(url_info, dict) else {},
-            "dns": url_info.get("dns", {}) if isinstance(url_info, dict) else {},
-            "waf": url_info.get("waf", {}) if isinstance(url_info, dict) else {},
-            "security_headers": url_info.get("security_headers", {}) if isinstance(url_info, dict) else {},
+        # Build a reliable normalized URL information object before render_template()
+        url_info = {
+            "url": result.get("url") or "",
+            "domain": result.get("domain") or "",
+            "ip": result.get("ip") or "Unknown",
+            "protocol": result.get("protocol") or "",
+            "score": result.get("score") if result.get("score") is not None else 0,
+            "risk": result.get("risk") or result.get("risk_level") or "Unknown",
+            "remarks": result.get("remarks") or "",
+            "scan_time": result.get("scan_time") or "",
+            "https_status": result.get("https_status"),
+            "suspicious_score": result.get("suspicious_score"),
+            "risk_level": result.get("risk_level"),
+            "scan_id": result.get("scan_id") or current_scan_id,
         }
-        if isinstance(url_info, dict):
-            for k, v in url_info.items():
-                if k not in url_info_dict or url_info_dict[k] is None:
-                    url_info_dict[k] = v
 
-        print("===== URL RESULT DEBUG =====")
-        print("RESULT:", result)
-        print("URL:", url)
-        print("DOMAIN:", domain)
-        print("IP:", resolved_ip)
-        print("PROTOCOL:", protocol)
-        print("SCAN_ID:", current_scan_id)
-        print("SCORE:", score)
-        print("RISK:", risk)
-        print("TECHNOLOGY:", technology)
-        print("VULNERABILITIES:", vulnerabilities)
-        print("CVES:", cves)
-        print("RISK SUMMARY:", risk_summary)
-        print("URL INFO:", url_info_dict)
-        print("============================")
+        # Merge telemetry objects if present
+        if isinstance(raw_url_info, dict):
+            for k, v in raw_url_info.items():
+                if k not in url_info or not url_info[k]:
+                    url_info[k] = v
+            url_info["whois"] = raw_url_info.get("whois", {})
+            url_info["geoip"] = raw_url_info.get("geoip", {})
+            url_info["dns"] = raw_url_info.get("dns", {})
+            url_info["waf"] = raw_url_info.get("waf", {})
+            url_info["security_headers"] = raw_url_info.get("security_headers", {})
+
+        print("[URL RESULT DEBUG]")
+        print("result =", result)
+        print("url_info =", url_info)
+        print("current_scan_id =", current_scan_id)
+        print("technology =", technology)
+        print("ports =", ports)
+        print("services =", services)
+        print("vulnerabilities =", vulnerabilities)
+        print("cves =", cves)
 
         return render_template(
             "url_result.html",
@@ -1553,8 +1549,8 @@ def register_routes(app):
             remarks=remarks,
             ssl_info=ssl_info,
             ssl_data=ssl_info,
-            waf_info=(url_info_dict.get("waf") if isinstance(url_info_dict.get("waf"), dict) else {}),
-            url_info=url_info_dict,
+            waf_info=(url_info.get("waf") if isinstance(url_info.get("waf"), dict) else {}),
+            url_info=url_info,
             ai_result=ai_result,
             history_scans=history_scans,
             scan_comparison=scan_comparison,
