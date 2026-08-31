@@ -42,6 +42,16 @@ from database.security_activity_helpers import (
     get_security_activity_logs,
     get_security_activity_metrics,
 )
+from dashboard.security_hardening import (
+    check_login_rate_limit,
+    record_failed_login,
+    record_successful_login,
+    check_otp_request_rate_limit,
+    record_otp_request,
+    check_otp_resend_cooldown,
+    record_otp_resend,
+    validate_password_strength,
+)
 
 from alerts.dashboard_alerts import (
     get_recent_alerts,
@@ -142,11 +152,24 @@ def register_routes(app):
                 error = "Email address is required."
             elif not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email):
                 error = "Please enter a valid email address."
-            elif not password or len(password) < 6:
-                error = "Password must be at least 6 characters long."
+            elif not password:
+                error = "Password is required."
+            elif len(password) < 8:
+                error = "Password must be at least 8 characters long."
             elif password != confirm_password:
                 error = "Passwords do not match."
             else:
+                # Rate limit check for registration OTP generation
+                allowed, wait_sec = check_otp_request_rate_limit(email, action="register")
+                if not allowed:
+                    error = f"Too many registration requests. Please wait {max(1, (wait_sec + 59) // 60)} minute(s) before trying again."
+                    return render_template(
+                        "register.html",
+                        error=error,
+                        username=username,
+                        email=email,
+                    )
+
                 from database.user_helpers import get_user_by_username, get_user_by_email
                 if get_user_by_username(username):
                     error = "This username is already taken. Please choose another."
@@ -195,6 +218,8 @@ def register_routes(app):
                         session["pending_registration_id"] = reg_id
                         session["pending_email"] = email
                         session.modified = True
+
+                        record_otp_request(email, action="register")
 
                         log_security_activity(
                             "REGISTRATION",
@@ -357,6 +382,11 @@ def register_routes(app):
         cooldown = otp_cfg["resend_cooldown"]
 
         # Check rate-limit cooldown
+        allowed, wait_sec = check_otp_resend_cooldown(f"reg_resend:{reg_id}", cooldown_seconds=cooldown)
+        if not allowed:
+            flash(f"Please wait {wait_sec} seconds before requesting a new verification code.", "error")
+            return redirect(url_for("verify_otp"))
+
         try:
             last_resend = datetime.fromisoformat(pending["last_resend_at"])
             if last_resend.tzinfo is None:
@@ -374,6 +404,7 @@ def register_routes(app):
         new_otp = generate_secure_otp(6)
         new_otp_hash = hash_otp(new_otp)
         update_pending_otp(reg_id, new_otp_hash, expires_in_minutes=otp_cfg["expiry_minutes"])
+        record_otp_resend(f"reg_resend:{reg_id}")
 
         # Send new OTP email
         sent, send_msg = send_verification_otp_email(
@@ -408,6 +439,12 @@ def register_routes(app):
             if not input_val:
                 error = "Please enter your username or registered email address."
             else:
+                # Check rate limiting for password recovery requests
+                allowed, wait_sec = check_otp_request_rate_limit(input_val, action="forgot_password")
+                if not allowed:
+                    error = f"Too many recovery requests. Please wait {max(1, (wait_sec + 59) // 60)} minute(s) before trying again."
+                    return render_template("forgot_password.html", error=error, email=input_val)
+
                 from database.user_helpers import get_user_by_email, get_user_by_username
                 from database.password_reset_helpers import create_password_reset_request
                 from alerts.otp_service import (
@@ -416,6 +453,8 @@ def register_routes(app):
                     get_otp_config,
                     send_password_reset_otp_email,
                 )
+
+                record_otp_request(input_val, action="forgot_password")
 
                 if "@" in input_val:
                     user = get_user_by_email(input_val.lower())
@@ -686,8 +725,9 @@ def register_routes(app):
             password = request.form.get("password", "")
             confirm_password = request.form.get("confirm_password", "")
 
-            if not password or len(password) < 6:
-                error = "Password must be at least 6 characters long."
+            valid_pwd, pwd_err = validate_password_strength(password, min_length=8)
+            if not valid_pwd:
+                error = pwd_err
             elif password != confirm_password:
                 error = "Passwords do not match."
             else:
@@ -936,8 +976,27 @@ def register_routes(app):
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "")
 
+            # Check login rate limit (5 failed attempts per 15 minutes)
+            allowed, wait_sec = check_login_rate_limit(username)
+            if not allowed:
+                log_security_activity(
+                    "LOGIN_FAILED",
+                    status="FAILED",
+                    username=username,
+                    email=username if "@" in username else "",
+                    details="Login attempt blocked by rate limit policy",
+                )
+                error = f"Too many failed login attempts. Please try again in {max(1, (wait_sec + 59) // 60)} minute(s)."
+                return render_template(
+                    "login.html",
+                    error=error,
+                    next_url=next_url if is_safe_url(next_url) else "",
+                    username=username,
+                )
+
             user = verify_user_credentials(username, password)
             if user:
+                record_successful_login(username)
                 login_user(user)
                 log_security_activity(
                     "LOGIN_SUCCESS",
@@ -951,6 +1010,7 @@ def register_routes(app):
                     return redirect(next_url)
                 return redirect(url_for("dashboard"))
             else:
+                record_failed_login(username)
                 log_security_activity(
                     "LOGIN_FAILED",
                     status="FAILED",
@@ -2328,7 +2388,7 @@ def register_routes(app):
                 )
 
             avatar_url = f"https://api.dicebear.com/7.x/bottts/svg?seed={username}"
-            create_user(
+            new_uid = create_user(
                 username=username,
                 password=password,
                 role=role,
@@ -2336,6 +2396,14 @@ def register_routes(app):
                 full_name=full_name,
                 is_active=is_active,
                 avatar_url=avatar_url,
+            )
+            log_security_activity(
+                "USER_CREATED",
+                status="SUCCESS",
+                username=username,
+                email=email,
+                user_id=new_uid,
+                details=f"Administrator created account with role {role}",
             )
             flash(f"User '{username}' ({role}) created successfully.", "success")
             return redirect(url_for("users_list"))
@@ -2382,6 +2450,14 @@ def register_routes(app):
                 full_name=full_name,
             )
             if success:
+                log_security_activity(
+                    "USER_EDITED",
+                    status="SUCCESS",
+                    username=username,
+                    email=email,
+                    user_id=user_id,
+                    details=f"Administrator updated account settings (Role: {role}, Active: {is_active})",
+                )
                 flash(f"User '{username}' updated successfully.", "success")
                 return redirect(url_for("users_list"))
             else:
@@ -2419,6 +2495,14 @@ def register_routes(app):
 
         success, error_msg = delete_user(user_id)
         if success:
+            log_security_activity(
+                "USER_DELETED",
+                status="SUCCESS",
+                username=target_user.get("username", ""),
+                email=target_user.get("email", ""),
+                user_id=user_id,
+                details=f"Administrator deleted user account '{target_user.get('username')}'",
+            )
             flash(f"User '{target_user.get('username')}' deleted successfully.", "success")
         else:
             flash(f"Failed to delete user: {error_msg}", "error")
