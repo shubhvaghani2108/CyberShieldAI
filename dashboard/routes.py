@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import sys
 import threading
@@ -355,6 +356,301 @@ def register_routes(app):
             flash("Unable to send the verification email right now. Please try again later.", "error")
 
         return redirect(url_for("verify_otp"))
+
+    # =========================================================================
+    # FORGOT PASSWORD / PASSWORD RECOVERY SYSTEM
+    # =========================================================================
+
+    @app.route("/forgot-password", methods=["GET", "POST"])
+    def forgot_password():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        error = None
+        email_val = ""
+
+        if request.method == "POST":
+            email_val = request.form.get("email", "").strip().lower()
+
+            if not email_val:
+                error = "Please enter your registered email address."
+            elif not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email_val):
+                error = "Please enter a valid email address format."
+            else:
+                from database.user_helpers import get_user_by_email
+                from database.password_reset_helpers import create_password_reset_request
+                from alerts.otp_service import (
+                    generate_secure_otp,
+                    hash_otp,
+                    get_otp_config,
+                    send_password_reset_otp_email,
+                )
+
+                user = get_user_by_email(email_val)
+                otp_cfg = get_otp_config()
+
+                if user and user.get("is_active", 1):
+                    # Generate cryptographically secure 6-digit OTP
+                    otp = generate_secure_otp(6)
+                    otp_hash = hash_otp(otp)
+
+                    # Create single-use 10-minute reset request
+                    reset_id = create_password_reset_request(
+                        user_id=user["id"],
+                        email=email_val,
+                        otp_hash=otp_hash,
+                        expires_in_minutes=otp_cfg["expiry_minutes"],
+                        max_attempts=otp_cfg["max_attempts"],
+                    )
+
+                    # Send recovery email via Brevo / HTTPS email API
+                    send_password_reset_otp_email(
+                        to_email=email_val,
+                        username=user.get("username", ""),
+                        otp=otp,
+                        expires_in_minutes=otp_cfg["expiry_minutes"],
+                    )
+
+                    session["password_reset_id"] = reset_id
+                    session["password_reset_email"] = email_val
+                    session.modified = True
+                else:
+                    # Anti-enumeration placeholder session
+                    session["password_reset_id"] = "nonexistent"
+                    session["password_reset_email"] = email_val
+                    session.modified = True
+
+                # Generic response to prevent user enumeration
+                flash("If this email address is registered, a password reset code has been sent.", "info")
+                return redirect(url_for("verify_forgot_password_otp"))
+
+        return render_template("forgot_password.html", error=error, email=email_val)
+
+    @app.route("/forgot-password/verify", methods=["GET", "POST"])
+    def verify_forgot_password_otp():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        reset_id = session.get("password_reset_id")
+        stored_email = session.get("password_reset_email", "")
+
+        if not reset_id or not stored_email:
+            flash("Please initiate a password recovery request first.", "error")
+            return redirect(url_for("forgot_password"))
+
+        def _mask_email(e):
+            parts = e.split("@")
+            if len(parts) == 2 and len(parts[0]) > 2:
+                return parts[0][:2] + "***@" + parts[1]
+            return e
+
+        masked_email = _mask_email(stored_email)
+
+        # Handle non-existent email session consistently without revealing account absence
+        if reset_id == "nonexistent":
+            error = None
+            if request.method == "POST":
+                error = "Invalid or expired recovery code. Please check and try again."
+            return render_template("verify_forgot_password_otp.html", error=error, email=masked_email)
+
+        from database.password_reset_helpers import (
+            get_password_reset_by_id,
+            increment_password_reset_attempts,
+            delete_password_reset,
+            authorize_password_reset_token,
+        )
+        record = get_password_reset_by_id(reset_id)
+        if not record or record.get("is_used"):
+            session.pop("password_reset_id", None)
+            session.pop("password_reset_email", None)
+            flash("Your recovery session has expired or was already used. Please request a new recovery code.", "error")
+            return redirect(url_for("forgot_password"))
+
+        error = None
+        if request.method == "POST":
+            otp = request.form.get("otp", "").strip()
+
+            if not otp or len(otp) != 6 or not otp.isdigit():
+                error = "Please enter a valid 6-digit numeric verification code."
+            else:
+                from datetime import datetime, timezone
+                try:
+                    exp_time = datetime.fromisoformat(record["expires_at"])
+                    if exp_time.tzinfo is None:
+                        exp_time = exp_time.replace(tzinfo=timezone.utc)
+                    is_expired = datetime.now(timezone.utc) > exp_time
+                except Exception:
+                    is_expired = False
+
+                if is_expired:
+                    error = "Your recovery code has expired. Please click 'Resend Code' to receive a new one."
+                elif record["attempts"] >= record["max_attempts"]:
+                    delete_password_reset(reset_id)
+                    session.pop("password_reset_id", None)
+                    session.pop("password_reset_email", None)
+                    flash("Maximum verification attempts exceeded. For security, please request a new recovery code.", "error")
+                    return redirect(url_for("forgot_password"))
+                else:
+                    from alerts.otp_service import verify_otp_hash, hash_otp
+                    if not verify_otp_hash(record["otp_hash"], otp):
+                        new_attempts = increment_password_reset_attempts(reset_id)
+                        remaining = max(0, record["max_attempts"] - new_attempts)
+                        if remaining <= 0:
+                            delete_password_reset(reset_id)
+                            session.pop("password_reset_id", None)
+                            session.pop("password_reset_email", None)
+                            flash("Maximum verification attempts exceeded. For security, please request a new recovery code.", "error")
+                            return redirect(url_for("forgot_password"))
+                        error = f"Invalid recovery code. {remaining} attempt(s) remaining."
+                    else:
+                        # OTP is valid! Generate high-entropy authorization token for /reset-password
+                        reset_token = secrets.token_urlsafe(32)
+                        authorize_password_reset_token(reset_id, hash_otp(reset_token))
+                        session["password_reset_token"] = reset_token
+                        session.modified = True
+                        return redirect(url_for("reset_password"))
+
+        return render_template(
+            "verify_forgot_password_otp.html",
+            error=error,
+            email=masked_email,
+        )
+
+    @app.route("/forgot-password/resend", methods=["POST"])
+    def resend_forgot_password_otp():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        reset_id = session.get("password_reset_id")
+        stored_email = session.get("password_reset_email", "")
+
+        if not reset_id or not stored_email:
+            flash("Please initiate a password recovery request first.", "error")
+            return redirect(url_for("forgot_password"))
+
+        if reset_id == "nonexistent":
+            flash("If this email address is registered, a new recovery code has been sent.", "info")
+            return redirect(url_for("verify_forgot_password_otp"))
+
+        from database.password_reset_helpers import get_password_reset_by_id, update_password_reset_otp
+        record = get_password_reset_by_id(reset_id)
+        if not record or record.get("is_used"):
+            flash("Recovery session expired. Please start over.", "error")
+            return redirect(url_for("forgot_password"))
+
+        from datetime import datetime, timezone
+        from alerts.otp_service import (
+            get_otp_config,
+            generate_secure_otp,
+            hash_otp,
+            send_password_reset_otp_email,
+        )
+
+        otp_cfg = get_otp_config()
+        cooldown = otp_cfg["resend_cooldown"]
+
+        # Check rate-limit cooldown
+        try:
+            last_resend = datetime.fromisoformat(record["last_resend_at"])
+            if last_resend.tzinfo is None:
+                last_resend = last_resend.replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - last_resend).total_seconds()
+            if elapsed < cooldown:
+                wait_sec = int(cooldown - elapsed)
+                flash(f"Please wait {wait_sec} seconds before requesting a new recovery code.", "error")
+                return redirect(url_for("verify_forgot_password_otp"))
+        except Exception:
+            pass
+
+        # Generate new OTP, update DB & dispatch email
+        new_otp = generate_secure_otp(6)
+        update_password_reset_otp(reset_id, hash_otp(new_otp), expires_in_minutes=otp_cfg["expiry_minutes"])
+
+        from database.user_helpers import get_user_by_id
+        user = get_user_by_id(record["user_id"])
+        username = user.get("username", "") if user else ""
+
+        send_password_reset_otp_email(
+            to_email=record["email"],
+            username=username,
+            otp=new_otp,
+            expires_in_minutes=otp_cfg["expiry_minutes"],
+        )
+
+        flash(f"A new 6-digit recovery code has been sent.", "success")
+        return redirect(url_for("verify_forgot_password_otp"))
+
+    @app.route("/reset-password", methods=["GET", "POST"])
+    def reset_password():
+        if is_authenticated():
+            return redirect(url_for("dashboard"))
+
+        reset_id = session.get("password_reset_id")
+        reset_token = session.get("password_reset_token")
+
+        if not reset_id or not reset_token or reset_id == "nonexistent":
+            flash("Please verify your recovery code first.", "error")
+            return redirect(url_for("forgot_password"))
+
+        from database.password_reset_helpers import (
+            get_password_reset_by_id,
+            verify_and_consume_reset_token,
+            delete_password_reset,
+        )
+
+        record = get_password_reset_by_id(reset_id)
+        if not record or record.get("is_used"):
+            session.pop("password_reset_id", None)
+            session.pop("password_reset_token", None)
+            session.pop("password_reset_email", None)
+            flash("Your password reset session has expired or has already been used.", "error")
+            return redirect(url_for("login"))
+
+        error = None
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if not password or len(password) < 6:
+                error = "Password must be at least 6 characters long."
+            elif password != confirm_password:
+                error = "Passwords do not match."
+            else:
+                success, user_id = verify_and_consume_reset_token(reset_id, reset_token)
+                if not success or not user_id:
+                    session.pop("password_reset_id", None)
+                    session.pop("password_reset_token", None)
+                    session.pop("password_reset_email", None)
+                    flash("Invalid or expired reset token. Please request a new recovery code.", "error")
+                    return redirect(url_for("forgot_password"))
+
+                from database.user_helpers import get_user_by_id, update_user_password
+                user = get_user_by_id(user_id)
+                if not user:
+                    flash("Account not found. Please register.", "error")
+                    return redirect(url_for("register"))
+
+                # Securely hash and update user's password
+                update_user_password(user["username"], password)
+                delete_password_reset(reset_id)
+
+                # Send security confirmation email
+                from alerts.otp_service import send_password_changed_notification_email
+                send_password_changed_notification_email(
+                    to_email=user.get("email", ""),
+                    username=user.get("username", ""),
+                )
+
+                # Clear reset session
+                session.pop("password_reset_id", None)
+                session.pop("password_reset_token", None)
+                session.pop("password_reset_email", None)
+                session.modified = True
+
+                flash("Password reset successfully. Please sign in with your new password.", "success")
+                return redirect(url_for("login"))
+
+        return render_template("reset_password.html", error=error)
 
     @app.route("/auth/google")
     def google_login():

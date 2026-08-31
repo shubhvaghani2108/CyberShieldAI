@@ -416,9 +416,12 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="password">
-                    <i class="bi bi-key"></i> Password
-                </label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label class="form-label" for="password" style="margin-bottom: 0;">
+                        <i class="bi bi-key"></i> Password
+                    </label>
+                    <a href="{{ url_for('forgot_password') }}" style="font-size: 12px; color: var(--accent-cyan); text-decoration: none; font-weight: 500; transition: color 0.2s;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Forgot Password?</a>
+                </div>
                 <div class="input-wrapper">
                     <i class="bi bi-lock input-icon"></i>
                     <input 

@@ -218,3 +218,216 @@ def send_otp_email(recipient_email: str, username: str, otp: str) -> tuple:
     Sends an OTP verification email using the SMTP service.
     """
     return send_verification_otp_email(to_email=recipient_email, username=username, otp=otp)
+
+
+def send_password_reset_otp_email(to_email: str, username: str = "", otp: str = "", expires_in_minutes: int = 10) -> tuple:
+    """
+    Dispatches a high-deliverability password recovery OTP email with transactional headers.
+    """
+    clean_email = (to_email or "").strip().lower()
+    if not clean_email or not otp:
+        return False, "Recipient email and OTP code are required."
+
+    subject = f"{otp} is your CyberShieldAI password reset code"
+    user_display = (username or clean_email.split("@")[0] or "Security Operator").strip()
+
+    text_body = f"""CyberShieldAI Password Recovery
+
+Hello {user_display},
+
+Your 6-digit password recovery verification code is: {otp}
+
+This code will expire in {expires_in_minutes} minutes.
+Enter this code on the password recovery verification screen to proceed with resetting your password.
+
+SECURITY NOTICE:
+If you did not request a password reset for your CyberShieldAI account, please ignore this email or review your account security immediately.
+
+CyberShieldAI Security Team
+Automated Identity & Access Protection
+"""
+
+    html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShieldAI Password Recovery Code</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #070d19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+    <!-- Preheader Hidden Text -->
+    <div style="display: none; max-height: 0px; overflow: hidden; opacity: 0; font-size: 1px; line-height: 1px; color: #070d19;">
+        {otp} is your CyberShieldAI password recovery code. Expires in {expires_in_minutes} minutes.
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #070d19; padding: 32px 16px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 500px; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 28px 32px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 1px solid rgba(56, 189, 248, 0.15); text-align: center;">
+                            <div style="display: inline-block; width: 44px; height: 44px; line-height: 44px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; font-size: 22px;">
+                                🛡️
+                            </div>
+                            <h1 style="margin: 12px 0 0 0; font-size: 20px; font-weight: 700; color: #f8fafc; letter-spacing: -0.3px;">
+                                CyberShield<span style="color: #38bdf8;">AI</span>
+                            </h1>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                Password Recovery Verification
+                            </p>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 32px;">
+                            <p style="margin: 0 0 14px 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+                                Hello <strong style="color: #f8fafc;">{user_display}</strong>,
+                            </p>
+                            <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #94a3b8;">
+                                We received a request to reset your CyberShieldAI account password. Use the single-use verification code below to authorize your password reset:
+                            </p>
+
+                            <!-- OTP Box -->
+                            <div style="background: rgba(11, 19, 41, 0.85); border: 2px dashed #0284c7; border-radius: 12px; padding: 22px; text-align: center; margin: 20px 0;">
+                                <span style="font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 34px; font-weight: 800; letter-spacing: 10px; color: #38bdf8; display: block; padding-left: 10px;">
+                                    {otp}
+                                </span>
+                                <span style="display: block; font-size: 12px; color: #64748b; margin-top: 10px;">
+                                    ⏱ Expires in <strong style="color: #cbd5e1;">{expires_in_minutes} minutes</strong> &middot; Single-use only
+                                </span>
+                            </div>
+
+                            <!-- Security Alert Box -->
+                            <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 24px 0 0 0;">
+                                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #fca5a5;">
+                                    <strong>🔒 Security Notice:</strong> If you did not request this password recovery, someone may be attempting to access your account. You can safely ignore this email; your existing password will remain unchanged.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 32px; background: #0b1329; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
+                            <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.5;">
+                                CyberShieldAI Security Operations<br>
+                                Automated Identity &amp; Access Protection
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+    from alerts.email_api import send_https_email
+    return send_https_email(
+        to_email=clean_email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
+
+
+def send_password_changed_notification_email(to_email: str, username: str = "") -> tuple:
+    """
+    Dispatches a security notification email confirming that the user's password was changed.
+    """
+    clean_email = (to_email or "").strip().lower()
+    if not clean_email:
+        return False, "Recipient email is required."
+
+    subject = "Security Alert: Your CyberShieldAI password was changed"
+    user_display = (username or clean_email.split("@")[0] or "Security Operator").strip()
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    text_body = f"""CyberShieldAI Security Alert
+
+Hello {user_display},
+
+This is an automated confirmation that the password for your CyberShieldAI account ({clean_email}) was successfully changed on {timestamp}.
+
+If you performed this action, no further steps are required.
+
+SECURITY WARNING:
+If you did not change your password, your account may be compromised. Please contact your system administrator or initiate a password reset immediately.
+
+CyberShieldAI Security Operations
+"""
+
+    html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShieldAI Password Changed</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #070d19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #070d19; padding: 32px 16px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 500px; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 28px 32px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-bottom: 1px solid rgba(56, 189, 248, 0.15); text-align: center;">
+                            <div style="display: inline-block; width: 44px; height: 44px; line-height: 44px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; font-size: 22px;">
+                                🔒
+                            </div>
+                            <h1 style="margin: 12px 0 0 0; font-size: 20px; font-weight: 700; color: #f8fafc;">
+                                Password Updated Successfully
+                            </h1>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                                Account Security Confirmation
+                            </p>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 32px;">
+                            <p style="margin: 0 0 14px 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+                                Hello <strong style="color: #f8fafc;">{user_display}</strong>,
+                            </p>
+                            <p style="margin: 0 0 18px 0; font-size: 14px; line-height: 1.6; color: #94a3b8;">
+                                The password for your CyberShieldAI account (<code style="color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px;">{clean_email}</code>) was successfully updated on <strong>{timestamp}</strong>.
+                            </p>
+
+                            <div style="background: rgba(34, 197, 94, 0.08); border-left: 3px solid #22c55e; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 20px 0;">
+                                <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #86efac;">
+                                    ✓ If you made this change, you can safely disregard this message.
+                                </p>
+                            </div>
+
+                            <div style="background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 20px 0 0 0;">
+                                <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #fca5a5;">
+                                    <strong>⚠ Did not make this change?</strong> Please secure your account immediately or notify your security administrator.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 32px; background: #0b1329; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
+                            <p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.5;">
+                                CyberShieldAI Security Operations<br>
+                                Automated Identity &amp; Access Protection
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+    from alerts.email_api import send_https_email
+    return send_https_email(
+        to_email=clean_email,
+        subject=subject,
+        html_body=html_body,
+        text_body=text_body,
+    )
