@@ -56,6 +56,8 @@
         <tr><th>Protocol</th><td>{{ result.protocol }}</td></tr>
         <tr><th>URL Threat Score</th><td class="mono">{{ result.score }} / 100</td></tr>
         <tr><th>URL Threat Level</th><td><span class="risk-pill {{ (result.risk or 'low')|lower }}">{{ result.risk }}</span></td></tr>
+        {% if result.scan_id %}<tr><th>Scan ID</th><td class="mono" style="font-size:12px; color:var(--text-1);">{{ result.scan_id }}</td></tr>{% endif %}
+        {% if result.scan_time %}<tr><th>Scan Time</th><td class="mono utc-timestamp">{{ result.scan_time }}</td></tr>{% endif %}
     </table>
     <p class="empty-note" style="margin-top:10px;">
         This score comes from URL-pattern heuristics (protocol, suspicious
