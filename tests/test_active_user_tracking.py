@@ -139,17 +139,20 @@ class ActiveUserTrackingTestCase(unittest.TestCase):
             sess["role"] = "ADMIN"
             sess["email"] = admin["email"]
 
-        # Access /admin (should redirect to /users with 302 or render /users)
+        # Access /admin dashboard
         resp_admin = self.client.get("/admin", follow_redirects=True)
         self.assertEqual(resp_admin.status_code, 200)
         self.assertIn(b"Total Users", resp_admin.data)
         self.assertIn(b"Active Users", resp_admin.data)
-        self.assertIn(b"Inactive Users", resp_admin.data)
         self.assertIn(b"New Users Today", resp_admin.data)
+        self.assertIn(b"Failed Logins Today", resp_admin.data)
 
         # Access /users directly
         resp_users = self.client.get("/users")
         self.assertEqual(resp_users.status_code, 200)
+        self.assertIn(b"Total Users", resp_users.data)
+        self.assertIn(b"Active Users", resp_users.data)
+        self.assertIn(b"Inactive Users", resp_users.data)
         self.assertIn(b"Last Login", resp_users.data)
         self.assertIn(b"Last Seen", resp_users.data)
 

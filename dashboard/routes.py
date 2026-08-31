@@ -2244,7 +2244,21 @@ def register_routes(app):
         if session.get("role") != "ADMIN":
             flash("Administrator privileges are required to access Administration.", "error")
             return redirect(url_for("profile_page")), 403
-        return redirect(url_for("users_list"))
+
+        from database.user_helpers import list_users
+        from database.security_activity_helpers import get_security_activity_metrics, get_security_activity_logs
+        
+        users = list_users()
+        metrics = get_security_activity_metrics()
+        security_logs, _, _, _ = get_security_activity_logs(page=1, per_page=10)
+
+        return render_template(
+            "admin_dashboard.html",
+            active_page="admin_dashboard",
+            users=users,
+            metrics=metrics,
+            security_logs=security_logs,
+        )
 
     @app.route("/users", methods=["GET"])
     def users_list():
