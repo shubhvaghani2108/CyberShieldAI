@@ -1071,109 +1071,163 @@ def register_routes(app):
                 "SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)
             ).fetchone()
 
+        if not result:
+            result = conn.execute(
+                "SELECT * FROM url_scan_results ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+
         if result:
             result = dict(result)
             if not ip or ip == "Unknown":
                 ip = result.get("ip") or "Unknown"
 
-        ports = conn.execute(
-            """
-            SELECT *
-            FROM ports
-            WHERE id IN (
-                SELECT MAX(id) FROM ports WHERE ip=? GROUP BY port
-            )
-            ORDER BY port ASC
-        """,
-            (ip,),
-        ).fetchall()
+        current_scan_id = (
+            result.get("scan_id")
+            if result and hasattr(result, "keys") and "scan_id" in result.keys()
+            else scan_id
+        )
 
-        services = conn.execute(
-            """
-            SELECT *
-            FROM service_versions
-            WHERE id IN (
-                SELECT MAX(id) FROM service_versions WHERE ip=? GROUP BY port
-            )
-            ORDER BY port ASC
-        """,
-            (ip,),
-        ).fetchall()
+        if current_scan_id:
+            ports = conn.execute(
+                "SELECT * FROM ports WHERE scan_id=? ORDER BY port ASC",
+                (current_scan_id,),
+            ).fetchall()
+            services = conn.execute(
+                "SELECT * FROM service_versions WHERE scan_id=? ORDER BY port ASC",
+                (current_scan_id,),
+            ).fetchall()
+            os_info = conn.execute(
+                "SELECT * FROM os_info WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                (current_scan_id,),
+            ).fetchone()
+            raw_vulnerabilities = conn.execute(
+                "SELECT * FROM vulnerabilities WHERE scan_id=? ORDER BY port ASC",
+                (current_scan_id,),
+            ).fetchall()
+            cves = conn.execute(
+                "SELECT * FROM cves WHERE scan_id=? ORDER BY port ASC",
+                (current_scan_id,),
+            ).fetchall()
+            risk_summary = conn.execute(
+                "SELECT * FROM risk_summary WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                (current_scan_id,),
+            ).fetchone()
+            technology_row = conn.execute(
+                "SELECT * FROM technology_detection WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                (current_scan_id,),
+            ).fetchone()
+        else:
+            ports = []
+            services = []
+            os_info = None
+            raw_vulnerabilities = []
+            cves = []
+            risk_summary = None
+            technology_row = None
 
-        os_info = conn.execute(
-            """
-            SELECT *
-            FROM os_info
-            WHERE ip=?
-            ORDER BY id DESC
-            LIMIT 1
-        """,
-            (ip,),
-        ).fetchone()
+        if not ports and ip and ip != "Unknown":
+            ports = conn.execute(
+                """
+                SELECT *
+                FROM ports
+                WHERE id IN (
+                    SELECT MAX(id) FROM ports WHERE ip=? GROUP BY port
+                )
+                ORDER BY port ASC
+            """,
+                (ip,),
+            ).fetchall()
+
+        if not services and ip and ip != "Unknown":
+            services = conn.execute(
+                """
+                SELECT *
+                FROM service_versions
+                WHERE id IN (
+                    SELECT MAX(id) FROM service_versions WHERE ip=? GROUP BY port
+                )
+                ORDER BY port ASC
+            """,
+                (ip,),
+            ).fetchall()
+
+        if not os_info and ip and ip != "Unknown":
+            os_info = conn.execute(
+                """
+                SELECT *
+                FROM os_info
+                WHERE ip=?
+                ORDER BY id DESC
+                LIMIT 1
+            """,
+                (ip,),
+            ).fetchone()
 
         if os_info:
             os_info = dict(os_info)
 
-        raw_vulnerabilities = conn.execute(
-            """
-            SELECT *
-            FROM vulnerabilities
-            WHERE id IN (
-                SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port, risk, service
-            )
-            ORDER BY port ASC
-        """,
-            (ip,),
-        ).fetchall()
-
+        if not raw_vulnerabilities and ip and ip != "Unknown":
+            raw_vulnerabilities = conn.execute(
+                """
+                SELECT *
+                FROM vulnerabilities
+                WHERE id IN (
+                    SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port, risk, service
+                )
+                ORDER BY port ASC
+            """,
+                (ip,),
+            ).fetchall()
 
         from ai.ai_rules import enrich_vulnerability_with_cvss
         vulnerabilities = [enrich_vulnerability_with_cvss(v) for v in raw_vulnerabilities]
 
-        cves = conn.execute(
-            """
-            SELECT *
-            FROM cves
-            WHERE id IN (
-                SELECT MAX(id) FROM cves WHERE ip=? GROUP BY cve_id, port
-            )
-            ORDER BY
-                CASE LOWER(severity)
-                    WHEN 'critical' THEN 0
-                    WHEN 'high' THEN 1
-                    WHEN 'medium' THEN 2
-                    ELSE 3
-                END,
-                port ASC
-        """,
-            (ip,),
-        ).fetchall()
+        if not cves and ip and ip != "Unknown":
+            cves = conn.execute(
+                """
+                SELECT *
+                FROM cves
+                WHERE id IN (
+                    SELECT MAX(id) FROM cves WHERE ip=? GROUP BY cve_id, port
+                )
+                ORDER BY
+                    CASE LOWER(severity)
+                        WHEN 'critical' THEN 0
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        ELSE 3
+                    END,
+                    port ASC
+            """,
+                (ip,),
+            ).fetchall()
 
-        risk_summary = conn.execute(
-            """
-            SELECT *
-            FROM risk_summary
-            WHERE ip=?
-            ORDER BY id DESC
-            LIMIT 1
-        """,
-            (ip,),
-        ).fetchone()
-
+        if not risk_summary and ip and ip != "Unknown":
+            risk_summary = conn.execute(
+                """
+                SELECT *
+                FROM risk_summary
+                WHERE ip=?
+                ORDER BY id DESC
+                LIMIT 1
+            """,
+                (ip,),
+            ).fetchone()
 
         if risk_summary:
             risk_summary = dict(risk_summary)
 
-        technology_row = conn.execute(
-            """
-            SELECT *
-            FROM technology_detection
-            WHERE ip=?
-            ORDER BY id DESC
-            LIMIT 1
-        """,
-            (ip,),
-        ).fetchone()
+        if not technology_row and ip and ip != "Unknown":
+            technology_row = conn.execute(
+                """
+                SELECT *
+                FROM technology_detection
+                WHERE ip=?
+                ORDER BY id DESC
+                LIMIT 1
+            """,
+                (ip,),
+            ).fetchone()
 
         technology = None
         server_val = "Unknown"
