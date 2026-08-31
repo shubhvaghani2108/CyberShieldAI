@@ -844,11 +844,16 @@ def get_latest_technology(ip=None, url=None):
     return row
 
 
-def get_latest_url_intelligence(ip=None, url=None):
+def get_latest_url_intelligence(ip=None, url=None, scan_id=None):
     """Latest WHOIS / GeoIP / WAF intelligence row for a scanned URL."""
     conn = get_db_connection()
     row = None
-    if url:
+    if scan_id:
+        row = conn.execute(
+            "SELECT * FROM url_intelligence WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+            (scan_id,),
+        ).fetchone()
+    if not row and url:
         row = conn.execute(
             "SELECT * FROM url_intelligence WHERE url=? ORDER BY id DESC LIMIT 1",
             (url,),
@@ -905,7 +910,8 @@ def get_url_scan_dashboard_context():
         except (IndexError, KeyError):
             tech_server = None
 
-    url_intel = get_latest_url_intelligence(ip=url_scan["ip"], url=url_scan["url"])
+    scan_id = url_scan["scan_id"] if "scan_id" in url_scan.keys() else None
+    url_intel = get_latest_url_intelligence(ip=url_scan["ip"], url=url_scan["url"], scan_id=scan_id)
 
     return {
         "url_scan": url_scan,

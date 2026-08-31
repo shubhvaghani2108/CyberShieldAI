@@ -138,3 +138,18 @@ def test_08_ip_scan_result_page_still_functions(client):
     assert resp.status_code == 200
     html = resp.data.decode("utf-8")
     assert "IP Scan Result" in html or "Target Overview" in html
+
+
+def test_09_exact_user_scan_id_route(client, capsys):
+    scan_id = "b746d6e8b88b46c1ae81a10782f574b3"
+    _insert_test_url_scan(scan_id, "https://github.com", "github.com", ip="140.82.121.4")
+
+    resp = client.get(f"/url-scan-result/{scan_id}")
+    assert resp.status_code == 200
+    html = resp.data.decode("utf-8")
+    assert "https://github.com" in html
+    assert "github.com" in html
+
+    captured = capsys.readouterr()
+    assert "unexpected keyword argument 'scan_id'" not in captured.out
+    assert "unexpected keyword argument 'scan_id'" not in captured.err
