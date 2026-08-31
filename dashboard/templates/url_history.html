@@ -22,15 +22,19 @@
         <tbody>
         {% for row in rows %}
         <tr>
-            <td class="mono">{{ row[0] }}</td>
-            <td style="max-width:320px; word-break:break-word;">{{ row[1] }}</td>
-            <td style="max-width:200px; word-break:break-word;">{{ row[2] }}</td>
-            <td class="mono">{{ row[3] }}</td>
-            <td>
-                {% set lvl = (row[6] or 'low')|lower %}
-                <span class="badge badge-{{ lvl }}">{{ row[6] }}</span>
+            <td class="mono">{{ row['id'] if 'id' in row.keys() else row[0] }}</td>
+            <td style="max-width:320px; word-break:break-word;">
+                <a href="{{ url_for('url_scan_result_page') }}?{% if 'scan_id' in row.keys() and row['scan_id'] %}scan_id={{ row['scan_id'] }}{% else %}id={{ row['id'] if 'id' in row.keys() else row[0] }}{% endif %}" style="color:var(--accent); font-weight:600;">
+                    {{ row['url'] if 'url' in row.keys() else row[1] }}
+                </a>
             </td>
-            <td class="mono">{{ row[7] }}</td>
+            <td style="max-width:200px; word-break:break-word;">{{ row['domain'] if 'domain' in row.keys() else row[2] }}</td>
+            <td class="mono">{{ row['ip'] if 'ip' in row.keys() else row[3] }}</td>
+            <td>
+                {% set lvl = (row['risk'] if 'risk' in row.keys() else (row[6] or 'low'))|lower %}
+                <span class="badge badge-{{ lvl }}">{{ row['risk'] if 'risk' in row.keys() else row[6] }}</span>
+            </td>
+            <td class="mono">{{ row['scan_time'] if 'scan_time' in row.keys() else row[7] }}</td>
         </tr>
         {% else %}
         <tr class="empty-row"><td colspan="6">No URL scan history available.</td></tr>

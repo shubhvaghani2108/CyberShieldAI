@@ -34,6 +34,7 @@ from database.db_helpers import (
     get_ip_scan_context,
     get_latest_host_status,
     get_latest_ip,
+    get_latest_url_intelligence,
     get_latest_url_scan,
     get_url_scan_dashboard_context,
 )
@@ -1007,16 +1008,56 @@ def register_routes(app):
         )
 
     @app.route("/url-scan-result")
-    def url_scan_result_page():
+    @app.route("/url-scan-result/<scan_id>")
+    def url_scan_result_page(scan_id=None):
+        req_scan_id = scan_id or request.args.get("scan_id")
         target_id = request.args.get("id", type=int)
-        latest_url_scan = None
-        if target_id:
-            conn = get_db_connection()
-            latest_url_scan = conn.execute("SELECT * FROM url_scan_results WHERE id=?", (target_id,)).fetchone()
-            conn.close()
 
-        if not latest_url_scan:
+        conn = get_db_connection()
+        latest_url_scan = None
+
+        if req_scan_id:
+            latest_url_scan = conn.execute(
+                "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                (req_scan_id,),
+            ).fetchone()
+
+        if not latest_url_scan and target_id:
+            latest_url_scan = conn.execute(
+                "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
+            ).fetchone()
+
+        if not latest_url_scan and not req_scan_id and not target_id:
             latest_url_scan = get_latest_url_scan()
+
+        conn.close()
+
+        if not latest_url_scan and req_scan_id:
+            return render_template(
+                "url_result.html",
+                result=None,
+                not_found_message=f"URL scan result '{req_scan_id}' not found.",
+                active_page="url_scan_result",
+                page_title="URL Scan Result",
+                page_subtitle="Scan result not found",
+                ai_result=None,
+                technology=[],
+                classified_technology={},
+                ports=[],
+                services=[],
+                os_info=None,
+                vulnerabilities=[],
+                risk_summary=None,
+                recommendations=[],
+                remarks=[],
+                ssl_info=None,
+                url_info=None,
+                history_scans=[],
+                scan_comparison=None,
+                scan_timeline=[],
+                virustotal=None,
+                cves=[],
+            ), 404
 
         if not latest_url_scan:
             return render_template(
@@ -1263,18 +1304,38 @@ def register_routes(app):
         if result and result["remarks"]:
             remarks = [r.strip() for r in str(result["remarks"]).split("|") if r.strip()]
 
-        ssl_info = None
-        if result and result["domain"]:
-            ssl_info = get_latest_ssl(result["domain"])
-
         current_scan_id = (result.get("scan_id") if result and hasattr(result, "keys") and "scan_id" in result.keys() else None)
         if not current_scan_id:
             from scanner.scan_snapshot import get_latest_scan_id
             current_scan_id = get_latest_scan_id(ip)
 
+        ssl_info = None
+        if result and result.get("domain"):
+            ssl_info = get_latest_ssl(result["domain"], scan_id=current_scan_id)
+
         url_info = {}
         try:
-            if result and result["url"]:
+            url_intel_row = get_latest_url_intelligence(ip=ip, url=result.get("url"), scan_id=current_scan_id)
+            if url_intel_row:
+                url_info = dict(url_intel_row)
+                url_info["whois"] = {
+                    "registrar": url_info.get("registrar", "Unknown"),
+                    "creation_date": url_info.get("creation_date", "Unknown"),
+                    "expiration_date": url_info.get("expiration_date", "Unknown"),
+                    "updated_date": url_info.get("updated_date", "Unknown"),
+                }
+                url_info["geoip"] = {
+                    "country": url_info.get("country", "Unknown"),
+                    "region": url_info.get("region", "Unknown"),
+                    "city": url_info.get("city", "Unknown"),
+                    "isp": url_info.get("isp", "Unknown"),
+                    "asn": url_info.get("asn", "Unknown"),
+                }
+                url_info["waf"] = {
+                    "detected": bool(url_info.get("waf") and url_info.get("waf") != "None"),
+                    "provider": url_info.get("waf", "None"),
+                }
+            elif result and result.get("url"):
                 url_info = analyze_url_intelligence(result["url"], scan_id=current_scan_id)
         except Exception as e:
             print("URL Intelligence Error:", e)

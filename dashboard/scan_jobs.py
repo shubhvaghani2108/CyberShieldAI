@@ -41,6 +41,7 @@ def _new_job(target, job_type="ip"):
             "logs": [],
             "error": None,
             "result_ip": None,
+            "scan_id": None,
             "start_time": time.time(),
         }
     return job_id
@@ -52,11 +53,13 @@ def _job_log(job_id, message):
             SCAN_JOBS[job_id]["logs"].append(message)
 
 
-def _job_done(job_id, result_ip=None):
+def _job_done(job_id, result_ip=None, scan_id=None):
     with SCAN_JOBS_LOCK:
         if job_id in SCAN_JOBS:
             SCAN_JOBS[job_id]["status"] = "done"
             SCAN_JOBS[job_id]["result_ip"] = result_ip
+            if scan_id:
+                SCAN_JOBS[job_id]["scan_id"] = scan_id
 
 
 def _job_error(job_id, error_message):
@@ -167,7 +170,7 @@ def _run_ip_scan_job(job_id, target, ports="top-1000"):
         _job_log(job_id, "Security alerts generated.")
 
         _job_log(job_id, "Scan complete.")
-        _job_done(job_id, result_ip=target)
+        _job_done(job_id, result_ip=target, scan_id=scan_id)
 
     except Exception as e:
         _job_error(job_id, str(e))
@@ -379,7 +382,7 @@ def _run_url_scan_job(job_id, url):
             print("[ALERT GENERATION ERROR]", alert_err)
 
         _job_log(job_id, "Scan complete.")
-        _job_done(job_id, result_ip=ip if ip != "Unknown" else None)
+        _job_done(job_id, result_ip=ip if ip != "Unknown" else None, scan_id=scan_id)
 
     except Exception as e:
         _job_error(job_id, str(e))

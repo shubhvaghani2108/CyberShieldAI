@@ -464,14 +464,14 @@
                 if (job.status === 'done'){
                     setStatus('done');
 
-                    // Each scan type now has its own dedicated result
-                    // dashboard page (IP Scan Result / URL Scan Result),
-                    // reachable from its own button - instead of URL scans
-                    // dropping onto an unrelated, disconnected page.
-                    let target = (jobType === 'url') ? '/url-scan-result' : '/ip-scan-result';
+                    // Each scan type has its dedicated result page with exact scan_id
+                    let target = (jobType === 'url')
+                        ? (job.scan_id ? ('/url-scan-result?scan_id=' + encodeURIComponent(job.scan_id)) : '/url-scan-result')
+                        : (job.scan_id ? ('/ip-scan-result?scan_id=' + encodeURIComponent(job.scan_id)) : '/ip-scan-result');
+
                     let extraLink = '';
-                    if (jobType === 'url' && job.result_ip){
-                        extraLink = '<a class="csa-btn" href="/url-result/' + job.result_ip + '"><i class="bi bi-file-earmark-text"></i> Full URL Report</a>';
+                    if (jobType === 'url' && job.scan_id){
+                        extraLink = '<a class="csa-btn" href="/url-scan-result?scan_id=' + encodeURIComponent(job.scan_id) + '"><i class="bi bi-file-earmark-text"></i> Full URL Report</a>';
                     }
 
                     showActions(

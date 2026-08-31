@@ -122,18 +122,32 @@ def save_ssl(ssl_data: dict, scan_id: str = None):
     conn.close()
 
 
-def get_latest_ssl(host: str):
+def get_latest_ssl(host: str, scan_id=None):
     conn = _get_conn()
-    row = conn.execute(
-        """
-        SELECT *
-        FROM ssl_results
-        WHERE host = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (host,),
-    ).fetchone()
+    row = None
+    if scan_id:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM ssl_results
+            WHERE scan_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (scan_id,),
+        ).fetchone()
+
+    if not row and host:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM ssl_results
+            WHERE host = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (host,),
+        ).fetchone()
     conn.close()
     if row:
         res = dict(row)
