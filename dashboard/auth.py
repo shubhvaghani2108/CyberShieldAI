@@ -60,7 +60,7 @@ def get_current_user():
 
 
 def login_user(user):
-    """Initializes user session on successful login and updates activity timestamps."""
+    """Initializes user session on successful login."""
     session.clear()
     session["user_id"] = user["id"]
     session["username"] = user["username"]
@@ -68,12 +68,6 @@ def login_user(user):
     session["role"] = user.get("role", "ANALYST")
     session["avatar_url"] = user.get("avatar_url", "")
     session.permanent = True
-
-    try:
-        from database.user_helpers import update_last_login
-        update_last_login(user["id"])
-    except Exception:
-        pass
 
 
 def logout_user():

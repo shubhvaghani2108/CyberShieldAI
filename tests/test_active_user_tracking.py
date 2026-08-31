@@ -144,17 +144,16 @@ class ActiveUserTrackingTestCase(unittest.TestCase):
         self.assertEqual(resp_admin.status_code, 200)
         self.assertIn(b"Total Users", resp_admin.data)
         self.assertIn(b"Active Users", resp_admin.data)
-        self.assertIn(b"New Users Today", resp_admin.data)
-        self.assertIn(b"Failed Logins Today", resp_admin.data)
+        self.assertIn(b"Total Scans", resp_admin.data)
+        self.assertIn(b"Total Vulnerabilities", resp_admin.data)
 
         # Access /users directly
         resp_users = self.client.get("/users")
         self.assertEqual(resp_users.status_code, 200)
         self.assertIn(b"Total Users", resp_users.data)
-        self.assertIn(b"Active Users", resp_users.data)
-        self.assertIn(b"Inactive Users", resp_users.data)
-        self.assertIn(b"Last Login", resp_users.data)
-        self.assertIn(b"Last Seen", resp_users.data)
+        self.assertIn(b"Active Accounts", resp_users.data)
+        self.assertIn(b"Offline Users", resp_users.data)
+        self.assertIn(b"Last Seen / Login", resp_users.data)
 
     def test_06_normal_user_cannot_access_admin(self):
         """Standard USER cannot access /admin route and receives 403 / redirect."""

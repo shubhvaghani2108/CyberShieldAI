@@ -350,12 +350,6 @@ def init_db():
     except Exception:
         pass
 
-    try:
-        from database.security_activity_helpers import init_security_activity_table
-        init_security_activity_table()
-    except Exception:
-        pass
-
     migrate_db_add_scan_id()
 
 

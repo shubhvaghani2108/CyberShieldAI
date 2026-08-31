@@ -68,20 +68,8 @@ setup_auth_middleware(app)
 # Register dashboard routes
 register_routes(app)
 
-from datetime import timedelta
 import hashlib
 import urllib.parse
-from dashboard.security_hardening import get_or_create_csrf_token
-
-# Session Security Configuration for Production
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = (
-    os.environ.get("FLASK_ENV") == "production"
-    or os.environ.get("RENDER") == "true"
-    or os.environ.get("SESSION_COOKIE_SECURE", "0").lower() in ("1", "true")
-)
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
 
 # Inject safe csrf_token and universal email avatar helper into Jinja context
 @app.context_processor
@@ -113,29 +101,22 @@ def inject_template_helpers():
         return f"https://ui-avatars.com/api/?name={encoded_name}&background=0284c7&color=ffffff&bold=true&rounded=true&size=256"
 
     return dict(
-        csrf_token=get_or_create_csrf_token,
+        csrf_token=lambda: os.environ.get("CSRF_TOKEN", "cybershield-csrf-token"),
         get_user_avatar=get_user_avatar,
     )
 
-# Security Headers Middleware (Production-ready & compatible with dashboard widgets)
+# Security Headers Middleware
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self' 'unsafe-inline' 'unsafe-eval' "
         "https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com "
-        "https://api.dicebear.com https://lh3.googleusercontent.com https://accounts.google.com "
-        "https://ui-avatars.com https://www.gravatar.com data: blob:; "
-        "img-src 'self' data: https: blob:; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:;"
+        "https://api.dicebear.com https://lh3.googleusercontent.com https://accounts.google.com data: blob:; "
+        "img-src 'self' data: https: blob:;"
     )
-    # Enforce Strict-Transport-Security on HTTPS/Production
-    if request.is_secure or os.environ.get("RENDER") == "true" or os.environ.get("FLASK_ENV") == "production":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

@@ -37,21 +37,6 @@ from database.db_helpers import (
     get_latest_url_scan,
     get_url_scan_dashboard_context,
 )
-from database.security_activity_helpers import (
-    log_security_activity,
-    get_security_activity_logs,
-    get_security_activity_metrics,
-)
-from dashboard.security_hardening import (
-    check_login_rate_limit,
-    record_failed_login,
-    record_successful_login,
-    check_otp_request_rate_limit,
-    record_otp_request,
-    check_otp_resend_cooldown,
-    record_otp_resend,
-    validate_password_strength,
-)
 
 from alerts.dashboard_alerts import (
     get_recent_alerts,
@@ -152,24 +137,11 @@ def register_routes(app):
                 error = "Email address is required."
             elif not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email):
                 error = "Please enter a valid email address."
-            elif not password:
-                error = "Password is required."
-            elif len(password) < 8:
-                error = "Password must be at least 8 characters long."
+            elif not password or len(password) < 6:
+                error = "Password must be at least 6 characters long."
             elif password != confirm_password:
                 error = "Passwords do not match."
             else:
-                # Rate limit check for registration OTP generation
-                allowed, wait_sec = check_otp_request_rate_limit(email, action="register")
-                if not allowed:
-                    error = f"Too many registration requests. Please wait {max(1, (wait_sec + 59) // 60)} minute(s) before trying again."
-                    return render_template(
-                        "register.html",
-                        error=error,
-                        username=username,
-                        email=email,
-                    )
-
                 from database.user_helpers import get_user_by_username, get_user_by_email
                 if get_user_by_username(username):
                     error = "This username is already taken. Please choose another."
@@ -219,15 +191,11 @@ def register_routes(app):
                         session["pending_email"] = email
                         session.modified = True
 
-                        record_otp_request(email, action="register")
-
-                        log_security_activity(
-                            "REGISTRATION",
-                            status="SUCCESS",
-                            username=username,
-                            email=email,
-                            details="Account registration initiated with email verification",
-                        )
+                        try:
+                            from database.security_activity_helpers import log_security_activity
+                            log_security_activity("REGISTRATION", "SUCCESS", username=username, email=email, details="New account verification initiated")
+                        except Exception:
+                            pass
 
                         flash(f"A 6-digit verification code has been sent to {email}. Please enter it below to activate your account.", "info")
                         return redirect(url_for("verify_otp"))
@@ -295,15 +263,7 @@ def register_routes(app):
                     from alerts.otp_service import verify_otp_hash
                     
                     if not verify_otp_hash(pending["otp_hash"], otp):
-                        new_attempts = increment_pending_attempts(reg_id)
                         remaining = max(0, pending["max_attempts"] - new_attempts)
-                        log_security_activity(
-                            "OTP_FAILED",
-                            status="FAILED",
-                            username=pending["username"],
-                            email=pending["email"],
-                            details="Invalid registration OTP entered",
-                        )
                         if remaining == 0:
                             delete_pending_registration(reg_id)
                             session.pop("pending_registration_id", None)
@@ -324,7 +284,7 @@ def register_routes(app):
                             flash("An account with this username or email already exists. Please sign in.", "error")
                             return redirect(url_for("login"))
 
-                        user_id = create_user_with_hash(
+                        create_user_with_hash(
                             username=pending["username"],
                             password_hash=pending["password_hash"],
                             role="USER",
@@ -333,14 +293,12 @@ def register_routes(app):
                             auth_provider="local",
                         )
 
-                        log_security_activity(
-                            "OTP_VERIFIED",
-                            status="SUCCESS",
-                            username=pending["username"],
-                            email=pending["email"],
-                            user_id=user_id,
-                            details="Registration OTP verified and user account created",
-                        )
+                        try:
+                            from database.security_activity_helpers import log_security_activity
+                            log_security_activity("REGISTRATION", "SUCCESS", username=pending["username"], email=pending["email"], details="New user account registered and activated")
+                            log_security_activity("OTP_VERIFIED", "SUCCESS", username=pending["username"], email=pending["email"], details="Registration email verification OTP confirmed")
+                        except Exception:
+                            pass
 
                         # Clean up pending record and session
                         delete_pending_registration(reg_id)
@@ -382,11 +340,6 @@ def register_routes(app):
         cooldown = otp_cfg["resend_cooldown"]
 
         # Check rate-limit cooldown
-        allowed, wait_sec = check_otp_resend_cooldown(f"reg_resend:{reg_id}", cooldown_seconds=cooldown)
-        if not allowed:
-            flash(f"Please wait {wait_sec} seconds before requesting a new verification code.", "error")
-            return redirect(url_for("verify_otp"))
-
         try:
             last_resend = datetime.fromisoformat(pending["last_resend_at"])
             if last_resend.tzinfo is None:
@@ -404,7 +357,6 @@ def register_routes(app):
         new_otp = generate_secure_otp(6)
         new_otp_hash = hash_otp(new_otp)
         update_pending_otp(reg_id, new_otp_hash, expires_in_minutes=otp_cfg["expiry_minutes"])
-        record_otp_resend(f"reg_resend:{reg_id}")
 
         # Send new OTP email
         sent, send_msg = send_verification_otp_email(
@@ -439,12 +391,6 @@ def register_routes(app):
             if not input_val:
                 error = "Please enter your username or registered email address."
             else:
-                # Check rate limiting for password recovery requests
-                allowed, wait_sec = check_otp_request_rate_limit(input_val, action="forgot_password")
-                if not allowed:
-                    error = f"Too many recovery requests. Please wait {max(1, (wait_sec + 59) // 60)} minute(s) before trying again."
-                    return render_template("forgot_password.html", error=error, email=input_val)
-
                 from database.user_helpers import get_user_by_email, get_user_by_username
                 from database.password_reset_helpers import create_password_reset_request
                 from alerts.otp_service import (
@@ -453,8 +399,6 @@ def register_routes(app):
                     get_otp_config,
                     send_password_reset_otp_email,
                 )
-
-                record_otp_request(input_val, action="forgot_password")
 
                 if "@" in input_val:
                     user = get_user_by_email(input_val.lower())
@@ -494,28 +438,17 @@ def register_routes(app):
                     session["password_reset_email"] = target_email
                     session.modified = True
 
-                    log_security_activity(
-                        "PASSWORD_RESET_REQUESTED",
-                        status="SUCCESS",
-                        username=user.get("username", input_val),
-                        email=target_email,
-                        user_id=user.get("id"),
-                        details="Password reset recovery code requested",
-                    )
+                    try:
+                        from database.security_activity_helpers import log_security_activity
+                        log_security_activity("PASSWORD_RESET_REQUESTED", "SUCCESS", username=user.get("username", ""), email=target_email, details="Password recovery code requested")
+                    except Exception:
+                        pass
                 else:
                     # Anti-enumeration placeholder session
                     print(f"[EMAIL] Password reset requested for unregistered/inactive account: {input_val} (anti-enumeration active)", flush=True)
                     session["password_reset_id"] = "nonexistent"
                     session["password_reset_email"] = input_val
                     session.modified = True
-
-                    log_security_activity(
-                        "PASSWORD_RESET_REQUESTED",
-                        status="SUCCESS",
-                        username=input_val,
-                        email=input_val if "@" in input_val else "",
-                        details="Password reset recovery code requested (anti-enumeration placeholder)",
-                    )
 
                 # Generic response to prevent user enumeration
                 flash("If this email address is registered, a password reset code has been sent.", "info")
@@ -592,12 +525,6 @@ def register_routes(app):
                     if not verify_otp_hash(record["otp_hash"], otp):
                         new_attempts = increment_password_reset_attempts(reset_id)
                         remaining = max(0, record["max_attempts"] - new_attempts)
-                        log_security_activity(
-                            "OTP_FAILED",
-                            status="FAILED",
-                            email=stored_email,
-                            details="Invalid password recovery OTP entered",
-                        )
                         if remaining <= 0:
                             delete_password_reset(reset_id)
                             session.pop("password_reset_id", None)
@@ -611,13 +538,6 @@ def register_routes(app):
                         authorize_password_reset_token(reset_id, hash_otp(reset_token))
                         session["password_reset_token"] = reset_token
                         session.modified = True
-
-                        log_security_activity(
-                            "OTP_VERIFIED",
-                            status="SUCCESS",
-                            email=stored_email,
-                            details="Password recovery OTP verified successfully",
-                        )
                         return redirect(url_for("reset_password"))
 
         return render_template(
@@ -725,9 +645,8 @@ def register_routes(app):
             password = request.form.get("password", "")
             confirm_password = request.form.get("confirm_password", "")
 
-            valid_pwd, pwd_err = validate_password_strength(password, min_length=8)
-            if not valid_pwd:
-                error = pwd_err
+            if not password or len(password) < 6:
+                error = "Password must be at least 6 characters long."
             elif password != confirm_password:
                 error = "Passwords do not match."
             else:
@@ -748,15 +667,6 @@ def register_routes(app):
                 # Securely hash and update user's password
                 update_user_password(user["username"], password)
                 delete_password_reset(reset_id)
-
-                log_security_activity(
-                    "PASSWORD_RESET_COMPLETED",
-                    status="SUCCESS",
-                    username=user["username"],
-                    email=user.get("email", ""),
-                    user_id=user["id"],
-                    details="User password successfully reset",
-                )
 
                 # Send security confirmation email
                 from alerts.otp_service import send_password_changed_notification_email
@@ -940,15 +850,6 @@ def register_routes(app):
 
             login_user(user)
 
-            log_security_activity(
-                "LOGIN_SUCCESS",
-                status="SUCCESS",
-                username=user.get("username", ""),
-                email=user.get("email", ""),
-                user_id=user.get("id"),
-                details="Signed in with Google OAuth 2.0",
-            )
-
             next_url = session.pop("oauth_next", None)
             if next_url and is_safe_url(next_url) and not next_url.startswith("/login") and not next_url.startswith("/auth"):
                 return redirect(next_url)
@@ -976,48 +877,24 @@ def register_routes(app):
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "")
 
-            # Check login rate limit (5 failed attempts per 15 minutes)
-            allowed, wait_sec = check_login_rate_limit(username)
-            if not allowed:
-                log_security_activity(
-                    "LOGIN_FAILED",
-                    status="FAILED",
-                    username=username,
-                    email=username if "@" in username else "",
-                    details="Login attempt blocked by rate limit policy",
-                )
-                error = f"Too many failed login attempts. Please try again in {max(1, (wait_sec + 59) // 60)} minute(s)."
-                return render_template(
-                    "login.html",
-                    error=error,
-                    next_url=next_url if is_safe_url(next_url) else "",
-                    username=username,
-                )
-
             user = verify_user_credentials(username, password)
             if user:
-                record_successful_login(username)
                 login_user(user)
-                log_security_activity(
-                    "LOGIN_SUCCESS",
-                    status="SUCCESS",
-                    username=user.get("username", username),
-                    email=user.get("email", ""),
-                    user_id=user.get("id"),
-                    details="User logged in with local credentials",
-                )
+                try:
+                    from database.security_activity_helpers import log_security_activity
+                    log_security_activity("LOGIN_SUCCESS", "SUCCESS", username=user.get("username"), email=user.get("email"), user_id=user.get("id"), details="Successful local credential authentication")
+                except Exception:
+                    pass
+
                 if next_url and is_safe_url(next_url) and not next_url.startswith("/login") and not next_url.startswith("/logout"):
                     return redirect(next_url)
                 return redirect(url_for("dashboard"))
             else:
-                record_failed_login(username)
-                log_security_activity(
-                    "LOGIN_FAILED",
-                    status="FAILED",
-                    username=username,
-                    email=username if "@" in username else "",
-                    details="Invalid credentials submitted",
-                )
+                try:
+                    from database.security_activity_helpers import log_security_activity
+                    log_security_activity("LOGIN_FAILED", "FAILED", username=username, email=username if "@" in username else "", details="Invalid credentials supplied")
+                except Exception:
+                    pass
                 error = "Invalid username, email, or password."
 
         return render_template(
@@ -1029,15 +906,11 @@ def register_routes(app):
 
     @app.route("/logout", methods=["GET", "POST"])
     def logout():
-        if session.get("user_id"):
-            log_security_activity(
-                "LOGOUT",
-                status="SUCCESS",
-                username=session.get("username", ""),
-                email=session.get("email", ""),
-                user_id=session.get("user_id"),
-                details="User logged out",
-            )
+        try:
+            from database.security_activity_helpers import log_security_activity
+            log_security_activity("LOGOUT", "SUCCESS", username=session.get("username"), email=session.get("email"), user_id=session.get("user_id"), details="User signed out")
+        except Exception:
+            pass
         logout_user()
         return redirect(url_for("login"))
 
@@ -2297,218 +2170,6 @@ def register_routes(app):
         return redirect(url_for("email_settings_page"))
 
     # ==========================================================
-    # User & Access Management / RBAC Administration (ADMIN ONLY)
-    # ==========================================================
-    @app.route("/admin", methods=["GET"])
-    def admin_page():
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to access Administration.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        from database.user_helpers import list_users
-        from database.security_activity_helpers import get_security_activity_metrics, get_security_activity_logs
-        
-        users = list_users()
-        metrics = get_security_activity_metrics()
-        security_logs, _, _, _ = get_security_activity_logs(page=1, per_page=10)
-
-        return render_template(
-            "admin_dashboard.html",
-            active_page="admin_dashboard",
-            users=users,
-            metrics=metrics,
-            security_logs=security_logs,
-        )
-
-    @app.route("/users", methods=["GET"])
-    def users_list():
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to access User Management.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        from database.user_helpers import list_users, get_user_activity_metrics
-        users = list_users()
-        metrics = get_user_activity_metrics()
-        return render_template(
-            "users.html",
-            active_page="users",
-            users=users,
-            metrics=metrics,
-        )
-
-    @app.route("/users/create", methods=["GET", "POST"])
-    def users_create():
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to create new users.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        if request.method == "POST":
-            username = request.form.get("username", "").strip()
-            email = request.form.get("email", "").strip().lower()
-            full_name = request.form.get("full_name", "").strip()
-            role = request.form.get("role", "VIEWER").strip().upper()
-            password = request.form.get("password", "")
-            is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
-
-            if not username or not password:
-                flash("Username and password are required.", "error")
-                return render_template(
-                    "users_form.html",
-                    is_edit=False,
-                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
-                    active_page="users",
-                )
-
-            if len(password) < 4:
-                flash("Password must be at least 4 characters long.", "error")
-                return render_template(
-                    "users_form.html",
-                    is_edit=False,
-                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
-                    active_page="users",
-                )
-
-            from database.user_helpers import get_user_by_username, get_user_by_email, create_user
-            if get_user_by_username(username):
-                flash(f"Username '{username}' is already taken.", "error")
-                return render_template(
-                    "users_form.html",
-                    is_edit=False,
-                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
-                    active_page="users",
-                )
-
-            if email and get_user_by_email(email):
-                flash(f"Email '{email}' is already associated with another account.", "error")
-                return render_template(
-                    "users_form.html",
-                    is_edit=False,
-                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
-                    active_page="users",
-                )
-
-            avatar_url = f"https://api.dicebear.com/7.x/bottts/svg?seed={username}"
-            new_uid = create_user(
-                username=username,
-                password=password,
-                role=role,
-                email=email,
-                full_name=full_name,
-                is_active=is_active,
-                avatar_url=avatar_url,
-            )
-            log_security_activity(
-                "USER_CREATED",
-                status="SUCCESS",
-                username=username,
-                email=email,
-                user_id=new_uid,
-                details=f"Administrator created account with role {role}",
-            )
-            flash(f"User '{username}' ({role}) created successfully.", "success")
-            return redirect(url_for("users_list"))
-
-        return render_template(
-            "users_form.html",
-            is_edit=False,
-            target_user=None,
-            active_page="users",
-        )
-
-    @app.route("/users/edit/<int:user_id>", methods=["GET", "POST"])
-    def users_edit(user_id):
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to modify users.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        from database.user_helpers import get_user_by_id, admin_update_user
-        target_user = get_user_by_id(user_id)
-        if not target_user:
-            flash("User not found.", "error")
-            return redirect(url_for("users_list"))
-
-        if request.method == "POST":
-            username = request.form.get("username", "").strip()
-            email = request.form.get("email", "").strip().lower()
-            full_name = request.form.get("full_name", "").strip()
-            role = request.form.get("role", "VIEWER").strip().upper()
-            password = request.form.get("password", "").strip() or None
-            is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
-
-            # Prevent active admin from accidentally demoting or deactivating their own account
-            if target_user["id"] == session.get("user_id"):
-                role = "ADMIN"
-                is_active = 1
-
-            success, error_msg = admin_update_user(
-                user_id=user_id,
-                username=username,
-                email=email,
-                role=role,
-                is_active=is_active,
-                new_password=password,
-                full_name=full_name,
-            )
-            if success:
-                log_security_activity(
-                    "USER_EDITED",
-                    status="SUCCESS",
-                    username=username,
-                    email=email,
-                    user_id=user_id,
-                    details=f"Administrator updated account settings (Role: {role}, Active: {is_active})",
-                )
-                flash(f"User '{username}' updated successfully.", "success")
-                return redirect(url_for("users_list"))
-            else:
-                flash(f"Failed to update user: {error_msg}", "error")
-                return render_template(
-                    "users_form.html",
-                    is_edit=True,
-                    target_user={"id": user_id, "username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
-                    active_page="users",
-                )
-
-        return render_template(
-            "users_form.html",
-            is_edit=True,
-            target_user=target_user,
-            active_page="users",
-        )
-
-    @app.route("/users/delete/<int:user_id>", methods=["POST"])
-    def users_delete(user_id):
-        if session.get("role") != "ADMIN":
-            flash("Administrator privileges are required to delete users.", "error")
-            return redirect(url_for("profile_page")), 403
-
-        # Prevent currently logged-in admin from deleting themselves
-        if user_id == session.get("user_id"):
-            flash("Safety Violation: You cannot delete your own active administrator account.", "error")
-            return redirect(url_for("users_list"))
-
-        from database.user_helpers import get_user_by_id, delete_user
-        target_user = get_user_by_id(user_id)
-        if not target_user:
-            flash("User not found.", "error")
-            return redirect(url_for("users_list"))
-
-        success, error_msg = delete_user(user_id)
-        if success:
-            log_security_activity(
-                "USER_DELETED",
-                status="SUCCESS",
-                username=target_user.get("username", ""),
-                email=target_user.get("email", ""),
-                user_id=user_id,
-                details=f"Administrator deleted user account '{target_user.get('username')}'",
-            )
-            flash(f"User '{target_user.get('username')}' deleted successfully.", "success")
-        else:
-            flash(f"Failed to delete user: {error_msg}", "error")
-        return redirect(url_for("users_list"))
-
-    # ==========================================================
     # User Profile & Account Settings Routes
     # ==========================================================
     @app.route("/settings/profile", methods=["GET"])
@@ -2612,6 +2273,280 @@ def register_routes(app):
         else:
             flash(err or "Failed to update password.", "error")
         return redirect(url_for("profile_page"))
+
+    # ==========================================================
+    # Admin SOC Dashboard & System Management Routes
+    # ==========================================================
+    @app.route("/admin", methods=["GET"])
+    def admin_dashboard():
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to access the Admin Dashboard.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        from database.user_helpers import list_users, get_user_activity_metrics
+        from database.security_activity_helpers import get_security_activity_metrics, get_security_activity_logs
+        from database.db_helpers import get_db_connection
+
+        users = list_users()
+        user_metrics = get_user_activity_metrics()
+        sec_metrics = get_security_activity_metrics()
+        security_logs, _, _, _ = get_security_activity_logs(page=1, per_page=10)
+
+        # Real Scanner & Threat Statistics
+        scan_metrics = {
+            "total_scans": 0,
+            "ip_scans": 0,
+            "url_scans": 0,
+            "successful_scans": 0,
+            "total_vulns": 0,
+            "critical_vulns": 0,
+            "total_cves": 0,
+            "monitoring_targets": 0,
+            "risk_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+        }
+
+        try:
+            conn = get_db_connection()
+            # Scans count
+            try:
+                r = conn.execute("SELECT COUNT(*) FROM scan_history").fetchone()
+                scan_metrics["ip_scans"] = r[0] if r else 0
+            except Exception:
+                pass
+
+            try:
+                r = conn.execute("SELECT COUNT(*) FROM url_scan_results").fetchone()
+                scan_metrics["url_scans"] = r[0] if r else 0
+            except Exception:
+                pass
+
+            scan_metrics["total_scans"] = scan_metrics["ip_scans"] + scan_metrics["url_scans"]
+
+            try:
+                r1 = conn.execute("SELECT COUNT(*) FROM scan_history WHERE status IN ('Alive', 'Completed', 'Up', 'Online')").fetchone()
+                succ_ip = r1[0] if r1 else 0
+                scan_metrics["successful_scans"] = succ_ip + scan_metrics["url_scans"]
+            except Exception:
+                scan_metrics["successful_scans"] = scan_metrics["total_scans"]
+
+            # Vulnerabilities & CVEs
+            try:
+                r = conn.execute("SELECT COUNT(*) FROM vulnerabilities").fetchone()
+                scan_metrics["total_vulns"] = r[0] if r else 0
+            except Exception:
+                pass
+
+            try:
+                r = conn.execute("SELECT COUNT(*) FROM cves").fetchone()
+                scan_metrics["total_cves"] = r[0] if r else 0
+            except Exception:
+                pass
+
+            # Risk breakdown
+            try:
+                crit_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'critical'").fetchone()[0]
+                high_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'high'").fetchone()[0]
+                med_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'medium'").fetchone()[0]
+                low_v = conn.execute("SELECT COUNT(*) FROM vulnerabilities WHERE LOWER(risk) = 'low'").fetchone()[0]
+                scan_metrics["risk_counts"] = {"critical": crit_v, "high": high_v, "medium": med_v, "low": low_v}
+                scan_metrics["critical_vulns"] = crit_v
+            except Exception:
+                pass
+
+            # Monitoring Targets
+            try:
+                r = conn.execute("SELECT COUNT(*) FROM monitored_targets").fetchone()
+                scan_metrics["monitoring_targets"] = r[0] if r else 0
+            except Exception:
+                pass
+
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Error compiling admin stats: {e}")
+
+        return render_template(
+            "admin_dashboard.html",
+            active_page="admin_dashboard",
+            users=users,
+            user_metrics=user_metrics,
+            scan_metrics=scan_metrics,
+            sec_metrics=sec_metrics,
+            security_logs=security_logs,
+        )
+
+    @app.route("/users", methods=["GET"])
+    def users_list():
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to access User Management.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        from database.user_helpers import list_users, get_user_activity_metrics
+        users = list_users()
+        metrics = get_user_activity_metrics()
+        return render_template(
+            "users.html",
+            active_page="users",
+            users=users,
+            metrics=metrics,
+        )
+
+    @app.route("/users/create", methods=["GET", "POST"])
+    def users_create():
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to create new users.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            email = request.form.get("email", "").strip().lower()
+            full_name = request.form.get("full_name", "").strip()
+            role = request.form.get("role", "VIEWER").strip().upper()
+            password = request.form.get("password", "")
+            is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
+
+            if not username or not password:
+                flash("Username and password are required.", "error")
+                return render_template(
+                    "users_form.html",
+                    is_edit=False,
+                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
+                    active_page="users",
+                )
+
+            if len(password) < 4:
+                flash("Password must be at least 4 characters long.", "error")
+                return render_template(
+                    "users_form.html",
+                    is_edit=False,
+                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
+                    active_page="users",
+                )
+
+            from database.user_helpers import get_user_by_username, get_user_by_email, create_user
+            if get_user_by_username(username):
+                flash(f"Username '{username}' is already taken.", "error")
+                return render_template(
+                    "users_form.html",
+                    is_edit=False,
+                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
+                    active_page="users",
+                )
+
+            if email and get_user_by_email(email):
+                flash(f"Email '{email}' is already associated with another account.", "error")
+                return render_template(
+                    "users_form.html",
+                    is_edit=False,
+                    target_user={"username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
+                    active_page="users",
+                )
+
+            avatar_url = f"https://api.dicebear.com/7.x/bottts/svg?seed={username}"
+            create_user(
+                username=username,
+                password=password,
+                role=role,
+                email=email,
+                full_name=full_name,
+                is_active=is_active,
+                avatar_url=avatar_url,
+            )
+
+            from database.security_activity_helpers import log_security_activity
+            log_security_activity("ADMIN_USER_CREATE", "SUCCESS", username=username, email=email, details=f"Admin created account with role {role}")
+
+            flash(f"User '{username}' ({role}) created successfully.", "success")
+            return redirect(url_for("users_list"))
+
+        return render_template(
+            "users_form.html",
+            is_edit=False,
+            target_user=None,
+            active_page="users",
+        )
+
+    @app.route("/users/edit/<int:user_id>", methods=["GET", "POST"])
+    def users_edit(user_id):
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to modify users.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        from database.user_helpers import get_user_by_id, admin_update_user
+        target_user = get_user_by_id(user_id)
+        if not target_user:
+            flash("User not found.", "error")
+            return redirect(url_for("users_list"))
+
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            email = request.form.get("email", "").strip().lower()
+            full_name = request.form.get("full_name", "").strip()
+            role = request.form.get("role", "VIEWER").strip().upper()
+            password = request.form.get("password", "").strip() or None
+            is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
+
+            # Prevent active admin from accidentally demoting or deactivating their own account
+            if target_user["id"] == session.get("user_id"):
+                role = "ADMIN"
+                is_active = 1
+
+            success, error_msg = admin_update_user(
+                user_id=user_id,
+                username=username,
+                email=email,
+                role=role,
+                is_active=is_active,
+                new_password=password,
+                full_name=full_name,
+            )
+            if success:
+                from database.security_activity_helpers import log_security_activity
+                log_security_activity("ADMIN_USER_UPDATE", "SUCCESS", username=username, email=email, details=f"Admin updated user id {user_id}")
+
+                flash(f"User '{username}' updated successfully.", "success")
+                return redirect(url_for("users_list"))
+            else:
+                flash(f"Failed to update user: {error_msg}", "error")
+                return render_template(
+                    "users_form.html",
+                    is_edit=True,
+                    target_user={"id": user_id, "username": username, "email": email, "full_name": full_name, "role": role, "is_active": is_active},
+                    active_page="users",
+                )
+
+        return render_template(
+            "users_form.html",
+            is_edit=True,
+            target_user=target_user,
+            active_page="users",
+        )
+
+    @app.route("/users/delete/<int:user_id>", methods=["POST"])
+    def users_delete(user_id):
+        if session.get("role") != "ADMIN":
+            flash("Administrator privileges are required to delete users.", "error")
+            return redirect(url_for("profile_page")), 403
+
+        # Prevent currently logged-in admin from deleting themselves
+        if user_id == session.get("user_id"):
+            flash("Safety Violation: You cannot delete your own active administrator account.", "error")
+            return redirect(url_for("users_list"))
+
+        from database.user_helpers import get_user_by_id, delete_user
+        target_user = get_user_by_id(user_id)
+        if not target_user:
+            flash("User not found.", "error")
+            return redirect(url_for("users_list"))
+
+        success, error_msg = delete_user(user_id)
+        if success:
+            from database.security_activity_helpers import log_security_activity
+            log_security_activity("ADMIN_USER_DELETE", "SUCCESS", username=target_user.get("username"), email=target_user.get("email"), details=f"Admin deleted user id {user_id}")
+
+            flash(f"User '{target_user.get('username')}' deleted successfully.", "success")
+        else:
+            flash(f"Failed to delete user: {error_msg}", "error")
+        return redirect(url_for("users_list"))
 
     @app.route("/admin/security-activity", methods=["GET"])
     def security_activity_page():

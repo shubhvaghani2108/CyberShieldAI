@@ -1,49 +1,57 @@
 {% extends "base.html" %}
 
-{% block title %}Admin SOC Dashboard — CyberShieldAI{% endblock %}
+{% block title %}CyberShieldAI — Administrator SOC Command Center{% endblock %}
 
 {% block content %}
 <div style="padding: 24px 32px; max-width: 1440px; margin: 0 auto;">
 
-    <!-- Top Header -->
+    <!-- TOP HEADER BAR -->
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
         <div>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <h1 style="font-size: 22px; font-weight: 800; color: var(--text-0); margin: 0; display: flex; align-items: center; gap: 10px;">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="var(--accent)" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent);">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="M9 12l2 2 4-4"/>
                     </svg>
-                    Admin SOC Dashboard
-                </h1>
-                <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">
-                    CONTROL CENTER
                 </span>
+                <h1 style="font-size: 24px; font-weight: 800; color: var(--text-0); margin: 0; letter-spacing: -0.5px;">
+                    CyberShield<span style="color: var(--accent);">AI</span> <span style="font-size: 15px; font-weight: 700; color: var(--text-1); background: var(--overlay-2); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); margin-left: 6px; text-transform: uppercase;">Admin SOC</span>
+                </h1>
             </div>
-            <p style="font-size: 13px; color: var(--text-1); margin: 4px 0 0 0;">
-                Comprehensive overview of active users, authentication metrics, real-time security events, and system controls
+            <p style="font-size: 13px; color: var(--text-1); margin: 6px 0 0 0;">
+                Live Infrastructure Health, Role-Based Access Control, Security Audit Logs, and Threat Intelligence
             </p>
         </div>
 
-        <!-- Quick Top Action Buttons -->
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <a href="{{ url_for('users_create') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; padding: 8px 16px; border-radius: 8px; text-decoration: none;">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <!-- Admin Profile & Quick Status -->
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; gap: 8px;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e;"></span>
+                <span style="font-size: 12px; font-weight: 600; color: var(--text-0);">Engine Online</span>
+            </div>
+
+            <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; gap: 10px;">
+                <div style="font-size: 12px; color: var(--text-1);">
+                    Logged in as: <strong style="color: var(--text-0);">{{ session.get('username') or session.get('email') }}</strong>
+                </div>
+                <span style="font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 5px; background: rgba(56, 189, 248, 0.18); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35);">ADMIN</span>
+            </div>
+
+            <a href="{{ url_for('users_create') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; text-decoration: none;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Create User
-            </a>
-            <a href="{{ url_for('security_activity_page') }}" class="btn btn-ghost" style="display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 8px; text-decoration: none;">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
-                Audit Log
             </a>
         </div>
     </div>
 
-    <!-- 1. Four Main Statistic Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <!-- 1. DASHBOARD 8 MAIN STATISTIC CARDS -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
         <!-- Total Users -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
             <div>
                 <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Total Users</div>
-                <div style="font-size: 26px; font-weight: 800; color: var(--text-0); margin-top: 4px;">{{ metrics.total_users }}</div>
+                <div style="font-size: 26px; font-weight: 800; color: var(--text-0); margin-top: 4px;">{{ user_metrics.total_users }}</div>
                 <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Registered Accounts</div>
             </div>
             <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(56, 189, 248, 0.12); display: flex; align-items: center; justify-content: center; color: var(--accent);">
@@ -54,52 +62,96 @@
         <!-- Active Users -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
             <div>
-                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Active Users</div>
-                <div style="font-size: 26px; font-weight: 800; color: #16a34a; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
-                    {{ metrics.active_users }}
-                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 8px #16a34a; display: inline-block;"></span>
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Online in last 5 min</div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Active / Online</div>
+                <div style="font-size: 26px; font-weight: 800; color: #16a34a; margin-top: 4px;">{{ user_metrics.active_users }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Live Active Sessions</div>
             </div>
             <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(34, 197, 94, 0.12); display: flex; align-items: center; justify-content: center; color: #16a34a;">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
         </div>
 
-        <!-- New Users Today -->
+        <!-- Total Scans -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
             <div>
-                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">New Users Today</div>
-                <div style="font-size: 26px; font-weight: 800; color: #0284c7; margin-top: 4px;">{{ metrics.new_users_today }}</div>
-                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Signed up today</div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Total Scans</div>
+                <div style="font-size: 26px; font-weight: 800; color: var(--text-0); margin-top: 4px;">{{ scan_metrics.total_scans }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">IP: {{ scan_metrics.ip_scans }} &bull; URL: {{ scan_metrics.url_scans }}</div>
             </div>
-            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(14, 165, 233, 0.12); display: flex; align-items: center; justify-content: center; color: #0284c7;">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.12); display: flex; align-items: center; justify-content: center; color: #6366f1;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
             </div>
         </div>
 
-        <!-- Failed Logins Today -->
+        <!-- Successful Scans -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
             <div>
-                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Failed Logins Today</div>
-                <div style="font-size: 26px; font-weight: 800; color: {% if metrics.failed_logins_today > 0 %}#ef4444{% else %}var(--text-1){% endif %}; margin-top: 4px;">
-                    {{ metrics.failed_logins_today }}
-                </div>
-                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Potential auth anomalies</div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Completed Scans</div>
+                <div style="font-size: 26px; font-weight: 800; color: #0284c7; margin-top: 4px;">{{ scan_metrics.successful_scans }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Threat Scans Processed</div>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(2, 132, 199, 0.12); display: flex; align-items: center; justify-content: center; color: #0284c7;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+            </div>
+        </div>
+
+        <!-- Total Vulnerabilities Found -->
+        <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
+            <div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Vulnerabilities</div>
+                <div style="font-size: 26px; font-weight: 800; color: {% if scan_metrics.total_vulns > 0 %}#f97316{% else %}var(--text-1){% endif %}; margin-top: 4px;">{{ scan_metrics.total_vulns }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">CVEs: {{ scan_metrics.total_cves }}</div>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(249, 115, 22, 0.12); display: flex; align-items: center; justify-content: center; color: #f97316;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+        </div>
+
+        <!-- Critical Vulnerabilities -->
+        <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
+            <div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Critical Threats</div>
+                <div style="font-size: 26px; font-weight: 800; color: {% if scan_metrics.critical_vulns > 0 %}#ef4444{% else %}#16a34a{% endif %}; margin-top: 4px;">{{ scan_metrics.critical_vulns }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">High Severity Risks</div>
             </div>
             <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(239, 68, 68, 0.12); display: flex; align-items: center; justify-content: center; color: #ef4444;">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             </div>
         </div>
+
+        <!-- Monitoring Targets -->
+        <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
+            <div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Monitoring Hosts</div>
+                <div style="font-size: 26px; font-weight: 800; color: var(--accent); margin-top: 4px;">{{ scan_metrics.monitoring_targets }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Scheduled Background Cycles</div>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(56, 189, 248, 0.12); display: flex; align-items: center; justify-content: center; color: var(--accent);">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+        </div>
+
+        <!-- Security Events Today -->
+        <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: var(--shadow-soft);">
+            <div>
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.5px;">Events Today</div>
+                <div style="font-size: 26px; font-weight: 800; color: #8b5cf6; margin-top: 4px;">{{ sec_metrics.security_events_today }}</div>
+                <div style="font-size: 11.5px; color: var(--text-2); margin-top: 2px;">Failed Logins: {{ sec_metrics.failed_logins_today }}</div>
+            </div>
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(139, 92, 246, 0.12); display: flex; align-items: center; justify-content: center; color: #8b5cf6;">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
+            </div>
+        </div>
     </div>
 
-    <!-- 2. QUICK ACTIONS & AUTHENTICATION ACTIVITY GRID -->
+    <!-- 2. QUICK ACTIONS & RISK OVERVIEW GRID -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <!-- Quick Actions Card -->
+        
+        <!-- Quick Actions Panel -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-soft);">
             <div style="font-size: 13px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--accent)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Quick Actions
+                Administrator Quick Actions
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <a href="{{ url_for('users_list') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
@@ -107,92 +159,113 @@
                     Manage Users
                 </a>
 
+                <button type="button" data-open-scan-modal style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); color: var(--text-0); font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                    Start Scan
+                </button>
+
                 <a href="{{ url_for('security_activity_page') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16a34a" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
                     Security Activity
                 </a>
 
+                <a href="{{ url_for('history') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0284c7" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                    Scan History
+                </a>
+
+                <a href="{{ url_for('view_vulnerabilities') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#f97316" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                    Vulnerabilities
+                </a>
+
                 <a href="{{ url_for('risk_report') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8b5cf6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     View Reports
                 </a>
-
-                <a href="{{ url_for('ip_scan_result_page') }}" style="display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--overlay-1); border: 1px solid var(--border); text-decoration: none; color: var(--text-0); font-size: 13px; font-weight: 600; transition: all 0.15s;" onmouseover="this.style.background='var(--overlay-2)'; this.style.borderColor='var(--accent)';" onmouseout="this.style.background='var(--overlay-1)'; this.style.borderColor='var(--border)';">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#eab308" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                    Scanner
-                </a>
             </div>
         </div>
 
-        <!-- Authentication Activity Card -->
+        <!-- Risk & Vulnerability Severity Distribution -->
         <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-soft);">
             <div style="font-size: 13px; font-weight: 700; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0284c7" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Authentication Activity (Today)
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ef4444" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Risk Overview by Severity
             </div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                <!-- Successful Logins -->
-                <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center;">
-                    <div style="font-size: 10.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase;">Successful Logins</div>
-                    <div style="font-size: 20px; font-weight: 800; color: #16a34a; margin-top: 4px;">{{ metrics.successful_logins_today }}</div>
+                <!-- Critical -->
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                    <div style="font-size: 10.5px; font-weight: 700; color: #ef4444; text-transform: uppercase;">Critical</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #ef4444; margin-top: 4px;">{{ scan_metrics.risk_counts.critical }}</div>
                 </div>
 
-                <!-- Failed Logins -->
-                <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center;">
-                    <div style="font-size: 10.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase;">Failed Logins</div>
-                    <div style="font-size: 20px; font-weight: 800; color: {% if metrics.failed_logins_today > 0 %}#ef4444{% else %}var(--text-1){% endif %}; margin-top: 4px;">{{ metrics.failed_logins_today }}</div>
+                <!-- High -->
+                <div style="background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                    <div style="font-size: 10.5px; font-weight: 700; color: #f97316; text-transform: uppercase;">High</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #f97316; margin-top: 4px;">{{ scan_metrics.risk_counts.high }}</div>
                 </div>
 
-                <!-- Registrations -->
-                <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center;">
-                    <div style="font-size: 10.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase;">Registrations</div>
-                    <div style="font-size: 20px; font-weight: 800; color: #0284c7; margin-top: 4px;">{{ metrics.registrations_today }}</div>
+                <!-- Medium -->
+                <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                    <div style="font-size: 10.5px; font-weight: 700; color: #eab308; text-transform: uppercase;">Medium</div>
+                    <div style="font-size: 22px; font-weight: 800; color: #eab308; margin-top: 4px;">{{ scan_metrics.risk_counts.medium }}</div>
                 </div>
 
-                <!-- Password Resets -->
-                <div style="background: var(--overlay-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center;">
-                    <div style="font-size: 10.5px; font-weight: 700; color: var(--text-1); text-transform: uppercase;">Password Resets</div>
-                    <div style="font-size: 20px; font-weight: 800; color: #8b5cf6; margin-top: 4px;">{{ metrics.password_resets_today }}</div>
+                <!-- Low -->
+                <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 12px; text-align: center;">
+                    <div style="font-size: 10.5px; font-weight: 700; color: var(--accent); text-transform: uppercase;">Low</div>
+                    <div style="font-size: 22px; font-weight: 800; color: var(--accent); margin-top: 4px;">{{ scan_metrics.risk_counts.low }}</div>
                 </div>
             </div>
+
+            <!-- Active User Status Breakdown -->
+            <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-1);">
+                <div>Total Users: <strong style="color: var(--text-0);">{{ user_metrics.total_users }}</strong></div>
+                <div>Online: <strong style="color: #16a34a;">{{ user_metrics.active_users }}</strong></div>
+                <div>Inactive: <strong style="color: var(--text-2);">{{ user_metrics.inactive_users }}</strong></div>
+            </div>
         </div>
+
     </div>
 
     <!-- 3. USER MANAGEMENT SECTION -->
-    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 24px; overflow: hidden; box-shadow: var(--shadow-soft);">
+    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-soft); margin-bottom: 24px;">
         <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: var(--overlay-1);">
             <div style="font-size: 14px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                User Management
-                <span style="font-size: 11.5px; font-weight: 600; color: var(--text-2);">({{ users|length }} accounts)</span>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Registered Accounts &amp; Access Controls
+                <span style="font-size: 11.5px; font-weight: 600; color: var(--text-2);">({{ users|length }} Total)</span>
             </div>
-            <a href="{{ url_for('users_list') }}" style="font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                View All Users &raquo;
-            </a>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <a href="{{ url_for('users_list') }}" style="font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                    Full User Directory &raquo;
+                </a>
+            </div>
         </div>
 
         <div style="overflow-x: auto;">
             <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
                 <thead>
                     <tr style="border-bottom: 1px solid var(--border); color: var(--text-1); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.6px; background: var(--overlay-1);">
-                        <th style="padding: 12px 18px;">Username</th>
+                        <th style="padding: 12px 18px;">User</th>
                         <th style="padding: 12px 18px;">Email</th>
                         <th style="padding: 12px 18px;">Role</th>
                         <th style="padding: 12px 18px;">Status</th>
-                        <th style="padding: 12px 18px;">Last Login</th>
+                        <th style="padding: 12px 18px;">Last Login / Seen</th>
+                        <th style="padding: 12px 18px;">Created At</th>
                         <th style="padding: 12px 18px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for u in users[:8] %}
                     <tr style="border-bottom: 1px solid var(--border); transition: background 0.15s;" onmouseover="this.style.background='var(--overlay-2)'" onmouseout="this.style.background='transparent'">
-                        <!-- Username -->
+                        <!-- User & Avatar -->
                         <td style="padding: 12px 18px;">
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <div style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: #0284c7; flex-shrink: 0;">
                                     <img 
                                         src="{{ get_user_avatar(u.avatar_url or u.email or u.username) }}" 
-                                        alt="Avatar" 
+                                        alt="{{ u.username }}" 
                                         referrerpolicy="no-referrer"
                                         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ ((u.email.split('@')[0] if u.email else u.username)) | urlencode }}&background=0284c7&color=ffffff&bold=true&rounded=true';"
                                         style="width: 100%; height: 100%; object-fit: cover;"
@@ -201,70 +274,70 @@
                                 <div>
                                     <div style="font-weight: 700; color: var(--text-0);">{{ u.username }}</div>
                                     {% if u.full_name %}
-                                        <div style="font-size: 11px; color: var(--text-2);">{{ u.full_name }}</div>
+                                    <div style="font-size: 11px; color: var(--text-2);">{{ u.full_name }}</div>
                                     {% endif %}
                                 </div>
                             </div>
                         </td>
 
                         <!-- Email -->
-                        <td style="padding: 12px 18px; color: var(--text-1); font-size: 12.5px;">
+                        <td style="padding: 12px 18px; color: var(--text-1);">
                             {{ u.email or '—' }}
                         </td>
 
                         <!-- Role -->
                         <td style="padding: 12px 18px;">
                             {% if u.role == 'ADMIN' %}
-                                <span style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3);">ADMIN</span>
+                                <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(56, 189, 248, 0.15); color: #0284c7; border: 1px solid rgba(56, 189, 248, 0.35);">ADMIN</span>
                             {% elif u.role == 'ANALYST' %}
-                                <span style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: rgba(167, 139, 250, 0.15); color: #8b5cf6; border: 1px solid rgba(167, 139, 250, 0.3);">ANALYST</span>
-                            {% elif u.role == 'VIEWER' %}
-                                <span style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3);">VIEWER</span>
+                                <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(99, 102, 241, 0.15); color: #6366f1; border: 1px solid rgba(99, 102, 241, 0.35);">ANALYST</span>
                             {% else %}
-                                <span style="font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3);">USER</span>
+                                <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(167, 139, 250, 0.15); color: #8b5cf6; border: 1px solid rgba(167, 139, 250, 0.35);">VIEWER</span>
                             {% endif %}
                         </td>
 
                         <!-- Status -->
                         <td style="padding: 12px 18px;">
-                            {% if u.is_active %}
-                                {% if u.is_online %}
-                                    <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #16a34a; background: rgba(34, 197, 94, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(34, 197, 94, 0.25);">
-                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 6px #16a34a;"></span>
-                                        Online
-                                    </span>
-                                {% else %}
-                                    <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--text-2); background: var(--overlay-2); padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border);">
-                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #64748b;"></span>
-                                        Offline
-                                    </span>
-                                {% endif %}
-                            {% else %}
-                                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.25);">
+                            {% if not u.is_active %}
+                                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #dc2626; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25);">
+                                    <span style="width: 5px; height: 5px; border-radius: 50%; background: #ef4444;"></span>
                                     Disabled
+                                </span>
+                            {% elif u.is_online %}
+                                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #16a34a; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.25);">
+                                    <span style="width: 5px; height: 5px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
+                                    Online
+                                </span>
+                            {% else %}
+                                <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--overlay-2); border: 1px solid var(--border);">
+                                    <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--text-2);"></span>
+                                    Offline
                                 </span>
                             {% endif %}
                         </td>
 
-                        <!-- Last Login -->
+                        <!-- Last Login / Seen -->
                         <td style="padding: 12px 18px; font-size: 12px;">
-                            {% if u.last_login %}
-                                <span class="utc-to-local mono" data-utc="{{ u.last_login }}" style="color: var(--text-1);">{{ u.last_login }}</span>
-                            {% else %}
-                                <span style="color: var(--text-2);">Never</span>
-                            {% endif %}
+                            <span class="utc-to-local mono" data-utc="{{ u.last_seen if u.last_seen else (u.last_login if u.last_login else (u.created_at or '')) }}">
+                                {{ u.last_seen if u.last_seen else (u.last_login if u.last_login else (u.created_at or 'Never')) }}
+                            </span>
+                        </td>
+
+                        <!-- Created At -->
+                        <td style="padding: 12px 18px; font-size: 12px; color: var(--text-1);">
+                            <span class="utc-to-local mono" data-utc="{{ u.created_at }}">{{ u.created_at or '—' }}</span>
                         </td>
 
                         <!-- Actions -->
                         <td style="padding: 12px 18px; text-align: right;">
-                            <div style="display: inline-flex; align-items: center; gap: 6px;">
-                                <a href="{{ url_for('users_edit', user_id=u.id) }}" class="btn btn-ghost" style="padding: 4px 9px; font-size: 11.5px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+                            <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end;">
+                                <a href="{{ url_for('users_edit', user_id=u.id) }}" class="btn btn-ghost" style="padding: 3px 8px; font-size: 11px; font-weight: 600; text-decoration: none; border-radius: 5px;" title="Edit User">
                                     Edit
                                 </a>
                                 {% if u.id != session.get('user_id') %}
-                                <form method="POST" action="{{ url_for('users_delete', user_id=u.id) }}" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete user &quot;{{ u.username }}&quot;?');">
+                                <form method="POST" action="{{ url_for('users_delete', user_id=u.id) }}" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete user {{ u.username }}?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-ghost" style="padding: 4px 9px; font-size: 11.5px; font-weight: 600; color: #ef4444; border-color: rgba(239, 68, 68, 0.3); border-radius: 6px;" title="Delete User">
+                                    <button type="submit" class="btn btn-ghost" style="padding: 3px 8px; font-size: 11px; font-weight: 600; color: #ef4444; border-color: rgba(239, 68, 68, 0.3); border-radius: 5px;" title="Delete User">
                                         Delete
                                     </button>
                                 </form>
@@ -283,11 +356,11 @@
         <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: var(--overlay-1);">
             <div style="font-size: 14px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16a34a" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
-                Security Activity
-                <span style="font-size: 11.5px; font-weight: 600; color: var(--text-2);">(Recent Events)</span>
+                Security Activity &amp; Authentication Events
+                <span style="font-size: 11.5px; font-weight: 600; color: var(--text-2);">(Recent Audit Trail)</span>
             </div>
             <a href="{{ url_for('security_activity_page') }}" style="font-size: 12.5px; font-weight: 700; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                View All Events &raquo;
+                Full Audit Trail &raquo;
             </a>
         </div>
 
@@ -322,6 +395,8 @@
                                 <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(34, 197, 94, 0.15); color: #16a34a; border: 1px solid rgba(34, 197, 94, 0.3);">Reset Completed</span>
                             {% elif log.event_type == 'LOGOUT' %}
                                 <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--overlay-2); color: var(--text-2); border: 1px solid var(--border);">Logout</span>
+                            {% elif 'ADMIN' in log.event_type %}
+                                <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">{{ log.event_type }}</span>
                             {% else %}
                                 <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--overlay-2); color: var(--text-1);">{{ log.event_type }}</span>
                             {% endif %}

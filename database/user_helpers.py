@@ -51,8 +51,6 @@ def init_users_table():
         ("avatar_url", "TEXT DEFAULT ''"),
         ("google_sub", "TEXT"),
         ("auth_provider", "TEXT DEFAULT 'local'"),
-        ("is_active", "INTEGER DEFAULT 1"),
-        ("last_login", "TIMESTAMP"),
         ("last_seen", "TIMESTAMP"),
     ]
     for col_name, col_type in new_cols:
@@ -425,18 +423,14 @@ def change_password_with_verification(user_id, current_password, new_password):
 
 
 def update_last_login(user_id):
-    """Updates the last_login and last_seen timestamps to UTC CURRENT_TIMESTAMP and ensures is_active=1."""
-    if not user_id:
-        return
+    """Updates the last_login timestamp for a user."""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
             """
             UPDATE users
-            SET last_login = CURRENT_TIMESTAMP,
-                last_seen = CURRENT_TIMESTAMP,
-                is_active = 1
+            SET last_login = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (user_id,),
@@ -480,18 +474,9 @@ def verify_user_credentials(username_or_email, password):
         if not stored_hash or not check_password_hash(stored_hash, password):
             return None
 
-        # Update last login and last seen timestamps and set is_active=1
+        # Update last login timestamp
         try:
-            cursor.execute(
-                """
-                UPDATE users
-                SET last_login = CURRENT_TIMESTAMP,
-                    last_seen = CURRENT_TIMESTAMP,
-                    is_active = 1
-                WHERE id = ?
-                """,
-                (user["id"],),
-            )
+            cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
             conn.commit()
         except Exception:
             pass
@@ -501,7 +486,7 @@ def verify_user_credentials(username_or_email, password):
             "username": user["username"],
             "role": user["role"],
             "email": user["email"],
-            "is_active": 1,
+            "is_active": user["is_active"],
         }
     finally:
         conn.close()
@@ -524,19 +509,18 @@ def update_user_last_seen(user_id):
 
 def is_user_online(last_seen, last_login=None, threshold_seconds=300):
     """
-    Calculates if a user is ONLINE / ACTIVE based on activity timestamp within threshold_seconds (default 5 min = 300s).
-    Returns True if active within 5 min, else False.
+    Calculates if a user is ONLINE based on activity timestamp within threshold_seconds (default 5 min).
+    Returns True if online (active within 5 min), else False.
     """
     ts = last_seen or last_login
     if not ts:
         return False
     try:
         if isinstance(ts, str):
-            clean = ts.strip().split(".")[0]
             try:
-                dt = datetime.strptime(clean, "%Y-%m-%d %H:%M:%S")
+                dt = datetime.strptime(ts.split(".")[0], "%Y-%m-%d %H:%M:%S")
             except ValueError:
-                dt = datetime.fromisoformat(clean.replace("Z", "+00:00")).replace(tzinfo=None)
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
         elif isinstance(ts, datetime):
             dt = ts.replace(tzinfo=None)
         else:
@@ -552,31 +536,29 @@ def is_user_online(last_seen, last_login=None, threshold_seconds=300):
 def get_user_activity_metrics():
     """
     Returns aggregate user activity statistics:
-    - total_users / total: Total accounts
-    - active_users / online / active: Currently active accounts (last_seen within 5 minutes)
-    - inactive_users / offline / inactive: Inactive accounts (last_seen older than 5 minutes or null)
-    - new_users_today / new_today: Accounts created today (UTC)
+    - total / total_users: Total accounts
+    - active / active_users: Active accounts (is_active == 1)
+    - inactive / inactive_users: Disabled accounts (is_active == 0)
+    - online / online_users: Currently online accounts (active & last_seen within 5 minutes)
+    - offline / offline_users: Offline accounts
     """
     users = list_users()
     total = len(users)
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    # Active accounts = is_active==1 AND last_seen within 5 minutes
-    active_count = sum(1 for u in users if u.get("is_active") and u.get("is_online"))
-    inactive_count = total - active_count
-    new_today_count = sum(1 for u in users if (u.get("created_at") or "").startswith(today_str))
-
+    active = sum(1 for u in users if u.get("is_active"))
+    inactive = total - active
+    online = sum(1 for u in users if u.get("is_active") and u.get("is_online"))
+    offline = total - online
     return {
         "total": total,
         "total_users": total,
-        "active": active_count,
-        "active_users": active_count,
-        "online": active_count,
-        "inactive": inactive_count,
-        "inactive_users": inactive_count,
-        "offline": inactive_count,
-        "new_today": new_today_count,
-        "new_users_today": new_today_count,
+        "active": active,
+        "active_users": active,
+        "inactive": inactive,
+        "inactive_users": inactive,
+        "online": online,
+        "online_users": online,
+        "offline": offline,
+        "offline_users": offline,
     }
 
 

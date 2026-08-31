@@ -120,6 +120,7 @@ def get_security_activity_logs(event_filter=None, page=1, per_page=20):
         "otp": ["OTP_VERIFIED", "OTP_FAILED"],
         "password_reset": ["PASSWORD_RESET_REQUESTED", "PASSWORD_RESET_COMPLETED"],
         "logout": ["LOGOUT"],
+        "admin": ["ADMIN_USER_CREATE", "ADMIN_USER_UPDATE", "ADMIN_USER_DELETE"],
     }
 
     selected_types = filter_map.get(event_filter.lower()) if event_filter and event_filter.lower() in filter_map else None
@@ -168,11 +169,10 @@ def get_security_activity_metrics():
     Calculates summary metrics:
     - total_users
     - active_users
-    - new_users_today
     - successful_logins_today
     - failed_logins_today
-    - registrations_today
     - password_resets_today
+    - security_events_today
     """
     init_security_activity_table()
     user_metrics = get_user_activity_metrics()
@@ -204,17 +204,6 @@ def get_security_activity_metrics():
         )
         failed_logins_today = cursor.fetchone()[0]
 
-        # Registrations Today
-        cursor.execute(
-            """
-            SELECT COUNT(*)
-            FROM security_activity_logs
-            WHERE event_type IN ('REGISTRATION', 'OTP_VERIFIED') AND created_at LIKE ?
-            """,
-            (f"{today_str}%",),
-        )
-        registrations_today = cursor.fetchone()[0]
-
         # Password Resets Today
         cursor.execute(
             """
@@ -226,14 +215,24 @@ def get_security_activity_metrics():
         )
         password_resets_today = cursor.fetchone()[0]
 
+        # Total Security Events Today
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM security_activity_logs
+            WHERE created_at LIKE ?
+            """,
+            (f"{today_str}%",),
+        )
+        security_events_today = cursor.fetchone()[0]
+
         return {
             "total_users": user_metrics.get("total_users", user_metrics.get("total", 0)),
             "active_users": user_metrics.get("active_users", user_metrics.get("active", 0)),
-            "new_users_today": user_metrics.get("new_users_today", user_metrics.get("new_today", 0)),
             "successful_logins_today": successful_logins_today,
             "failed_logins_today": failed_logins_today,
-            "registrations_today": registrations_today,
             "password_resets_today": password_resets_today,
+            "security_events_today": security_events_today,
         }
     finally:
         conn.close()

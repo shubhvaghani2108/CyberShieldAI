@@ -15,7 +15,6 @@ from database.password_reset_helpers import (
     get_password_reset_by_id,
     delete_password_reset,
 )
-from dashboard.security_hardening import _FAILED_LOGINS, _OTP_REQUESTS, _RESEND_TIMESTAMPS
 
 
 class TestPasswordResetFlow(unittest.TestCase):
@@ -24,9 +23,6 @@ class TestPasswordResetFlow(unittest.TestCase):
         app.config["WTF_CSRF_ENABLED"] = False
         self.client = app.test_client()
         init_password_reset_table()
-        _FAILED_LOGINS.clear()
-        _OTP_REQUESTS.clear()
-        _RESEND_TIMESTAMPS.clear()
 
         # Clean test user if exists
         conn = get_db_connection()

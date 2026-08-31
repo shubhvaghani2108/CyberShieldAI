@@ -30,7 +30,6 @@ from alerts.otp_service import (
     get_otp_config,
     get_smtp_effective_settings,
 )
-from dashboard.security_hardening import _FAILED_LOGINS, _OTP_REQUESTS, _RESEND_TIMESTAMPS
 
 
 class OTPRegistrationTestCase(unittest.TestCase):
@@ -58,9 +57,6 @@ class OTPRegistrationTestCase(unittest.TestCase):
         create_user(username="otp_existing_user", password="UserPass123!", role="USER", email="existing@otp.test")
 
     def setUp(self):
-        _FAILED_LOGINS.clear()
-        _OTP_REQUESTS.clear()
-        _RESEND_TIMESTAMPS.clear()
         with self.client.session_transaction() as sess:
             sess.clear()
 
