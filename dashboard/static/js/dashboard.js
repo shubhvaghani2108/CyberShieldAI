@@ -373,40 +373,70 @@ function emptyState(message) {
   return div;
 }
 
-/* ---------------- UTC to Local Timezone Auto-Converter ---------------- */
+/* ---------------- UTC to Local Timezone Universal Auto-Converter ---------------- */
 function initUtcToLocalTimestamps() {
   function formatUtcTimestamp(utcStr) {
-    if (!utcStr || utcStr === "Never" || utcStr === "None" || utcStr === "-" || utcStr === "—") return null;
-    try {
-      let clean = utcStr.trim();
-      if (!clean.includes("T") && clean.includes(" ")) {
-        clean = clean.replace(" ", "T");
-      }
-      if (!clean.endsWith("Z") && !clean.includes("+") && !clean.slice(10).includes("-")) {
-        clean += "Z";
-      }
-      const d = new Date(clean);
-      if (isNaN(d.getTime())) return null;
+    if (!utcStr || typeof utcStr !== "string") return null;
+    const trimmed = utcStr.trim();
+    if (trimmed === "Never" || trimmed === "None" || trimmed === "-" || trimmed === "—") return null;
 
-      const pad = (n) => String(n).padStart(2, '0');
-      const year = d.getFullYear();
-      const month = pad(d.getMonth() + 1);
-      const day = pad(d.getDate());
-      const hours = pad(d.getHours());
-      const minutes = pad(d.getMinutes());
-      const seconds = pad(d.getSeconds());
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    } catch (e) {
-      return null;
-    }
+    // Match YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})/);
+    if (!match) return null;
+
+    const [_, y, m, d, h, min, s] = match;
+    const utcDate = new Date(Date.UTC(+y, +m - 1, +d, +h, +min, +s));
+    if (isNaN(utcDate.getTime())) return null;
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const year = utcDate.getFullYear();
+    const month = pad(utcDate.getMonth() + 1);
+    const day = pad(utcDate.getDate());
+    const hours = pad(utcDate.getHours());
+    const minutes = pad(utcDate.getMinutes());
+    const seconds = pad(utcDate.getSeconds());
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 
-  document.querySelectorAll("[data-utc], .utc-to-local").forEach((el) => {
-    const rawUtc = el.getAttribute("data-utc") || el.textContent.trim();
-    const formatted = formatUtcTimestamp(rawUtc);
-    if (formatted) {
-      el.textContent = formatted;
-      el.title = `Local Device Time (${Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local'})\nServer UTC: ${rawUtc}`;
-    }
-  });
+  function convertAll() {
+    const timestampRegex = /\b(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})\b/g;
+
+    // 1. Convert elements with explicit data-utc or utc-to-local class
+    document.querySelectorAll("[data-utc], .utc-to-local").forEach((el) => {
+      if (el.dataset.tzDone) return;
+      const raw = el.getAttribute("data-utc") || el.textContent.trim();
+      const formatted = formatUtcTimestamp(raw);
+      if (formatted) {
+        el.textContent = formatted;
+        el.dataset.tzDone = "true";
+        el.title = `Local Time (${Intl.DateTimeFormat().resolvedOptions().timeZone || "Local"})\nServer UTC: ${raw}`;
+      }
+    });
+
+    // 2. Scan all text elements across tables, cards, and history lists
+    const targetElements = document.querySelectorAll(
+      "td, th, span, div, p, li, time, .mono, .stat-value, .feed-meta, .info-table td"
+    );
+
+    targetElements.forEach((el) => {
+      // Don't convert inputs, scripts, or elements with multiple complex children
+      if (el.children.length === 0 && !el.dataset.tzDone) {
+        const text = el.textContent;
+        if (text && timestampRegex.test(text)) {
+          const newText = text.replace(timestampRegex, (match) => {
+            return formatUtcTimestamp(match) || match;
+          });
+          if (newText !== text) {
+            el.textContent = newText;
+            el.dataset.tzDone = "true";
+          }
+        }
+      }
+    });
+  }
+
+  convertAll();
+  // Periodically check in case of AJAX / dynamically updated dashboard tables
+  setInterval(convertAll, 3000);
 }
