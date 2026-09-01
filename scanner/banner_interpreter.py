@@ -27,7 +27,7 @@ def _explain_http_status(code: str) -> str:
         "302": "The server is temporarily redirecting requests elsewhere (302 Found).",
         "400": "The server rejected the request as malformed (400 Bad Request) — often happens when a scanner probes without a proper hostname; not necessarily a problem.",
         "401": "This endpoint requires authentication (401 Unauthorized).",
-        "403": "Access to this service is restricted (403 Forbidden) — the server is refusing the request, commonly enforced by a web firewall, access control list, or web server rule.",
+        "403": "Access to this is blocked (403 Forbidden) — the server is refusing the request, often intentionally (a firewall, WAF, or access rule).",
         "404": "Nothing was found at this default path (404 Not Found).",
         "500": "The server encountered an internal error (500 Internal Server Error).",
         "502": "The server acted as a gateway or proxy and received an invalid response from upstream (502 Bad Gateway).",

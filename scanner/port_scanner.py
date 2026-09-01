@@ -4,6 +4,7 @@ import re
 import socket
 import ssl
 import sys
+import uuid
 from datetime import datetime
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -53,16 +54,16 @@ COMMON_PORTS = {
     27017: "mongodb",
 }
 
-# Standard Top 1000 common ports list for rapid discovery
+# Standard Top common service ports list for rapid discovery
 TOP_PORTS = [
     80, 443, 22, 21, 25, 53, 110, 111, 135, 139, 143, 445, 465, 587, 993, 995,
     1433, 1521, 1883, 3000, 3306, 3389, 5000, 5432, 5900, 6379, 8000, 8080,
     8081, 8443, 8888, 9000, 9200, 27017, 23, 69, 79, 88, 102, 113, 119, 123,
     137, 138, 161, 179, 389, 500, 514, 515, 520, 554, 636, 873, 902, 989, 990,
-    1080, 1194, 1723, 2049, 2082, 2083, 2086, 2087, 2095, 2096, 2181, 2222,
-    2375, 2376, 2483, 2484, 3128, 3268, 3690, 4000, 4040, 4369, 4567, 4840,
-    5001, 5060, 5672, 5984, 6000, 6443, 6667, 7001, 7077, 8008, 8088, 8161,
-    8880, 9090, 9092, 9418, 9999, 10000, 11211, 25565
+    1080, 1194, 1723, 2049, 2181, 2222, 2375, 2376, 2483, 2484, 3128, 3268,
+    3690, 4000, 4040, 4369, 4567, 4840, 5001, 5060, 5672, 5984, 6000, 6443,
+    6667, 7001, 7077, 8008, 8088, 8161, 9090, 9092, 9418, 9999, 10000, 11211,
+    25565
 ]
 
 
@@ -79,8 +80,8 @@ def _is_ip_string(s):
 def grab_banner(ip, port, timeout=1.5, hostname=None):
     """
     Actively probes open ports to extract service banners and server signatures.
-    Supports virtual host headers (domain name) to capture true full HTTP response
-    headers (e.g., 301 Moved Permanently with Location).
+    Supports virtual host headers (domain name) when scanning a domain, or direct IP
+    when scanning an IP target.
     """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -96,30 +97,10 @@ def grab_banner(ip, port, timeout=1.5, hostname=None):
         except Exception:
             pass
 
-        # Build candidate Host headers: domain first if known, then reverse DNS, then IP
+        # Build candidate Host headers: domain if explicitly provided (URL scan), else IP (pure IP scan)
         host_candidates = []
         if hostname and hostname.strip() and not _is_ip_string(hostname.strip()):
             host_candidates.append(hostname.strip())
-
-        if _is_ip_string(ip):
-            try:
-                from database.db_helpers import get_db_connection
-                conn = get_db_connection()
-                row = conn.execute(
-                    "SELECT domain FROM url_scan_results WHERE ip = ? AND domain != '' AND domain IS NOT NULL ORDER BY id DESC LIMIT 1",
-                    (ip,),
-                ).fetchone()
-                conn.close()
-                if row and row[0] and not _is_ip_string(row[0]) and row[0].strip() not in host_candidates:
-                    host_candidates.append(row[0].strip())
-            except Exception:
-                pass
-            try:
-                rdns = socket.gethostbyaddr(ip)[0]
-                if rdns and not _is_ip_string(rdns) and rdns not in host_candidates:
-                    host_candidates.append(rdns)
-            except Exception:
-                pass
 
         if ip not in host_candidates:
             host_candidates.append(ip)
