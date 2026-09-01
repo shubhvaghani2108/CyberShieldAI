@@ -100,46 +100,4 @@ CyberShieldAI/
     ├── reset_db.py
     ├── service_table.py
     └── test_recommendation.py
-```
 
-## What changed vs. the original zip
-
-- **Removed all `__pycache__/` folders** (`*.pyc` files) — these are build
-  artifacts that Python regenerates automatically; they don't belong in
-  source control or a shared zip.
-- **Removed `dashboard/templates/static copy/`** — an old, unused duplicate
-  of the static assets (contained a stale `style.css`, images, and no
-  connection to the app).
-- **Moved static assets to a conventional Flask location**:
-  `dashboard/templates/static/{css,js}` → `dashboard/static/{css,js}`.
-  Templates now live only under `templates/`, and assets only under
-  `static/`, matching Flask's default `url_for('static', ...)` convention.
-- **Removed the duplicate top-level `cybershield.db`** — the zip contained
-  two copies (one inside `CyberShieldAI/`, one beside it); kept the one
-  inside the project root.
-- **Removed `temp_black_format.py`** — a 35 KB scratch/formatting file at
-  the top level, unrelated to the app itself.
-- **Fixed `database/database.db/`** — this was a *folder* literally named
-  `database.db` containing a stray `view_cves.py`. That script has been
-  moved to `database/scripts/view_cves.py`.
-- **Split `database/` into core modules vs. scripts** — `assets.py`,
-  `dashboard_stats.py`, `init_db.py`, and `models.py` are the modules the
-  app actually imports; the various `check_*`, `test_*`, and `view_*`
-  one-off scripts now live in `database/scripts/` so they don't clutter
-  the importable package.
-- **Consolidated stray root-level scripts** (`check_db.py`,
-  `create_os_table.py`, `reset_db.py`, `service_table.py`,
-  `test_recommendation.py`) into a top-level `scripts/` folder.
-- **Renamed `Requirements.txt` → `requirements.txt`** (standard casing
-  expected by most tooling/CI).
-- **`note.txt` → `NOTES.md`** for consistency with the rest of the docs.
-
-## Note on imports
-
-Because some files moved (notably the static folder and the `database/`
-scripts), double check any hardcoded paths in `dashboard/app.py` — for
-example `static_folder=` / `template_folder=` Flask config, and any
-`import` or file-path references to the scripts that were relocated into
-`database/scripts/` or `scripts/`. I did not modify code logic, only file
-locations, so anything referencing old paths by string will need a quick
-find-and-replace.

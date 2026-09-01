@@ -57,9 +57,10 @@ def check_protocol(test_url):
 # =========================================================
 def detect_real_protocol(user_input):
     """
+    Auto-detects real live protocol and follows redirects to the canonical target URL.
     Rules:
-    1. If user gives full http:// or https:// URL -> keep it
-    2. If user gives only domain -> test https first, then http
+    1. If user gives full http:// or https:// URL -> follow redirects to canonical final URL
+    2. If user gives only domain -> test https first, then http, following redirects to canonical final URL
     """
 
     user_input = user_input.strip()
@@ -70,11 +71,15 @@ def detect_real_protocol(user_input):
     # -----------------------------------------------------
     # CASE 1: USER ALREADY GAVE FULL URL
     # -----------------------------------------------------
-    if user_input.startswith("http://") or user_input.startswith("https://"):
+    if user_input.startswith(("http://", "https://")):
         parsed = urlparse(user_input)
 
         if not parsed.netloc:
             raise ValueError("Invalid URL format")
+
+        ok, final_url, final_scheme = check_protocol(user_input)
+        if ok:
+            return final_url, final_scheme
 
         return user_input, parsed.scheme.lower()
 
@@ -84,7 +89,7 @@ def detect_real_protocol(user_input):
     https_url = "https://" + user_input
     http_url = "http://" + user_input
 
-    # Try HTTPS first
+    # Try HTTPS first (following any 301/302 canonical redirects e.g. google.com -> https://www.google.com/)
     https_ok, https_final_url, https_scheme = check_protocol(https_url)
     if https_ok:
         return https_final_url, https_scheme
