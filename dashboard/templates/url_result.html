@@ -146,49 +146,7 @@
 </div>
 
 
-{% if scan_comparison and scan_comparison.has_previous %}
-<div class="panel-heading" style="margin-top:20px;">
-    <h2>🔄 Scan Posture Comparison &amp; Change Delta</h2>
-    <span class="sub">Compared to previous scan executed on {{ scan_comparison.prev_time }}</span>
-</div>
-<div class="glass content-panel" style="padding:18px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:14px; background:var(--overlay-1); padding:12px 16px; border-radius:8px; border:1px solid var(--border);">
-        <div>
-            <span style="font-size:12px; color:var(--text-2); text-transform:uppercase;">Previous Score:</span>
-            <span style="font-size:18px; font-weight:700; color:var(--text-1); font-family:monospace; margin-left:6px;">
-                {% if scan_comparison.prev_score is not none %}{{ scan_comparison.prev_score }} / 100{% else %}INCONCLUSIVE{% endif %}
-            </span>
-        </div>
-        <div style="font-size:20px; color:var(--text-2);">→</div>
-        <div>
-            <span style="font-size:12px; color:var(--text-2); text-transform:uppercase;">Current Assessment:</span>
-            <span style="font-size:18px; font-weight:700; color:var(--text-0); font-family:monospace; margin-left:6px;">
-                {% if scan_comparison.curr_score is not none %}{{ scan_comparison.curr_score }} / 100{% else %}INCONCLUSIVE{% endif %}
-            </span>
-        </div>
-        <div>
-            {% if scan_comparison.score_direction == 'inconclusive' or scan_comparison.score_diff is none %}
-            <span class="badge" style="background:rgba(234,179,8,0.15); color:#eab308; border:1px solid rgba(234,179,8,0.3); font-size:13px;">Inconclusive Assessment</span>
-            {% elif scan_comparison.score_diff > 0 %}
-            <span class="badge badge-ok" style="font-size:13px;">▲ +{{ scan_comparison.score_diff }} Improvement</span>
-            {% elif scan_comparison.score_diff < 0 %}
-            <span class="badge badge-critical" style="font-size:13px;">▼ {{ scan_comparison.score_diff }} Degraded</span>
-            {% else %}
-            <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border); font-size:13px;">► Unchanged</span>
-            {% endif %}
-        </div>
-    </div>
-    
-    <div style="display:flex; flex-direction:column; gap:8px;">
-        {% for chg in scan_comparison.changes %}
-        <div style="display:flex; align-items:center; gap:10px; font-size:14px; padding:8px 12px; border-radius:6px; background:{% if chg.type == 'positive' %}rgba(34,197,94,0.08){% elif chg.type == 'negative' %}rgba(239,68,68,0.08){% else %}var(--overlay-1){% endif %}; border:1px solid {% if chg.type == 'positive' %}rgba(34,197,94,0.25){% elif chg.type == 'negative' %}rgba(239,68,68,0.25){% else %}var(--border){% endif %};">
-            <span style="font-weight:800; color:{% if chg.type == 'positive' %}var(--ok){% elif chg.type == 'negative' %}var(--crit){% else %}var(--text-2){% endif %};">{{ chg.icon }}</span>
-            <span style="color:var(--text-0); font-weight:500;">{{ chg.text }}</span>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
+
 
 <div class="panel-heading"><h2>Open Ports</h2></div>
 <div class="glass table-wrap">
@@ -606,44 +564,7 @@
 
 
 
-{% if history_scans and history_scans|length > 1 %}
-<div class="panel-heading" style="margin-top:30px;">
-    <h2>📈 Historical Posture Trend Analysis</h2>
-    <span class="sub">Security score tracking over time for this target</span>
-</div>
-<div class="glass table-wrap">
-    <table>
-        <thead>
-            <tr>
-                <th>Scan Date &amp; Time</th>
-                <th>Target URL / Host</th>
-                <th>Protocol</th>
-                <th>Security Score</th>
-                <th>Risk Level</th>
-                <th>Posture Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for h in history_scans %}
-            <tr>
-                <td class="mono" style="font-size:13px;">{{ h.scan_time or "-" }}</td>
-                <td>{{ h.url or h.ip }}</td>
-                <td><span class="badge" style="background:var(--overlay-2); color:var(--text-1); border:1px solid var(--border);">{{ h.protocol or "HTTPS" }}</span></td>
-                <td class="mono"><b>{{ h.security_score if h.security_score is not none else (h.score if h.score is not none else "-") }}</b> / 100 {% if h.security_grade or h.grade %}<span style="font-size:11px; color:var(--text-2);">({{ h.security_grade or h.grade }})</span>{% endif %}</td>
-                <td><span class="risk-pill {{ (h.risk or 'low')|lower }}">{{ h.risk or "Low" }}</span></td>
-                <td>
-                    {% if loop.first %}
-                        <span class="badge badge-ok">Current</span>
-                    {% else %}
-                        <span class="badge" style="background:var(--overlay-2); color:var(--text-2); border:1px solid var(--border);">Historical</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
+
 
 <div class="panel-heading"><h2>Security Remarks</h2></div>
 <div class="glass content-panel">
