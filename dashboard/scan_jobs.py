@@ -334,7 +334,11 @@ def _run_url_scan_job(job_id, url, user_id=None):
 
             _job_log(job_id, f"Scanning open ports for IP {ip}...")
             scan_target(
-                ip, ports="top-1000", progress_callback=lambda m: _job_log(job_id, m), scan_id=scan_id
+                ip,
+                ports="top-1000",
+                progress_callback=lambda m: _job_log(job_id, m),
+                scan_id=scan_id,
+                hostname=result.get("domain"),
             )
 
             _job_log(job_id, "Running vulnerability scan...")

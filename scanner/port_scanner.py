@@ -66,10 +66,21 @@ TOP_PORTS = [
 ]
 
 
-def grab_banner(ip, port, timeout=1.5):
+def _is_ip_string(s):
+    if not s:
+        return False
+    try:
+        parts = s.strip().split(".")
+        return len(parts) == 4 and all(0 <= int(p) <= 255 for p in parts)
+    except Exception:
+        return False
+
+
+def grab_banner(ip, port, timeout=1.5, hostname=None):
     """
     Actively probes open ports to extract service banners and server signatures.
-    Returns full HTTP response status and headers or raw service greeting banner.
+    Supports virtual host headers (domain name) to capture true full HTTP response
+    headers (e.g., 301 Moved Permanently with Location).
     """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -85,40 +96,73 @@ def grab_banner(ip, port, timeout=1.5):
         except Exception:
             pass
 
-        # First try HTTP HEAD probe (plain HTTP)
-        try:
-            s.send(b"HEAD / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
-            raw = s.recv(2048).decode(errors="ignore").strip()
-            s.close()
-            if raw and ("HTTP/1." in raw or "Server:" in raw or "<html" in raw.lower()):
-                return " ".join(raw.split())[:300]
-        except Exception:
-            pass
+        # Build candidate Host headers: domain first if known, then reverse DNS, then IP
+        host_candidates = []
+        if hostname and hostname.strip() and not _is_ip_string(hostname.strip()):
+            host_candidates.append(hostname.strip())
 
-        # If HTTPS port and plain probe had no banner, try SSL wrap
-        if port in (443, 8443, 993, 995, 465):
+        if _is_ip_string(ip):
             try:
-                s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s2.settimeout(timeout)
-                s2.connect((ip, port))
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                ss = ctx.wrap_socket(s2, server_hostname=ip)
-                ss.send(b"HEAD / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
-                raw_ssl = ss.recv(2048).decode(errors="ignore").strip()
-                ss.close()
-                if raw_ssl:
-                    return " ".join(raw_ssl.split())[:300]
+                from database.db_helpers import get_db_connection
+                conn = get_db_connection()
+                row = conn.execute(
+                    "SELECT domain FROM url_scan_results WHERE ip = ? AND domain != '' AND domain IS NOT NULL ORDER BY id DESC LIMIT 1",
+                    (ip,),
+                ).fetchone()
+                conn.close()
+                if row and row[0] and not _is_ip_string(row[0]) and row[0].strip() not in host_candidates:
+                    host_candidates.append(row[0].strip())
             except Exception:
                 pass
+            try:
+                rdns = socket.gethostbyaddr(ip)[0]
+                if rdns and not _is_ip_string(rdns) and rdns not in host_candidates:
+                    host_candidates.append(rdns)
+            except Exception:
+                pass
+
+        if ip not in host_candidates:
+            host_candidates.append(ip)
+
+        for host_hdr in host_candidates:
+            # 1. First try HTTP HEAD probe (plain HTTP)
+            try:
+                s_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s_probe.settimeout(timeout)
+                s_probe.connect((ip, port))
+                s_probe.send(b"HEAD / HTTP/1.1\r\nHost: " + host_hdr.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
+                raw = s_probe.recv(2048).decode(errors="ignore").strip()
+                s_probe.close()
+                if raw and ("HTTP/1." in raw or "Server:" in raw or "<html" in raw.lower()):
+                    if not raw.startswith("HTTP/1.1 404") or host_hdr == host_candidates[-1]:
+                        return " ".join(raw.split())[:300]
+            except Exception:
+                pass
+
+            # 2. If HTTPS port and plain probe had no banner, try SSL wrap
+            if port in (443, 8443, 993, 995, 465):
+                try:
+                    s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s2.settimeout(timeout)
+                    s2.connect((ip, port))
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    ss = ctx.wrap_socket(s2, server_hostname=host_hdr)
+                    ss.send(b"HEAD / HTTP/1.1\r\nHost: " + host_hdr.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
+                    raw_ssl = ss.recv(2048).decode(errors="ignore").strip()
+                    ss.close()
+                    if raw_ssl:
+                        return " ".join(raw_ssl.split())[:300]
+                except Exception:
+                    pass
 
         return "No banner"
     except Exception:
         return "No banner"
 
 
-def _probe_single_socket(target_ip, port, timeout=1.0):
+def _probe_single_socket(target_ip, port, timeout=1.0, hostname=None):
     """Probes a single TCP port. Returns dict if open, else None."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(timeout)
@@ -127,7 +171,7 @@ def _probe_single_socket(target_ip, port, timeout=1.0):
         if res == 0:
             s.close()
             # Successfully connected — Port is open!
-            banner = grab_banner(target_ip, port, timeout=1.5)
+            banner = grab_banner(target_ip, port, timeout=1.5, hostname=hostname)
             service = COMMON_PORTS.get(port, "unknown")
             product = ""
             version = ""
@@ -186,7 +230,7 @@ def _probe_single_socket(target_ip, port, timeout=1.0):
     return None
 
 
-def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_id=None):
+def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_id=None, hostname=None):
     """
     High-performance pure-Python multithreaded socket scanner.
     Provides 100% native scanning capability on any OS (Linux, Render, Windows, Mac)
@@ -230,7 +274,7 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
         future_to_port = {
-            executor.submit(_probe_single_socket, target, port): port
+            executor.submit(_probe_single_socket, target, port, hostname=hostname): port
             for port in ports_to_scan
         }
         for future in concurrent.futures.as_completed(future_to_port):
@@ -329,11 +373,17 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
     }
 
 
-def scan_target(target, ports="1-65535", progress_callback=None, scan_id=None):
+def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, hostname=None):
     """
-    Two-phase scan: uses Nmap if installed, automatically falls back to
-    high-speed native socket scanner if Nmap is absent (e.g. Render/Cloud environments).
+    Scans a target (IP or domain name) using Nmap when available,
+    falling back seamlessly to native high-concurrency socket scanning.
     """
+    if not scan_id:
+        scan_id = uuid.uuid4().hex
+
+    if not hostname and not _is_ip_string(target):
+        hostname = target
+
     scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def report(msg):
@@ -357,7 +407,7 @@ def scan_target(target, ports="1-65535", progress_callback=None, scan_id=None):
 
     if not use_nmap:
         report("Using native high-speed socket scanner engine...")
-        return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id)
+        return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id, hostname=hostname)
 
     report(f"Starting Nmap scan for {target} (ports={ports}) [scan_id={scan_id}]")
 
@@ -378,7 +428,7 @@ def scan_target(target, ports="1-65535", progress_callback=None, scan_id=None):
         if not discovery_scanner.all_hosts():
             report("Nmap found 0 open ports; verifying with native socket probe...")
             conn.close()
-            return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id)
+            return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id, hostname=hostname)
 
         open_ports_dict = {}
         for host in discovery_scanner.all_hosts():
@@ -401,7 +451,7 @@ def scan_target(target, ports="1-65535", progress_callback=None, scan_id=None):
 
         if not open_ports_dict:
             conn.close()
-            return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id)
+            return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id, hostname=hostname)
 
         open_ports = sorted(list(open_ports_dict.keys()))
         report(f"Phase 1 complete: {len(open_ports)} open port(s) found -> {open_ports}")
@@ -483,7 +533,7 @@ def scan_target(target, ports="1-65535", progress_callback=None, scan_id=None):
             version = p_info.get("version", "")
             extra_info = p_info.get("extra_info", "")
             state = "open"
-            banner = grab_banner(target, port)
+            banner = grab_banner(target, port, hostname=hostname)
 
             report(f"Port {port}/{proto} OPEN | service={service} product={product} version={version}")
 
