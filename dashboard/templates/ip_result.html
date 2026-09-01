@@ -28,6 +28,7 @@
     <table class="info-table">
         <tr><th>IP Address</th><td class="mono">{{ latest_ip }}</td></tr>
         <tr><th>Status</th><td>{{ host.status if host else "Unknown" }}</td></tr>
+        <tr><th>Last Scan</th><td class="mono">{{ host.scan_time if host and host.scan_time else (os_info.scan_time if os_info and os_info.scan_time else "-") }}</td></tr>
         <tr>
             <th>Operating System</th>
             <td>
