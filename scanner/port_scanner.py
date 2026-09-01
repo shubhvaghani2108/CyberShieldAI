@@ -69,11 +69,21 @@ TOP_PORTS = [
 def grab_banner(ip, port, timeout=1.5):
     """
     Actively probes open ports to extract service banners and server signatures.
+    Returns full HTTP response status and headers or raw service greeting banner.
     """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
         s.connect((ip, port))
+
+        # Check if service sends an immediate greeting upon connect (SSH, FTP, SMTP, MySQL, etc.)
+        try:
+            initial = s.recv(1024).decode(errors="ignore").strip()
+            if initial:
+                s.close()
+                return " ".join(initial.split())[:300]
+        except Exception:
+            pass
 
         if port in (443, 8443, 993, 995, 465):
             try:
@@ -85,10 +95,7 @@ def grab_banner(ip, port, timeout=1.5):
                 raw = ss.recv(2048).decode(errors="ignore").strip()
                 ss.close()
                 if raw:
-                    for line in raw.splitlines():
-                        if line.lower().startswith("server:"):
-                            return line[:200]
-                    return raw.splitlines()[0][:200]
+                    return " ".join(raw.split())[:300]
             except Exception:
                 pass
         else:
@@ -102,11 +109,7 @@ def grab_banner(ip, port, timeout=1.5):
             s.close()
 
             if raw:
-                # Prioritize 'Server:' header
-                for line in raw.splitlines():
-                    if line.lower().startswith("server:"):
-                        return line[:200]
-                return raw.splitlines()[0][:200]
+                return " ".join(raw.split())[:300]
         return "No banner"
     except Exception:
         return "No banner"
