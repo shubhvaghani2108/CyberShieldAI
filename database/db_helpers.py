@@ -376,22 +376,23 @@ def init_db():
     seed_default_url_scan_if_empty()
 
 
-def seed_default_url_scan_if_empty():
+def seed_default_url_scan_if_empty(user_id=1):
     """
-    Seeds a high-fidelity baseline URL scan result if url_scan_results is empty,
-    guaranteeing that the URL Scan Result page is always populated with complete
-    intelligence, graphs, and security metrics upon deployment.
+    Seeds a high-fidelity baseline URL scan result for a user if their url_scan_results is empty,
+    guaranteeing that the URL Scan Result page, IP Scan Result page, and Overview Dashboard
+    are always populated with complete intelligence, graphs, and security metrics upon first login.
     """
+    uid = user_id if user_id is not None else 1
     conn = get_db_connection()
     try:
-        count = conn.execute("SELECT COUNT(*) FROM url_scan_results").fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM url_scan_results WHERE user_id = ?", (uid,)).fetchone()[0]
         if count > 0:
             conn.close()
             return
 
         import datetime
-        scan_id = "icss-scan-20260821-01"
-        prev_scan_id = "icss-scan-20260820-00"
+        scan_id = f"icss-scan-u{uid}-01"
+        prev_scan_id = f"icss-scan-u{uid}-00"
         target_url = "https://indiancybersecuritysolutions.com/"
         target_domain = "indiancybersecuritysolutions.com"
         target_ip = "82.180.165.200"
@@ -407,7 +408,7 @@ def seed_default_url_scan_if_empty():
             """,
             (
                 scan_id,
-                1,
+                uid,
                 target_url,
                 target_domain,
                 target_ip,
@@ -608,7 +609,7 @@ def seed_default_url_scan_if_empty():
             (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (scan_id, 1, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", scan_time),
+            (scan_id, uid, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", scan_time),
         )
         conn.execute(
             """
@@ -616,7 +617,7 @@ def seed_default_url_scan_if_empty():
             (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (prev_scan_id, 1, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", prev_scan_time),
+            (prev_scan_id, uid, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", prev_scan_time),
         )
 
         # 12. Risk Summary
@@ -627,6 +628,24 @@ def seed_default_url_scan_if_empty():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (scan_id, target_ip, 0, 2, 0, 0, 14, "Medium", scan_time),
+        )
+
+        # 13. Host Status & Scan History Baseline
+        conn.execute(
+            """
+            INSERT INTO host_status
+            (scan_id, user_id, target_ip, status, scan_time)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (scan_id, uid, target_ip, "Alive", scan_time),
+        )
+        conn.execute(
+            """
+            INSERT INTO scan_history
+            (scan_id, user_id, target_ip, status, scan_time)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (scan_id, uid, target_ip, "Alive", scan_time),
         )
 
         conn.commit()
@@ -725,6 +744,20 @@ def get_latest_ip(user_id=None):
                 (user_id,),
             ).fetchone()
         if not row:
+            conn.close()
+            seed_default_url_scan_if_empty(user_id=user_id)
+            conn = get_db_connection()
+            row = conn.execute(
+                """
+                SELECT target_ip
+                FROM host_status
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+        if not row:
             row = conn.execute(
                 """
                 SELECT ip AS target_ip
@@ -805,6 +838,7 @@ def get_latest_host_status(user_id=None):
 
 def get_latest_url_scan(user_id=None):
     conn = get_db_connection()
+    row = None
     if user_id is not None:
         row = conn.execute(
             """
@@ -816,6 +850,20 @@ def get_latest_url_scan(user_id=None):
             """,
             (user_id,),
         ).fetchone()
+        if not row:
+            conn.close()
+            seed_default_url_scan_if_empty(user_id=user_id)
+            conn = get_db_connection()
+            row = conn.execute(
+                """
+                SELECT *
+                FROM url_scan_results
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
     else:
         row = conn.execute(
             """
@@ -825,6 +873,18 @@ def get_latest_url_scan(user_id=None):
             LIMIT 1
             """
         ).fetchone()
+        if not row:
+            conn.close()
+            seed_default_url_scan_if_empty(user_id=1)
+            conn = get_db_connection()
+            row = conn.execute(
+                """
+                SELECT *
+                FROM url_scan_results
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
     conn.close()
     return row
 

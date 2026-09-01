@@ -41,38 +41,21 @@ def get_dashboard_stats(latest_ip=None):
     cur = conn.cursor()
 
     stats = {
-        "latest_ip": "-",
+        "latest_ip": latest_ip if latest_ip else "-",
         "latest_scan": "-",
         "total_assets": 0,
         "live_hosts": 0,
         "offline_hosts": 0,
         "avg_risk": 0,
-        "risk_level": "Unknown",
+        "risk_level": "No Scan Yet",
         "open_ports": 0,
         "services": 0,
         "vulnerabilities": 0,
         "cves": 0,
     }
 
-    # ======================================================
-    # LATEST TARGET
-    # ======================================================
-
-    if not latest_ip:
-        try:
-            cur.execute("""
-                SELECT target_ip
-                FROM scan_history
-                ORDER BY id DESC
-                LIMIT 1
-            """)
-            row = cur.fetchone()
-            latest_ip = row["target_ip"] if row else None
-        except Exception as e:
-            print("Latest IP Fallback Error:", e)
-            latest_ip = None
-
-    stats["latest_ip"] = latest_ip if latest_ip else "-"
+    if not latest_ip or latest_ip == "-":
+        return stats
 
     # ======================================================
     # TOTAL ASSETS & HOST STATUS (Current Live Scan Target)
