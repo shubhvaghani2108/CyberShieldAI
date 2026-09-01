@@ -7,34 +7,34 @@
     <span class="sub">{{ rows|length }} scan{{ 's' if rows|length != 1 else '' }} recorded</span>
 </div>
 
-<div class="glass table-wrap">
-    <table>
+<div class="glass table-wrap" style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse;">
         <thead>
             <tr>
-                <th>ID</th>
+                <th style="white-space:nowrap;">ID</th>
                 <th>URL</th>
-                <th>Domain</th>
-                <th>IP</th>
-                <th>Risk</th>
-                <th>Scan Time</th>
+                <th style="white-space:nowrap;">Domain</th>
+                <th style="white-space:nowrap;">IP</th>
+                <th style="white-space:nowrap;">Risk</th>
+                <th style="white-space:nowrap;">Scan Time</th>
             </tr>
         </thead>
         <tbody>
         {% for row in rows %}
         <tr>
-            <td class="mono">{{ row['id'] if 'id' in row.keys() else row[0] }}</td>
-            <td style="max-width:320px; word-break:break-word;">
-                <a href="{{ url_for('url_scan_result_page') }}?{% if 'scan_id' in row.keys() and row['scan_id'] %}scan_id={{ row['scan_id'] }}{% else %}id={{ row['id'] if 'id' in row.keys() else row[0] }}{% endif %}" style="color:var(--accent); font-weight:600;">
+            <td class="mono" style="white-space:nowrap;">{{ row['id'] if 'id' in row.keys() else row[0] }}</td>
+            <td style="min-width:240px; word-break:break-all;">
+                <a href="{{ url_for('url_scan_result_page') }}?{% if 'scan_id' in row.keys() and row['scan_id'] %}scan_id={{ row['scan_id'] }}{% else %}id={{ row['id'] if 'id' in row.keys() else row[0] }}{% endif %}" style="color:var(--accent); font-weight:600; text-decoration:none;">
                     {{ row['url'] if 'url' in row.keys() else row[1] }}
                 </a>
             </td>
-            <td style="max-width:200px; word-break:break-word;">{{ row['domain'] if 'domain' in row.keys() else row[2] }}</td>
-            <td class="mono">{{ row['ip'] if 'ip' in row.keys() else row[3] }}</td>
-            <td>
+            <td class="mono" style="white-space:nowrap; font-weight:600; color:var(--text-1);">{{ row['domain'] if 'domain' in row.keys() else row[2] }}</td>
+            <td class="mono" style="white-space:nowrap;">{{ row['ip'] if 'ip' in row.keys() else row[3] }}</td>
+            <td style="white-space:nowrap;">
                 {% set lvl = (row['risk'] if 'risk' in row.keys() else (row[6] or 'low'))|lower %}
                 <span class="badge badge-{{ lvl }}">{{ row['risk'] if 'risk' in row.keys() else row[6] }}</span>
             </td>
-            <td class="mono">{{ row['scan_time'] if 'scan_time' in row.keys() else row[7] }}</td>
+            <td class="mono" style="white-space:nowrap;">{{ row['scan_time'] if 'scan_time' in row.keys() else row[7] }}</td>
         </tr>
         {% else %}
         <tr class="empty-row"><td colspan="6">No URL scan history available.</td></tr>
