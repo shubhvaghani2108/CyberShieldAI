@@ -23,9 +23,9 @@ import re
 def _explain_http_status(code: str) -> str:
     explanations = {
         "200": "The server responded normally (200 OK) — this page/service is reachable.",
-        "301": "The server is permanently redirecting requests elsewhere (301 Moved Permanently).",
+        "301": "The server is permanently redirecting requests elsewhere (301).",
         "302": "The server is temporarily redirecting requests elsewhere (302 Found).",
-        "400": "The server rejected the request as malformed (400 Bad Request) — often happens when probed without a host header or over cleartext HTTP on an HTTPS port.",
+        "400": "The server rejected the request as malformed (400 Bad Request) — often happens when a scanner probes without a proper hostname; not necessarily a problem.",
         "401": "This endpoint requires authentication (401 Unauthorized).",
         "403": "Access to this service is restricted (403 Forbidden) — the server is refusing the request, commonly enforced by a web firewall, access control list, or web server rule.",
         "404": "Nothing was found at this default path (404 Not Found).",

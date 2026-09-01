@@ -85,31 +85,34 @@ def grab_banner(ip, port, timeout=1.5):
         except Exception:
             pass
 
+        # First try HTTP HEAD probe (plain HTTP)
+        try:
+            s.send(b"HEAD / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
+            raw = s.recv(2048).decode(errors="ignore").strip()
+            s.close()
+            if raw and ("HTTP/1." in raw or "Server:" in raw or "<html" in raw.lower()):
+                return " ".join(raw.split())[:300]
+        except Exception:
+            pass
+
+        # If HTTPS port and plain probe had no banner, try SSL wrap
         if port in (443, 8443, 993, 995, 465):
             try:
+                s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s2.settimeout(timeout)
+                s2.connect((ip, port))
                 ctx = ssl.create_default_context()
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
-                ss = ctx.wrap_socket(s, server_hostname=ip)
+                ss = ctx.wrap_socket(s2, server_hostname=ip)
                 ss.send(b"HEAD / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
-                raw = ss.recv(2048).decode(errors="ignore").strip()
+                raw_ssl = ss.recv(2048).decode(errors="ignore").strip()
                 ss.close()
-                if raw:
-                    return " ".join(raw.split())[:300]
-            except Exception:
-                pass
-        else:
-            try:
-                # Send HTTP HEAD probe
-                s.send(b"HEAD / HTTP/1.1\r\nHost: " + ip.encode() + b"\r\nUser-Agent: CyberShieldAI/2.0\r\nConnection: close\r\n\r\n")
+                if raw_ssl:
+                    return " ".join(raw_ssl.split())[:300]
             except Exception:
                 pass
 
-            raw = s.recv(2048).decode(errors="ignore").strip()
-            s.close()
-
-            if raw:
-                return " ".join(raw.split())[:300]
         return "No banner"
     except Exception:
         return "No banner"
