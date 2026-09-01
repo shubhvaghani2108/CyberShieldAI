@@ -1178,7 +1178,54 @@ def get_dashboard_data(user_id=None):
         host_status = latest_host["status"]
         host_scan_time = latest_host["scan_time"]
 
-    if latest_ip:
+    host_scan_id = latest_host["scan_id"] if latest_host and "scan_id" in latest_host.keys() else None
+
+    if host_scan_id:
+        row = conn.execute(
+            """
+            SELECT COUNT(DISTINCT port) AS cnt
+            FROM ports
+            WHERE scan_id = ?
+            """,
+            (host_scan_id,),
+        ).fetchone()
+        ports_count = row["cnt"] if row else 0
+
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS cnt
+            FROM vulnerabilities
+            WHERE scan_id = ?
+            """,
+            (host_scan_id,),
+        ).fetchone()
+        vulns_count = row["cnt"] if row else 0
+
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS cnt
+            FROM cves
+            WHERE scan_id = ?
+            """,
+            (host_scan_id,),
+        ).fetchone()
+        cves_count = row["cnt"] if row else 0
+
+        row = conn.execute(
+            """
+            SELECT total_score, risk_level
+            FROM risk_summary
+            WHERE scan_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (host_scan_id,),
+        ).fetchone()
+
+        if row:
+            risk_score = row["total_score"]
+            risk_level = row["risk_level"]
+    elif latest_ip:
         row = conn.execute(
             """
             SELECT COUNT(DISTINCT port) AS cnt
@@ -1410,8 +1457,20 @@ def get_ip_scan_context(user_id=None):
             """
         ).fetchone()
 
+    host_scan_id = host["scan_id"] if host and "scan_id" in host.keys() else None
+
     # Ports
-    if latest_ip:
+    if host_scan_id:
+        ports = conn.execute(
+            """
+            SELECT *
+            FROM ports
+            WHERE scan_id = ?
+            ORDER BY port ASC
+            """,
+            (host_scan_id,),
+        ).fetchall()
+    elif latest_ip:
         ports = conn.execute(
             """
             SELECT *
@@ -1420,14 +1479,24 @@ def get_ip_scan_context(user_id=None):
                 SELECT MAX(id) FROM ports WHERE ip=? GROUP BY port
             )
             ORDER BY port ASC
-        """,
+            """,
             (latest_ip,),
         ).fetchall()
     else:
         ports = []
 
     # Services
-    if latest_ip:
+    if host_scan_id:
+        services = conn.execute(
+            """
+            SELECT *
+            FROM service_versions
+            WHERE scan_id = ?
+            ORDER BY port ASC
+            """,
+            (host_scan_id,),
+        ).fetchall()
+    elif latest_ip:
         services = conn.execute(
             """
             SELECT *
@@ -1436,14 +1505,31 @@ def get_ip_scan_context(user_id=None):
                 SELECT MAX(id) FROM service_versions WHERE ip=? GROUP BY port
             )
             ORDER BY port ASC
-        """,
+            """,
             (latest_ip,),
         ).fetchall()
     else:
         services = []
 
     # Vulnerabilities
-    if latest_ip:
+    if host_scan_id:
+        vulnerabilities = conn.execute(
+            """
+            SELECT *
+            FROM vulnerabilities
+            WHERE scan_id = ?
+            ORDER BY
+                CASE LOWER(risk)
+                    WHEN 'critical' THEN 0
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    ELSE 3
+                END,
+                port ASC
+            """,
+            (host_scan_id,),
+        ).fetchall()
+    elif latest_ip:
         vulnerabilities = conn.execute(
             """
             SELECT *
@@ -1459,14 +1545,31 @@ def get_ip_scan_context(user_id=None):
                     ELSE 3
                 END,
                 port ASC
-        """,
+            """,
             (latest_ip,),
         ).fetchall()
     else:
         vulnerabilities = []
 
     # CVEs
-    if latest_ip:
+    if host_scan_id:
+        cves = conn.execute(
+            """
+            SELECT *
+            FROM cves
+            WHERE scan_id = ?
+            ORDER BY
+                CASE LOWER(severity)
+                    WHEN 'critical' THEN 0
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    ELSE 3
+                END,
+                port ASC
+            """,
+            (host_scan_id,),
+        ).fetchall()
+    elif latest_ip:
         cves = conn.execute(
             """
             SELECT *
@@ -1482,14 +1585,25 @@ def get_ip_scan_context(user_id=None):
                     ELSE 3
                 END,
                 port ASC
-        """,
+            """,
             (latest_ip,),
         ).fetchall()
     else:
         cves = []
 
     # OS
-    if latest_ip:
+    if host_scan_id:
+        os_row = conn.execute(
+            """
+            SELECT *
+            FROM os_info
+            WHERE scan_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (host_scan_id,),
+        ).fetchone()
+    elif latest_ip:
         os_row = conn.execute(
             """
             SELECT *
@@ -1497,7 +1611,7 @@ def get_ip_scan_context(user_id=None):
             WHERE ip=?
             ORDER BY id DESC
             LIMIT 1
-        """,
+            """,
             (latest_ip,),
         ).fetchone()
     else:
@@ -1513,7 +1627,18 @@ def get_ip_scan_context(user_id=None):
         os_info = {"os_name": "Not Scanned", "device_type": "-", "os_details": "-"}
 
     # Risk
-    if latest_ip:
+    if host_scan_id:
+        risk = conn.execute(
+            """
+            SELECT *
+            FROM risk_summary
+            WHERE scan_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (host_scan_id,),
+        ).fetchone()
+    elif latest_ip:
         risk = conn.execute(
             """
             SELECT *
@@ -1521,7 +1646,7 @@ def get_ip_scan_context(user_id=None):
             WHERE ip=?
             ORDER BY id DESC
             LIMIT 1
-        """,
+            """,
             (latest_ip,),
         ).fetchone()
     else:
@@ -1561,9 +1686,9 @@ def get_ip_scan_context(user_id=None):
         data["security_score"] = 100
 
     # Dashboard Stats
-    stats = get_dashboard_stats(latest_ip)
-    assets = get_assets(latest_ip=latest_ip, latest_only=True)
-    recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip)
+    stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id)
+    assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
+    recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip, user_id=user_id)
 
     if risk:
         severity = {
@@ -1585,7 +1710,7 @@ def get_ip_scan_context(user_id=None):
     chart_data = {
         "severity": severity,
         "port_distribution": port_distribution,
-        "risk_trend": get_risk_trend(limit=8, latest_ip=latest_ip),
+        "risk_trend": get_risk_trend(limit=8, latest_ip=latest_ip, user_id=user_id),
     }
 
     data["stats"] = stats

@@ -1020,15 +1020,26 @@ def register_routes(app):
         latest_url_scan = None
 
         if req_scan_id:
-            latest_url_scan = conn.execute(
-                "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1",
-                (req_scan_id,),
-            ).fetchone()
+            if current_user_id is not None:
+                latest_url_scan = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE scan_id=? AND user_id=? ORDER BY id DESC LIMIT 1",
+                    (req_scan_id, current_user_id),
+                ).fetchone()
+            if not latest_url_scan:
+                latest_url_scan = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                    (req_scan_id,),
+                ).fetchone()
 
         if not latest_url_scan and target_id:
-            latest_url_scan = conn.execute(
-                "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
-            ).fetchone()
+            if current_user_id is not None:
+                latest_url_scan = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE id=? AND user_id=?", (target_id, current_user_id)
+                ).fetchone()
+            if not latest_url_scan:
+                latest_url_scan = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
+                ).fetchone()
 
         if not latest_url_scan and not req_scan_id and not target_id:
             latest_url_scan = get_latest_url_scan(user_id=current_user_id)
@@ -1101,16 +1112,26 @@ def register_routes(app):
         current_user_id = session.get("user_id")
 
         if scan_id:
-            result = conn.execute(
-                "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1", (scan_id,)
-            ).fetchone()
+            if current_user_id is not None:
+                result = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE scan_id=? AND user_id=? ORDER BY id DESC LIMIT 1", (scan_id, current_user_id)
+                ).fetchone()
+            if not result:
+                result = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1", (scan_id,)
+                ).fetchone()
 
         if not result and url_result_id:
-            result = conn.execute(
-                "SELECT * FROM url_scan_results WHERE id=?", (url_result_id,)
-            ).fetchone()
+            if current_user_id is not None:
+                result = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE id=? AND user_id=?", (url_result_id, current_user_id)
+                ).fetchone()
+            if not result:
+                result = conn.execute(
+                    "SELECT * FROM url_scan_results WHERE id=?", (url_result_id,)
+                ).fetchone()
 
-        # Only use IP or generic fallback if NO explicit scan_id or url_result_id was requested
+        # Only use IP or user fallback if NO explicit scan_id or url_result_id was requested
         if not result and not scan_id and not url_result_id:
             if ip and ip != "Unknown":
                 if current_user_id is not None:
@@ -1125,10 +1146,6 @@ def register_routes(app):
                 if current_user_id is not None:
                     result = conn.execute(
                         "SELECT * FROM url_scan_results WHERE user_id=? ORDER BY id DESC LIMIT 1", (current_user_id,)
-                    ).fetchone()
-                if not result:
-                    result = conn.execute(
-                        "SELECT * FROM url_scan_results ORDER BY id DESC LIMIT 1"
                     ).fetchone()
 
         if result:

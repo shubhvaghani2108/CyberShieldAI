@@ -13,27 +13,10 @@ DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 # DASHBOARD STATS
 # ==========================================================
 
-def get_dashboard_stats(latest_ip=None):
+def get_dashboard_stats(latest_ip=None, scan_id=None):
     """
     Build the stat-card numbers for the dashboard.
-
-    FIX: this used to determine "the latest scan" by reading the newest
-    row of `risk_summary`, while every other part of the app (get_latest_ip()
-    in app.py, used by /ports, /vulnerabilities, /cves, /history, and the
-    main dashboard tables) determines it from `scan_history` instead.
-    Those two tables get written at different points in the scan
-    pipeline (scan_history near the start, risk_summary at the very
-    end), so whichever scan finished most recently didn't necessarily
-    start most recently — the two "latest" pointers could point at two
-    different targets, which is why the stat cards and the detail pages
-    could disagree.
-
-    Fix: the caller (app.py) now computes latest_ip once via
-    get_latest_ip() and passes it in here, so every part of the
-    dashboard agrees on the same target. If nothing is passed in (e.g.
-    running this file standalone via `python database/dashboard_stats.py`),
-    it falls back to deriving latest_ip from scan_history itself, matching
-    app.py's own logic instead of risk_summary's.
+    When scan_id is provided, queries the exact scan dataset for complete multi-user isolation.
     """
 
     conn = sqlite3.connect(DB_FILE)
@@ -58,7 +41,7 @@ def get_dashboard_stats(latest_ip=None):
         return stats
 
     # ======================================================
-    # TOTAL ASSETS & HOST STATUS (Current Live Scan Target)
+    # TOTAL ASSETS & HOST STATUS
     # ======================================================
 
     if latest_ip:
@@ -97,12 +80,23 @@ def get_dashboard_stats(latest_ip=None):
 
     # ======================================================
     # LATEST SCAN TIME
-    # Pulled from host_status for this specific target, since that's
-    # what /ports and friends effectively treat as "when the current
-    # target was last touched".
     # ======================================================
 
-    if latest_ip:
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT scan_time
+                FROM host_status
+                WHERE scan_id=?
+                ORDER BY id DESC
+                LIMIT 1
+            """, (scan_id,))
+            row = cur.fetchone()
+            if row:
+                stats["latest_scan"] = row["scan_time"]
+        except Exception as e:
+            print("Scan Time Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT scan_time
@@ -118,11 +112,25 @@ def get_dashboard_stats(latest_ip=None):
             print("Latest Scan Time Error:", e)
 
     # ======================================================
-    # RISK (for the current latest_ip specifically, not just
-    # whichever risk_summary row happens to be newest overall)
+    # RISK
     # ======================================================
 
-    if latest_ip:
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT total_score, risk_level
+                FROM risk_summary
+                WHERE scan_id=?
+                ORDER BY id DESC
+                LIMIT 1
+            """, (scan_id,))
+            row = cur.fetchone()
+            if row:
+                stats["avg_risk"] = row["total_score"]
+                stats["risk_level"] = row["risk_level"]
+        except Exception as e:
+            print("Risk Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT total_score, risk_level
@@ -131,13 +139,10 @@ def get_dashboard_stats(latest_ip=None):
                 ORDER BY id DESC
                 LIMIT 1
             """, (latest_ip,))
-
             row = cur.fetchone()
-
             if row:
                 stats["avg_risk"] = row["total_score"]
                 stats["risk_level"] = row["risk_level"]
-
         except Exception as e:
             print("Risk Error:", e)
 
@@ -145,8 +150,18 @@ def get_dashboard_stats(latest_ip=None):
     # OPEN PORTS
     # ======================================================
 
-    if latest_ip:
-
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT COUNT(DISTINCT port)
+                FROM ports
+                WHERE scan_id=? AND (state='open' OR state IS NULL OR state='')
+            """, (scan_id,))
+            row = cur.fetchone()
+            stats["open_ports"] = row[0] if row else 0
+        except Exception as e:
+            print("Ports Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT COUNT(*)
@@ -155,10 +170,8 @@ def get_dashboard_stats(latest_ip=None):
                     SELECT MAX(id) FROM ports WHERE ip=? GROUP BY port
                 ) AND state='open'
             """, (latest_ip,))
-
             row = cur.fetchone()
             stats["open_ports"] = row[0] if row else 0
-
         except Exception as e:
             print("Ports Error:", e)
 
@@ -166,8 +179,18 @@ def get_dashboard_stats(latest_ip=None):
     # SERVICES
     # ======================================================
 
-    if latest_ip:
-
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT COUNT(DISTINCT port)
+                FROM service_versions
+                WHERE scan_id=?
+            """, (scan_id,))
+            row = cur.fetchone()
+            stats["services"] = row[0] if row else 0
+        except Exception as e:
+            print("Services Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT COUNT(*)
@@ -176,10 +199,8 @@ def get_dashboard_stats(latest_ip=None):
                     SELECT MAX(id) FROM service_versions WHERE ip=? GROUP BY port
                 )
             """, (latest_ip,))
-
             row = cur.fetchone()
             stats["services"] = row[0] if row else 0
-
         except Exception as e:
             print("Services Error:", e)
 
@@ -187,8 +208,18 @@ def get_dashboard_stats(latest_ip=None):
     # VULNERABILITIES
     # ======================================================
 
-    if latest_ip:
-
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM vulnerabilities
+                WHERE scan_id=?
+            """, (scan_id,))
+            row = cur.fetchone()
+            stats["vulnerabilities"] = row[0] if row else 0
+        except Exception as e:
+            print("Vulnerability Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT COUNT(*)
@@ -197,10 +228,8 @@ def get_dashboard_stats(latest_ip=None):
                     SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port, risk, service
                 )
             """, (latest_ip,))
-
             row = cur.fetchone()
             stats["vulnerabilities"] = row[0] if row else 0
-
         except Exception as e:
             print("Vulnerability Error:", e)
 
@@ -208,8 +237,18 @@ def get_dashboard_stats(latest_ip=None):
     # CVEs
     # ======================================================
 
-    if latest_ip:
-
+    if scan_id:
+        try:
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM cves
+                WHERE scan_id=?
+            """, (scan_id,))
+            row = cur.fetchone()
+            stats["cves"] = row[0] if row else 0
+        except Exception as e:
+            print("CVE Error:", e)
+    elif latest_ip:
         try:
             cur.execute("""
                 SELECT COUNT(*)
@@ -218,10 +257,8 @@ def get_dashboard_stats(latest_ip=None):
                     SELECT MAX(id) FROM cves WHERE ip=? GROUP BY cve_id, port
                 )
             """, (latest_ip,))
-
             row = cur.fetchone()
             stats["cves"] = row[0] if row else 0
-
         except Exception as e:
             print("CVE Error:", e)
 
