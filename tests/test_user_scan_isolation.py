@@ -195,13 +195,9 @@ def test_brand_new_user_gets_populated_baseline_scan(client):
 
     resp = client.get("/url-scan-result")
     assert resp.status_code == 200
-    # Should render baseline intelligence rather than empty error
-    assert b"indiancybersecuritysolutions.com" in resp.data
-    assert b"No URL scan has been conducted yet" not in resp.data
 
     resp_ip = client.get("/ip-scan-result")
     assert resp_ip.status_code == 200
-    assert b"No IP scan has been run yet" not in resp_ip.data
 
     resp_dash = client.get("/")
     assert resp_dash.status_code == 200

@@ -373,286 +373,9 @@ def init_db():
         pass
 
     migrate_db_add_scan_id()
-    seed_default_url_scan_if_empty()
-
-
 def seed_default_url_scan_if_empty(user_id=1):
-    """
-    Seeds a high-fidelity baseline URL scan result for a user if their url_scan_results is empty,
-    guaranteeing that the URL Scan Result page, IP Scan Result page, and Overview Dashboard
-    are always populated with complete intelligence, graphs, and security metrics upon first login.
-    """
-    uid = user_id if user_id is not None else 1
-    conn = get_db_connection()
-    try:
-        count = conn.execute("SELECT COUNT(*) FROM url_scan_results WHERE user_id = ?", (uid,)).fetchone()[0]
-        if count > 0:
-            conn.close()
-            return
-
-        import datetime
-        scan_id = f"icss-scan-u{uid}-01"
-        prev_scan_id = f"icss-scan-u{uid}-00"
-        target_url = "https://indiancybersecuritysolutions.com/"
-        target_domain = "indiancybersecuritysolutions.com"
-        target_ip = "82.180.165.200"
-        scan_time = "2026-08-21 10:21:53"
-        prev_scan_time = "2026-08-20 15:34:05"
-
-        # 1. URL Scan Result
-        conn.execute(
-            """
-            INSERT INTO url_scan_results
-            (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                uid,
-                target_url,
-                target_domain,
-                target_ip,
-                "https",
-                0,
-                "Low",
-                "Website is using HTTPS | Valid TLS certificate configured | Security headers active",
-                scan_time,
-            ),
-        )
-
-        # 2. VirusTotal
-        conn.execute(
-            """
-            INSERT INTO virustotal_results
-            (scan_id, url, domain, malicious, suspicious, harmless, undetected, total_engines, reputation, risk_badge, status, message, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                target_url,
-                target_domain,
-                0,
-                0,
-                61,
-                31,
-                92,
-                0,
-                "Safe",
-                "completed",
-                "0/92 Security Vendors Flagged This Target",
-                "2026-08-21 10:21:38",
-            ),
-        )
-
-        # 3. Technology Detection
-        conn.execute(
-            """
-            INSERT INTO technology_detection
-            (scan_id, ip, url, server, technologies, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                target_ip,
-                target_url,
-                "LiteSpeed",
-                json.dumps({
-                    "server": "LiteSpeed",
-                    "technologies": ["Bootstrap", "jQuery", "LiteSpeed", "Cloudflare", "Content Security Policy", "HSTS Enabled", "HTTP/1.1"]
-                }),
-                scan_time,
-            ),
-        )
-
-        # 4. Security Headers
-        headers_data = [
-            ("Strict-Transport-Security", "Present", "Low", "Enforces HTTPS connections across all subdomains."),
-            ("Content-Security-Policy", "Present", "Low", "Restricts unauthorized script execution and XSS attacks."),
-            ("Referrer-Policy", "Present", "Low", "Controls referrer header information transmission."),
-            ("X-Frame-Options", "Missing", "Medium", "Add X-Frame-Options to prevent invisible iframe clickjacking."),
-            ("X-Content-Type-Options", "Missing", "Medium", "Add 'X-Content-Type-Options: nosniff' header to prevent MIME sniffing."),
-            ("Permissions-Policy", "Missing", "Low", "Explicitly configure browser hardware and feature permissions."),
-        ]
-        for h_name, h_status, h_risk, h_rec in headers_data:
-            conn.execute(
-                """
-                INSERT INTO security_headers
-                (scan_id, ip, url, header_name, status, risk, recommendation, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target_ip, target_url, h_name, h_status, h_risk, h_rec, scan_time),
-            )
-
-        # 5. SSL Results
-        conn.execute(
-            """
-            INSERT INTO ssl_results
-            (scan_id, host, port, has_ssl, tls_version, cipher_suite, key_type, key_size,
-             fingerprint_sha256, cert_chain, san_names, issuer, subject, valid_from, valid_to,
-             days_remaining, self_signed, expired, warnings, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                target_domain,
-                443,
-                1,
-                "TLSv1.3",
-                "TLS_AES_256_GCM_SHA384 (256-bit)",
-                "ECDSA",
-                "256-bit (secp256r1)",
-                "08:2A:D2:68:7C:28:A9:75:E0:90:5A:D1:FC:24:A8:B6:75:29:97:17:22:4D:74:89:B6:F9:6A:C7:90:94:6B:DC",
-                "ISRG Root X1 (Let's Encrypt / TrustID) -> countryName=US, organizationName=Let's Encrypt, commonName=YE2 -> commonName=indiancybersecuritysolutions.com",
-                "INDIANCYBERSECURITYSOLUTIONS.COM, WWW.INDIANCYBERSECURITYSOLUTIONS.COM",
-                "countryName=US, organizationName=Let's Encrypt, commonName=YE2",
-                "commonName=indiancybersecuritysolutions.com",
-                "2026-06-26 09:50:28",
-                "2026-09-24 09:50:27",
-                24,
-                0,
-                0,
-                "None",
-                scan_time,
-            ),
-        )
-
-        # 6. URL Intelligence (WHOIS, GeoIP, WAF)
-        conn.execute(
-            """
-            INSERT INTO url_intelligence
-            (scan_id, ip, url, registrar, creation_date, expiration_date, updated_date,
-             country, region, city, isp, asn, waf, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                target_ip,
-                target_url,
-                "GoDaddy.com, LLC",
-                "2015-10-07",
-                "2027-10-07",
-                "2024-09-10",
-                "India",
-                "Maharashtra",
-                "Mumbai",
-                "HOSTINGER IN",
-                "AS47583 Hostinger International Limited",
-                "None",
-                scan_time,
-            ),
-        )
-
-        # 7. Ports & Services
-        ports_data = [
-            (21, "open", "ftp", "220 FTP Server ready.", "ProFTPD or KnFTPD", "-"),
-            (80, "open", "http", "HTTP/1.0 403 Forbidden Connection: close Date: Fri, 21 Aug 2026 04:52:11 GMT Server: LiteSpeed platform: hostinger panel: hpanel", "LiteSpeed httpd", "-"),
-            (443, "open", "http", "<html><head><title>400 Bad Request</title></head><body><h1>400 Bad Request</h1><p>HTTPS is required</p></body></html>", "LiteSpeed httpd", "-"),
-            (3306, "open", "mysql", "V 11.8.8-MariaDB-log...mysql_native_password", "MariaDB", "11.8.8"),
-        ]
-        for p_num, p_state, p_svc, p_ban, prod, ver in ports_data:
-            conn.execute(
-                """
-                INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target_ip, p_num, p_state, p_svc, p_ban, scan_time),
-            )
-            conn.execute(
-                """
-                INSERT INTO service_versions (scan_id, ip, port, service, product, version, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target_ip, p_num, p_svc, prod, ver, scan_time),
-            )
-
-        # 8. Vulnerabilities
-        vulns_data = [
-            (21, "ftp", "High", "High (Credential & Data Sniffing)", "Disable plain FTP and migrate to SFTP (SSH File Transfer Protocol) or FTPS (FTP over TLS). Disable anonymous login and restrict port access using firewall rules."),
-            (3306, "mysql", "High", "High (Direct Database Data Exfiltration & Authentication Bypass)", "Bind MySQL to localhost or an internal-only interface. Require strong authentication, disable remote root login, and place behind a VPN or bastion host."),
-        ]
-        for p, s, r, d, rem in vulns_data:
-            conn.execute(
-                """
-                INSERT INTO vulnerabilities (scan_id, ip, port, service, risk, description, remediation, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target_ip, p, s, r, d, rem, scan_time),
-            )
-
-        # 9. CVEs
-        cves_data = [
-            (21, "ftp", "CVE-2011-2523", "Critical", "vsftpd 2.3.4 contains a backdoor command execution vulnerability.", 9.8, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "CWE-78", "OS Command Injection", "https://nvd.nist.gov/vuln/detail/CVE-2011-2523", "2011-07-03", 1),
-            (3306, "mysql", "CVE-2012-2122", "High", "MySQL and MariaDB before 5.1.62, 5.2.12, 5.3.6, and 5.5.23 allow remote attackers to bypass authentication.", 7.5, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:P/I:P/A:P", "CWE-287", "Improper Authentication", "https://nvd.nist.gov/vuln/detail/CVE-2012-2122", "2012-06-11", 1),
-        ]
-        for p, s, cid, sev, desc, cvss, vec, cwe_id, cwe_name, refl, pub, exp in cves_data:
-            conn.execute(
-                """
-                INSERT INTO cves (scan_id, ip, port, service, cve_id, severity, description, cvss_score, cvss_vector, cwe_id, cwe_name, ref_links, published_date, exploit_available, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target_ip, p, s, cid, sev, desc, cvss, vec, cwe_id, cwe_name, refl, pub, exp, scan_time),
-            )
-
-        # 10. OS Info
-        conn.execute(
-            """
-            INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (scan_id, target_ip, "Unknown", "General Purpose / Server", "Host did not return identifiable OS TCP/IP signatures or is protected by a firewall.", scan_time),
-        )
-
-        # 11. Security Posture (Current & Previous)
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO security_posture
-            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (scan_id, uid, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", scan_time),
-        )
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO security_posture
-            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (prev_scan_id, uid, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", prev_scan_time),
-        )
-
-        # 12. Risk Summary
-        conn.execute(
-            """
-            INSERT INTO risk_summary
-            (scan_id, ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (scan_id, target_ip, 0, 2, 0, 0, 14, "Medium", scan_time),
-        )
-
-        # 13. Host Status & Scan History Baseline
-        conn.execute(
-            """
-            INSERT INTO host_status
-            (scan_id, user_id, target_ip, status, scan_time)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (scan_id, uid, target_ip, "Alive", scan_time),
-        )
-        conn.execute(
-            """
-            INSERT INTO scan_history
-            (scan_id, user_id, target_ip, status, scan_time)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (scan_id, uid, target_ip, "Alive", scan_time),
-        )
-
-        conn.commit()
-    except Exception as err:
-        print("[SEEDING NOTICE]", err)
-    finally:
-        conn.close()
+    """Disabled: Each new user starts with a clean slate without default mock scans."""
+    return
 
 
 def migrate_db_add_scan_id():
@@ -718,6 +441,11 @@ def migrate_db_add_scan_id():
     conn.close()
 
 
+def seed_default_url_scan_if_empty(user_id=1):
+    """Disabled: Each new user starts with a clean slate without default mock scans."""
+    return
+
+
 def get_latest_ip(user_id=None):
     conn = get_db_connection()
     row = None
@@ -733,20 +461,6 @@ def get_latest_ip(user_id=None):
             (user_id,),
         ).fetchone()
         if not row:
-            row = conn.execute(
-                """
-                SELECT target_ip
-                FROM host_status
-                WHERE user_id = ?
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (user_id,),
-            ).fetchone()
-        if not row:
-            conn.close()
-            seed_default_url_scan_if_empty(user_id=user_id)
-            conn = get_db_connection()
             row = conn.execute(
                 """
                 SELECT target_ip
@@ -796,16 +510,6 @@ def get_latest_ip(user_id=None):
                 LIMIT 1
                 """
             ).fetchone()
-        if not row:
-            row = conn.execute(
-                """
-                SELECT ip AS target_ip
-                FROM ports
-                WHERE ip IS NOT NULL AND ip != '' AND ip != 'Unknown'
-                ORDER BY id DESC
-                LIMIT 1
-                """
-            ).fetchone()
     conn.close()
     return row["target_ip"] if row else None
 
@@ -850,20 +554,6 @@ def get_latest_url_scan(user_id=None):
             """,
             (user_id,),
         ).fetchone()
-        if not row:
-            conn.close()
-            seed_default_url_scan_if_empty(user_id=user_id)
-            conn = get_db_connection()
-            row = conn.execute(
-                """
-                SELECT *
-                FROM url_scan_results
-                WHERE user_id = ?
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (user_id,),
-            ).fetchone()
     else:
         row = conn.execute(
             """
@@ -873,18 +563,6 @@ def get_latest_url_scan(user_id=None):
             LIMIT 1
             """
         ).fetchone()
-        if not row:
-            conn.close()
-            seed_default_url_scan_if_empty(user_id=1)
-            conn = get_db_connection()
-            row = conn.execute(
-                """
-                SELECT *
-                FROM url_scan_results
-                ORDER BY id DESC
-                LIMIT 1
-                """
-            ).fetchone()
     conn.close()
     return row
 
