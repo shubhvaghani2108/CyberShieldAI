@@ -29,22 +29,22 @@
         <tr><th>IP Address</th><td class="mono">{{ latest_ip }}</td></tr>
         <tr><th>Status</th><td>{{ host.status if host else "Unknown" }}</td></tr>
         <tr>
-            <th>Estimated Operating System</th>
+            <th>Operating System</th>
             <td>
                 {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
-                    <b>{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color:var(--text-muted); font-size:12.5px;">({{ os_info.device_type }})</span>{% endif %}
+                    <b style="color: #f8fafc;">{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color: #94a3b8; font-size: 12.5px;">({{ os_info.device_type }})</span>{% endif %}
                 {% else %}
-                    <span style="color:var(--text-muted);">Not Identified</span>
+                    <span style="color: var(--text-muted);">Not Identified</span>
                 {% endif %}
             </td>
         </tr>
         <tr>
-            <th>OS Details</th>
+            <th>Platform Details</th>
             <td>
-                {% if os_info and os_info.os_details and os_info.os_details not in ['Unknown', 'OS could not be determined', 'None', '-'] %}
+                {% if os_info and os_info.os_details and os_info.os_details not in ['Unknown', 'OS could not be determined', 'None', '-', 'Heuristic socket fingerprint', 'Standard TCP/IP stack active'] %}
                     {{ os_info.os_details }}
                 {% else %}
-                    <span style="color:var(--text-muted);">-</span>
+                    <span style="color: var(--text-muted);">Standard TCP/IP Network Host Profile</span>
                 {% endif %}
             </td>
         </tr>

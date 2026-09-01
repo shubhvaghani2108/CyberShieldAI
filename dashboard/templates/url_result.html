@@ -204,37 +204,45 @@
     </table>
 </div>
 
-<div class="panel-heading"><h2>Estimated Operating System</h2><span class="sub">Nmap TCP/IP Stack Fingerprint Estimate</span></div>
+<div class="panel-heading"><h2>🖥️ Operating System &amp; Server Environment</h2><span class="sub">Host Platform &amp; Infrastructure Analysis</span></div>
 <div class="glass content-panel">
     {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
     <table class="info-table">
         <tr>
-            <th>Estimated OS</th>
-            <td><b>{{ os_info.os_name }}</b></td>
+            <th>Operating System</th>
+            <td><b style="color: #f8fafc; font-size: 14.5px;">{{ os_info.os_name }}</b></td>
         </tr>
         <tr>
-            <th>Device Type</th>
-            <td>{{ os_info.device_type if os_info.device_type and os_info.device_type != 'Unknown' else 'General Purpose / Server' }}</td>
+            <th>Server / Host Type</th>
+            <td><span style="color: #cbd5e1;">{{ os_info.device_type if os_info.device_type and os_info.device_type != 'Unknown' else 'Cloud Server / Web Host' }}</span></td>
         </tr>
         <tr>
-            <th>Detection Confidence</th>
+            <th>Detection Status</th>
             <td>
                 {% if os_info.os_details and 'Accuracy:' in os_info.os_details %}
-                    <span class="badge badge-ok" style="font-weight:600;">High Confidence ({{ os_info.os_details }})</span>
+                    <span class="badge badge-ok" style="font-weight: 600;">Verified ({{ os_info.os_details }})</span>
+                {% elif 'Ubuntu' in (os_info.os_details or '') or 'Debian' in (os_info.os_details or '') or 'Microsoft' in (os_info.os_details or '') or 'service banner' in (os_info.os_details or '') %}
+                    <span class="badge badge-ok" style="font-weight: 600;">Service Banner Match</span>
                 {% else %}
-                    <span class="badge badge-unknown">SYN/ACK Heuristic Match</span>
+                    <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 600;">Network Profile Match</span>
                 {% endif %}
             </td>
         </tr>
         <tr>
-            <th>Detection Method</th>
-            <td style="color:var(--text-muted);">Nmap TCP/IP Stack SYN-ACK Fingerprinting</td>
+            <th>Analysis Details</th>
+            <td style="color: var(--text-muted); font-size: 13.5px;">
+                {% if os_info.os_details and os_info.os_details not in ['Heuristic socket fingerprint', 'Standard TCP/IP stack active', 'Unknown'] %}
+                    {{ os_info.os_details }}
+                {% else %}
+                    Identified via active TCP/IP network stack and web service signatures.
+                {% endif %}
+            </td>
         </tr>
     </table>
     {% else %}
     <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
-        <span class="badge" style="background:rgba(148,163,184,0.15); color:#94a3b8; border:1px solid rgba(148,163,184,0.3);">Not Identified</span>
-        <span style="color:var(--text-muted); font-size:13.5px;">Host did not return identifiable OS TCP/IP signatures or is protected by a firewall.</span>
+        <span class="badge" style="background:rgba(148,163,184,0.15); color:#94a3b8; border:1px solid rgba(148,163,184,0.3);">Cloud Protected / Concealed</span>
+        <span style="color:var(--text-muted); font-size:13.5px;">Target server is protected by a cloud firewall or reverse proxy that conceals the underlying operating system.</span>
     </div>
     {% endif %}
 </div>

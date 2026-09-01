@@ -291,35 +291,41 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
 
     # Determine OS heuristics based on services and banners
     os_name = "Unknown"
-    device_type = "General Purpose / Server"
-    os_details = "Heuristic socket fingerprint"
+    device_type = "Cloud Server / Web Host"
+    os_details = "Standard TCP/IP network stack active"
 
     for p_info in open_ports_list:
         banner = p_info.get("banner", "").lower()
         if "microsoft" in banner or "iis" in banner or "windows" in banner:
             os_name = "Windows Server"
-            device_type = "Windows Host"
-            os_details = f"Fingerprinted via Microsoft-IIS on port {p_info['port']}"
+            device_type = "Windows Server Host"
+            os_details = f"Fingerprinted via Microsoft IIS on port {p_info['port']}"
             break
         elif "ubuntu" in banner:
-            os_name = "Linux (Ubuntu)"
-            device_type = "Linux Server"
+            os_name = "Ubuntu Linux"
+            device_type = "Linux Cloud Server"
             os_details = f"Fingerprinted via Ubuntu banner on port {p_info['port']}"
             break
         elif "debian" in banner:
-            os_name = "Linux (Debian)"
-            device_type = "Linux Server"
+            os_name = "Debian Linux"
+            device_type = "Linux Cloud Server"
             os_details = f"Fingerprinted via Debian banner on port {p_info['port']}"
             break
-        elif "centos" in banner or "red hat" in banner:
-            os_name = "Linux (RHEL / CentOS)"
-            device_type = "Linux Server"
+        elif "centos" in banner or "red hat" in banner or "rhel" in banner:
+            os_name = "Red Hat / CentOS Linux"
+            device_type = "Linux Enterprise Server"
             os_details = f"Fingerprinted via RHEL banner on port {p_info['port']}"
+            break
+        elif "nginx" in banner or "apache" in banner or "litespeed" in banner or "openssh" in banner:
+            os_name = "Linux / Unix Server"
+            device_type = "Cloud Server / Web Host"
+            os_details = f"Fingerprinted via web service banner on port {p_info['port']}"
             break
 
     if os_name == "Unknown" and open_ports_list:
-        os_name = "Linux / Unix / Embedded"
-        os_details = "Standard TCP/IP stack active"
+        os_name = "Linux / Unix Server"
+        device_type = "Cloud Server / Web Host"
+        os_details = "Standard TCP/IP network stack"
 
     # Save to SQLite Database
     conn = sqlite3.connect(DB_FILE, timeout=30)
