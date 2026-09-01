@@ -250,6 +250,24 @@ def init_db():
         )
         """
     )
+
+    # SECURITY HEADERS
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS security_headers (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id        TEXT,
+            ip             TEXT,
+            url            TEXT,
+            header_name    TEXT,
+            status         TEXT,
+            risk           TEXT,
+            recommendation TEXT,
+            scan_time      TEXT
+        )
+        """
+    )
+
     # SECURITY POSTURE
     cursor.execute(
         """
