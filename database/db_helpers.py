@@ -149,6 +149,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS scan_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             target_ip TEXT,
             status TEXT,
             scan_time TEXT
@@ -161,6 +162,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS host_status (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             target_ip TEXT,
             status TEXT,
             scan_time TEXT
@@ -173,6 +175,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS url_scan_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             url TEXT,
             domain TEXT,
             ip TEXT,
@@ -273,6 +276,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS security_posture (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             scan_id TEXT UNIQUE,
             ip TEXT,
             url TEXT,
@@ -386,33 +390,60 @@ def seed_default_url_scan_if_empty():
             return
 
         import datetime
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        scan_id = "demo-url-baseline-01"
-        target_url = "https://example.com"
-        target_domain = "example.com"
-        target_ip = "93.184.216.34"
+        scan_id = "icss-scan-20260821-01"
+        prev_scan_id = "icss-scan-20260820-00"
+        target_url = "https://indiancybersecuritysolutions.com/"
+        target_domain = "indiancybersecuritysolutions.com"
+        target_ip = "82.180.165.200"
+        scan_time = "2026-08-21 10:21:53"
+        prev_scan_time = "2026-08-20 15:34:05"
 
         # 1. URL Scan Result
         conn.execute(
             """
             INSERT INTO url_scan_results
-            (scan_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id,
+                1,
+                target_url,
+                target_domain,
+                target_ip,
+                "https",
+                0,
+                "Low",
+                "Website is using HTTPS | Valid TLS certificate configured | Security headers active",
+                scan_time,
+            ),
+        )
+
+        # 2. VirusTotal
+        conn.execute(
+            """
+            INSERT INTO virustotal_results
+            (scan_id, url, domain, malicious, suspicious, harmless, undetected, total_engines, reputation, risk_badge, status, message, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 scan_id,
                 target_url,
                 target_domain,
-                target_ip,
-                "HTTPS",
                 0,
-                "Low",
-                "Website is using HTTPS | Valid TLS certificate configured | Security headers active",
-                now_str,
+                0,
+                61,
+                31,
+                92,
+                0,
+                "Safe",
+                "completed",
+                "0/92 Security Vendors Flagged This Target",
+                "2026-08-21 10:21:38",
             ),
         )
 
-        # 2. Technology Detection
+        # 3. Technology Detection
         conn.execute(
             """
             INSERT INTO technology_detection
@@ -423,23 +454,23 @@ def seed_default_url_scan_if_empty():
                 scan_id,
                 target_ip,
                 target_url,
-                "ECS (dcb/7ea3)",
+                "LiteSpeed",
                 json.dumps({
-                    "server": "ECS (dcb/7ea3)",
-                    "technologies": ["HTTP/2", "TLSv1.3", "HSTS", "HTML5", "Edgecast CDN"]
+                    "server": "LiteSpeed",
+                    "technologies": ["Bootstrap", "jQuery", "LiteSpeed", "Cloudflare", "Content Security Policy", "HSTS Enabled", "HTTP/1.1"]
                 }),
-                now_str,
+                scan_time,
             ),
         )
 
-        # 3. Security Headers
+        # 4. Security Headers
         headers_data = [
             ("Strict-Transport-Security", "Present", "Low", "Enforces HTTPS connections across all subdomains."),
-            ("X-Content-Type-Options", "Present", "Low", "Prevents MIME-sniffing vulnerabilities."),
-            ("X-Frame-Options", "Present", "Low", "Protects against clickjacking attacks."),
-            ("Content-Security-Policy", "Present", "Low", "Restricts unauthorized script execution."),
-            ("Referrer-Policy", "Present", "Low", "Limits referrer information leaks."),
-            ("Permissions-Policy", "Present", "Low", "Controls browser hardware and feature permissions."),
+            ("Content-Security-Policy", "Present", "Low", "Restricts unauthorized script execution and XSS attacks."),
+            ("Referrer-Policy", "Present", "Low", "Controls referrer header information transmission."),
+            ("X-Frame-Options", "Missing", "Medium", "Add X-Frame-Options to prevent invisible iframe clickjacking."),
+            ("X-Content-Type-Options", "Missing", "Medium", "Add 'X-Content-Type-Options: nosniff' header to prevent MIME sniffing."),
+            ("Permissions-Policy", "Missing", "Low", "Explicitly configure browser hardware and feature permissions."),
         ]
         for h_name, h_status, h_risk, h_rec in headers_data:
             conn.execute(
@@ -448,10 +479,10 @@ def seed_default_url_scan_if_empty():
                 (scan_id, ip, url, header_name, status, risk, recommendation, scan_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, target_ip, target_url, h_name, h_status, h_risk, h_rec, now_str),
+                (scan_id, target_ip, target_url, h_name, h_status, h_risk, h_rec, scan_time),
             )
 
-        # 4. SSL Results
+        # 5. SSL Results
         conn.execute(
             """
             INSERT INTO ssl_results
@@ -466,25 +497,25 @@ def seed_default_url_scan_if_empty():
                 443,
                 1,
                 "TLSv1.3",
-                "TLS_AES_256_GCM_SHA384",
-                "RSA",
-                "2048",
-                "A4:2E:88:91:BC:73:90:D1:4F:91:A3:8C:7B:44:91:0E",
-                "DigiCert Global Root G2 -> DigiCert Global CA G2 -> example.com",
-                "example.com, www.example.com",
-                "DigiCert Global Root G2",
-                "CN=example.com",
-                "2026-01-01 00:00:00",
-                "2027-01-01 00:00:00",
-                280,
+                "TLS_AES_256_GCM_SHA384 (256-bit)",
+                "ECDSA",
+                "256-bit (secp256r1)",
+                "08:2A:D2:68:7C:28:A9:75:E0:90:5A:D1:FC:24:A8:B6:75:29:97:17:22:4D:74:89:B6:F9:6A:C7:90:94:6B:DC",
+                "ISRG Root X1 (Let's Encrypt / TrustID) -> countryName=US, organizationName=Let's Encrypt, commonName=YE2 -> commonName=indiancybersecuritysolutions.com",
+                "INDIANCYBERSECURITYSOLUTIONS.COM, WWW.INDIANCYBERSECURITYSOLUTIONS.COM",
+                "countryName=US, organizationName=Let's Encrypt, commonName=YE2",
+                "commonName=indiancybersecuritysolutions.com",
+                "2026-06-26 09:50:28",
+                "2026-09-24 09:50:27",
+                24,
                 0,
                 0,
                 "None",
-                now_str,
+                scan_time,
             ),
         )
 
-        # 5. URL Intelligence (WHOIS, GeoIP, WAF)
+        # 6. URL Intelligence (WHOIS, GeoIP, WAF)
         conn.execute(
             """
             INSERT INTO url_intelligence
@@ -496,67 +527,106 @@ def seed_default_url_scan_if_empty():
                 scan_id,
                 target_ip,
                 target_url,
-                "Internet Assigned Numbers Authority (IANA)",
-                "1992-01-01",
-                "2030-01-01",
-                "2026-01-01",
-                "United States",
-                "California",
-                "Los Angeles",
-                "EDGECAST INC",
-                "AS15133",
-                "Edgecast Cloud WAF",
-                now_str,
+                "GoDaddy.com, LLC",
+                "2015-10-07",
+                "2027-10-07",
+                "2024-09-10",
+                "India",
+                "Maharashtra",
+                "Mumbai",
+                "HOSTINGER IN",
+                "AS47583 Hostinger International Limited",
+                "None",
+                scan_time,
             ),
         )
 
-        # 6. Ports & Services
+        # 7. Ports & Services
         ports_data = [
-            (80, "open", "http", "ECS HTTP Proxy"),
-            (443, "open", "https", "ECS HTTPS Proxy / TLS 1.3"),
+            (21, "open", "ftp", "220 FTP Server ready.", "ProFTPD or KnFTPD", "-"),
+            (80, "open", "http", "HTTP/1.0 403 Forbidden Connection: close Date: Fri, 21 Aug 2026 04:52:11 GMT Server: LiteSpeed platform: hostinger panel: hpanel", "LiteSpeed httpd", "-"),
+            (443, "open", "http", "<html><head><title>400 Bad Request</title></head><body><h1>400 Bad Request</h1><p>HTTPS is required</p></body></html>", "LiteSpeed httpd", "-"),
+            (3306, "open", "mysql", "V 11.8.8-MariaDB-log...mysql_native_password", "MariaDB", "11.8.8"),
         ]
-        for p_num, p_state, p_svc, p_ban in ports_data:
+        for p_num, p_state, p_svc, p_ban, prod, ver in ports_data:
             conn.execute(
                 """
                 INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, target_ip, p_num, p_state, p_svc, p_ban, now_str),
+                (scan_id, target_ip, p_num, p_state, p_svc, p_ban, scan_time),
             )
             conn.execute(
                 """
                 INSERT INTO service_versions (scan_id, ip, port, service, product, version, scan_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, target_ip, p_num, p_svc, "ECS Web Gateway", "v2.4", now_str),
+                (scan_id, target_ip, p_num, p_svc, prod, ver, scan_time),
             )
 
-        # 7. OS Info
+        # 8. Vulnerabilities
+        vulns_data = [
+            (21, "ftp", "High", "High (Credential & Data Sniffing)", "Disable plain FTP and migrate to SFTP (SSH File Transfer Protocol) or FTPS (FTP over TLS). Disable anonymous login and restrict port access using firewall rules."),
+            (3306, "mysql", "High", "High (Direct Database Data Exfiltration & Authentication Bypass)", "Bind MySQL to localhost or an internal-only interface. Require strong authentication, disable remote root login, and place behind a VPN or bastion host."),
+        ]
+        for p, s, r, d, rem in vulns_data:
+            conn.execute(
+                """
+                INSERT INTO vulnerabilities (scan_id, ip, port, service, risk, description, remediation, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, target_ip, p, s, r, d, rem, scan_time),
+            )
+
+        # 9. CVEs
+        cves_data = [
+            (21, "ftp", "CVE-2011-2523", "Critical", "vsftpd 2.3.4 contains a backdoor command execution vulnerability.", 9.8, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "CWE-78", "OS Command Injection", "https://nvd.nist.gov/vuln/detail/CVE-2011-2523", "2011-07-03", 1),
+            (3306, "mysql", "CVE-2012-2122", "High", "MySQL and MariaDB before 5.1.62, 5.2.12, 5.3.6, and 5.5.23 allow remote attackers to bypass authentication.", 7.5, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:P/I:P/A:P", "CWE-287", "Improper Authentication", "https://nvd.nist.gov/vuln/detail/CVE-2012-2122", "2012-06-11", 1),
+        ]
+        for p, s, cid, sev, desc, cvss, vec, cwe_id, cwe_name, refl, pub, exp in cves_data:
+            conn.execute(
+                """
+                INSERT INTO cves (scan_id, ip, port, service, cve_id, severity, description, cvss_score, cvss_vector, cwe_id, cwe_name, ref_links, published_date, exploit_available, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (scan_id, target_ip, p, s, cid, sev, desc, cvss, vec, cwe_id, cwe_name, refl, pub, exp, scan_time),
+            )
+
+        # 10. OS Info
         conn.execute(
             """
             INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (scan_id, target_ip, "Linux / Embedded Gateway", "Web Application Server", "Linux 5.x / Cloud Appliance", now_str),
+            (scan_id, target_ip, "Unknown", "General Purpose / Server", "Host did not return identifiable OS TCP/IP signatures or is protected by a firewall.", scan_time),
         )
 
-        # 8. Posture & Risk Summary
+        # 11. Security Posture (Current & Previous)
         conn.execute(
             """
             INSERT OR REPLACE INTO security_posture
-            (scan_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (scan_id, target_ip, target_url, 95, "A+", 0, "Low", "ASSESSED", now_str),
+            (scan_id, 1, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", scan_time),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO security_posture
+            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (prev_scan_id, 1, target_ip, target_url, 84, "A", 0, "Low", "ASSESSED", prev_scan_time),
         )
 
+        # 12. Risk Summary
         conn.execute(
             """
             INSERT INTO risk_summary
             (scan_id, ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (scan_id, target_ip, 0, 0, 0, 0, 0, "Low", now_str),
+            (scan_id, target_ip, 0, 2, 0, 0, 14, "Medium", scan_time),
         )
 
         conn.commit()
@@ -568,7 +638,7 @@ def seed_default_url_scan_if_empty():
 
 def migrate_db_add_scan_id():
     """
-    Ensures scan_id TEXT column exists on all scan output tables.
+    Ensures scan_id TEXT and user_id INTEGER columns exist on all scan output tables.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -599,6 +669,9 @@ def migrate_db_add_scan_id():
             if columns and "scan_id" not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN scan_id TEXT")
                 print(f"[MIGRATION] Added scan_id TEXT to {table}")
+            if table in ("url_scan_results", "security_posture", "scan_history", "host_status") and "user_id" not in columns:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
+                print(f"[MIGRATION] Added user_id INTEGER to {table}")
         except Exception as e:
             print(f"[MIGRATION] Warning migration {table}: {e}")
 
@@ -611,6 +684,9 @@ def migrate_db_add_scan_id():
         ("idx_os_ip_scan", "os_info", "ip, scan_id"),
         ("idx_ssl_host_scan", "ssl_results", "host, scan_id"),
         ("idx_url_scan_id", "url_scan_results", "scan_id"),
+        ("idx_url_user_id", "url_scan_results", "user_id"),
+        ("idx_history_user_id", "scan_history", "user_id"),
+        ("idx_host_user_id", "host_status", "user_id"),
         ("idx_alerts_scan_time", "alerts", "scan_time"),
     ]
     for idx_name, tbl, cols in indexes:
@@ -623,53 +699,132 @@ def migrate_db_add_scan_id():
     conn.close()
 
 
-def get_latest_ip():
+def get_latest_ip(user_id=None):
     conn = get_db_connection()
-    row = conn.execute(
-        """
-        SELECT target_ip
-        FROM scan_history
-        ORDER BY id DESC
-        LIMIT 1
-    """
-    ).fetchone()
-    if not row:
+    row = None
+    if user_id is not None:
         row = conn.execute(
             """
             SELECT target_ip
-            FROM host_status
+            FROM scan_history
+            WHERE user_id = ?
             ORDER BY id DESC
             LIMIT 1
-        """
+            """,
+            (user_id,),
         ).fetchone()
+        if not row:
+            row = conn.execute(
+                """
+                SELECT target_ip
+                FROM host_status
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+        if not row:
+            row = conn.execute(
+                """
+                SELECT ip AS target_ip
+                FROM url_scan_results
+                WHERE user_id = ? AND ip IS NOT NULL AND ip != '' AND ip != 'Unknown'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT target_ip
+            FROM scan_history
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                """
+                SELECT target_ip
+                FROM host_status
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            row = conn.execute(
+                """
+                SELECT ip AS target_ip
+                FROM url_scan_results
+                WHERE ip IS NOT NULL AND ip != '' AND ip != 'Unknown'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            row = conn.execute(
+                """
+                SELECT ip AS target_ip
+                FROM ports
+                WHERE ip IS NOT NULL AND ip != '' AND ip != 'Unknown'
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
     conn.close()
     return row["target_ip"] if row else None
 
 
-def get_latest_host_status():
+def get_latest_host_status(user_id=None):
     conn = get_db_connection()
-    row = conn.execute(
-        """
-        SELECT target_ip, status, scan_time
-        FROM host_status
-        ORDER BY id DESC
-        LIMIT 1
-    """
-    ).fetchone()
+    if user_id is not None:
+        row = conn.execute(
+            """
+            SELECT target_ip, status, scan_time
+            FROM host_status
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT target_ip, status, scan_time
+            FROM host_status
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
     conn.close()
     return row
 
 
-def get_latest_url_scan():
+def get_latest_url_scan(user_id=None):
     conn = get_db_connection()
-    row = conn.execute(
-        """
-        SELECT *
-        FROM url_scan_results
-        ORDER BY id DESC
-        LIMIT 1
-    """
-    ).fetchone()
+    if user_id is not None:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM url_scan_results
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM url_scan_results
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
     conn.close()
     return row
 
@@ -885,11 +1040,11 @@ def get_latest_url_intelligence(ip=None, url=None, scan_id=None):
     return row
 
 
-def get_url_scan_dashboard_context():
+def get_url_scan_dashboard_context(user_id=None):
     """Bundles the latest URL scan together with its SSL, technology and
     WHOIS/GeoIP intelligence so the complete URL scan output can be shown
     directly on the main dashboard."""
-    url_scan = get_latest_url_scan()
+    url_scan = get_latest_url_scan(user_id=user_id)
 
     if not url_scan:
         return {
@@ -942,11 +1097,11 @@ def get_url_scan_dashboard_context():
     }
 
 
-def get_dashboard_data():
+def get_dashboard_data(user_id=None):
     conn = get_db_connection()
 
-    latest_ip = get_latest_ip()
-    latest_host = get_latest_host_status()
+    latest_ip = get_latest_ip(user_id=user_id)
+    latest_host = get_latest_host_status(user_id=user_id)
 
     ports_count = 0
     vulns_count = 0
@@ -1027,11 +1182,22 @@ def get_dashboard_data():
     }
 
 
-def get_recent_activity(limit=8, latest_ip=None):
+def get_recent_activity(limit=8, latest_ip=None, user_id=None):
     """Most recently scanned hosts, newest first, for the dashboard feed.
     If latest_ip is specified, scopes activity feed to the current target."""
     conn = get_db_connection()
-    if latest_ip:
+    if latest_ip and user_id is not None:
+        rows = conn.execute(
+            """
+            SELECT target_ip, status, scan_time
+            FROM host_status
+            WHERE target_ip = ? AND user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """,
+            (latest_ip, user_id, limit),
+        ).fetchall()
+    elif latest_ip:
         rows = conn.execute(
             """
             SELECT target_ip, status, scan_time
@@ -1041,6 +1207,17 @@ def get_recent_activity(limit=8, latest_ip=None):
             LIMIT ?
         """,
             (latest_ip, limit),
+        ).fetchall()
+    elif user_id is not None:
+        rows = conn.execute(
+            """
+            SELECT target_ip, status, scan_time
+            FROM host_status
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """,
+            (user_id, limit),
         ).fetchall()
     else:
         rows = conn.execute(
@@ -1056,7 +1233,7 @@ def get_recent_activity(limit=8, latest_ip=None):
     return rows
 
 
-def get_risk_trend(limit=8, latest_ip=None):
+def get_risk_trend(limit=8, latest_ip=None, user_id=None):
     """Most recent risk scores from both IP scans and URL scans, oldest -> newest, for the trend chart."""
     conn = get_db_connection()
     combined = []
@@ -1096,16 +1273,28 @@ def get_risk_trend(limit=8, latest_ip=None):
 
     # Fetch recent URL scan results
     try:
-        url_rows = conn.execute(
-            """
-            SELECT domain AS target, score, scan_time
-            FROM url_scan_results
-            WHERE score IS NOT NULL
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        if user_id is not None:
+            url_rows = conn.execute(
+                """
+                SELECT domain AS target, score, scan_time
+                FROM url_scan_results
+                WHERE user_id = ? AND score IS NOT NULL
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+        else:
+            url_rows = conn.execute(
+                """
+                SELECT domain AS target, score, scan_time
+                FROM url_scan_results
+                WHERE score IS NOT NULL
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
         for r in url_rows:
             combined.append({
                 "target": r["target"],
@@ -1133,21 +1322,33 @@ def get_risk_trend(limit=8, latest_ip=None):
     return trend
 
 
-def get_ip_scan_context():
+def get_ip_scan_context(user_id=None):
     """Gathers everything about the latest IP/host scan into one dict."""
-    data = get_dashboard_data()
+    data = get_dashboard_data(user_id=user_id)
     conn = get_db_connection()
-    latest_ip = get_latest_ip()
+    latest_ip = get_latest_ip(user_id=user_id)
 
     # Host
-    host = conn.execute(
-        """
-        SELECT *
-        FROM host_status
-        ORDER BY id DESC
-        LIMIT 1
-    """
-    ).fetchone()
+    if user_id is not None:
+        host = conn.execute(
+            """
+            SELECT *
+            FROM host_status
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    else:
+        host = conn.execute(
+            """
+            SELECT *
+            FROM host_status
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
 
     # Ports
     if latest_ip:

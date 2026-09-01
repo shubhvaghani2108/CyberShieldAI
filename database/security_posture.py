@@ -18,6 +18,7 @@ def init_security_posture_table():
         """
         CREATE TABLE IF NOT EXISTS security_posture (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             scan_id TEXT,
             ip TEXT,
             url TEXT,
@@ -38,6 +39,8 @@ def init_security_posture_table():
         cursor.execute("ALTER TABLE security_posture ADD COLUMN assessment_status TEXT DEFAULT 'ASSESSED'")
     if "scan_id" not in cols:
         cursor.execute("ALTER TABLE security_posture ADD COLUMN scan_id TEXT")
+    if "user_id" not in cols:
+        cursor.execute("ALTER TABLE security_posture ADD COLUMN user_id INTEGER DEFAULT 1")
     conn.commit()
     conn.close()
 
@@ -55,6 +58,7 @@ def save_security_posture(
     scan_time: str = None,
     scan_id: str = None,
     assessment_status: str = "ASSESSED",
+    user_id: int = None,
 ):
     if not scan_time:
         scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -81,31 +85,51 @@ def save_security_posture(
 
     if existing:
         posture_id = existing["id"]
-        cursor.execute(
-            """
-            UPDATE security_posture
-            SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?
-            WHERE id = ?
-            """,
-            (
-                score_val,
-                grade_val,
-                t_score_val,
-                risk_val,
-                assessment_status,
-                scan_time,
-                posture_id
+        if user_id is not None:
+            cursor.execute(
+                """
+                UPDATE security_posture
+                SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?, user_id = ?
+                WHERE id = ?
+                """,
+                (
+                    score_val,
+                    grade_val,
+                    t_score_val,
+                    risk_val,
+                    assessment_status,
+                    scan_time,
+                    user_id,
+                    posture_id
+                )
             )
-        )
+        else:
+            cursor.execute(
+                """
+                UPDATE security_posture
+                SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?
+                WHERE id = ?
+                """,
+                (
+                    score_val,
+                    grade_val,
+                    t_score_val,
+                    risk_val,
+                    assessment_status,
+                    scan_time,
+                    posture_id
+                )
+            )
     else:
         cursor.execute(
             """
             INSERT INTO security_posture
-            (scan_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 scan_id,
+                user_id,
                 ip,
                 url,
                 score_val,
@@ -113,8 +137,8 @@ def save_security_posture(
                 t_score_val,
                 risk_val,
                 assessment_status,
-                scan_time,
-            ),
+                scan_time
+            )
         )
         posture_id = cursor.lastrowid
 

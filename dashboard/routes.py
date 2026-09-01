@@ -929,10 +929,11 @@ def register_routes(app):
 
     @app.route("/")
     def dashboard():
+        current_user_id = session.get("user_id")
 
-        data = get_ip_scan_context()
+        data = get_ip_scan_context(user_id=current_user_id)
 
-        url_ctx = get_url_scan_dashboard_context()
+        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id)
 
         # ===============================
         # ALERTS
@@ -988,7 +989,8 @@ def register_routes(app):
 
     @app.route("/ip-scan-result")
     def ip_scan_result_page():
-        data = get_ip_scan_context()
+        current_user_id = session.get("user_id")
+        data = get_ip_scan_context(user_id=current_user_id)
 
         return render_template(
             "ip_result.html",
@@ -1012,6 +1014,7 @@ def register_routes(app):
     def url_scan_result_page(scan_id=None):
         req_scan_id = scan_id or request.args.get("scan_id")
         target_id = request.args.get("id", type=int)
+        current_user_id = session.get("user_id")
 
         conn = get_db_connection()
         latest_url_scan = None
@@ -1028,7 +1031,7 @@ def register_routes(app):
             ).fetchone()
 
         if not latest_url_scan and not req_scan_id and not target_id:
-            latest_url_scan = get_latest_url_scan()
+            latest_url_scan = get_latest_url_scan(user_id=current_user_id)
 
         conn.close()
 
@@ -1095,6 +1098,7 @@ def register_routes(app):
         logger.info(f"[URL_RESULT_RENDER] Querying record: requested_scan_id={scan_id}, requested_url_result_id={url_result_id}, ip={ip}")
         conn = get_db_connection()
         result = None
+        current_user_id = session.get("user_id")
 
         if scan_id:
             result = conn.execute(
@@ -1109,13 +1113,23 @@ def register_routes(app):
         # Only use IP or generic fallback if NO explicit scan_id or url_result_id was requested
         if not result and not scan_id and not url_result_id:
             if ip and ip != "Unknown":
-                result = conn.execute(
-                    "SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)
-                ).fetchone()
+                if current_user_id is not None:
+                    result = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE ip=? AND user_id=? ORDER BY id DESC LIMIT 1", (ip, current_user_id)
+                    ).fetchone()
+                if not result:
+                    result = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)
+                    ).fetchone()
             if not result:
-                result = conn.execute(
-                    "SELECT * FROM url_scan_results ORDER BY id DESC LIMIT 1"
-                ).fetchone()
+                if current_user_id is not None:
+                    result = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE user_id=? ORDER BY id DESC LIMIT 1", (current_user_id,)
+                    ).fetchone()
+                if not result:
+                    result = conn.execute(
+                        "SELECT * FROM url_scan_results ORDER BY id DESC LIMIT 1"
+                    ).fetchone()
 
         if result:
             result = dict(result)
@@ -1339,9 +1353,19 @@ def register_routes(app):
                     "asn": raw_url_info.get("asn", "Unknown"),
                 }
                 raw_url_info["waf"] = {
-                    "detected": bool(raw_url_info.get("waf") and raw_url_info.get("waf") != "None"),
+                    "detected": bool(raw_url_info.get("waf") and raw_url_info.get("waf") not in ("None", "none", "", None)),
                     "provider": raw_url_info.get("waf", "None"),
+                    "confidence": "High" if (raw_url_info.get("waf") and raw_url_info.get("waf") not in ("None", "none", "", None)) else "Low",
                 }
+                target_domain = result.get("domain") or (result.get("url") or "").replace("https://", "").replace("http://", "").split("/")[0]
+                if target_domain and target_domain not in ("Unknown", "-", "", None):
+                    from scanner.dns_lookup import get_dns_records
+                    try:
+                        raw_url_info["dns"] = get_dns_records(target_domain)
+                    except Exception:
+                        raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
+                else:
+                    raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
             elif result and result.get("url"):
                 raw_url_info = analyze_url_intelligence(result["url"], scan_id=current_scan_id)
         except Exception as e:
@@ -1571,6 +1595,7 @@ def register_routes(app):
         import re
         target = request.form.get("target", "").strip()
         mode = request.form.get("mode", "quick").strip().lower()
+        current_user_id = session.get("user_id")
 
         if not target:
             return "No target IP provided"
@@ -1581,18 +1606,18 @@ def register_routes(app):
 
         if is_url or (not is_ip and "." in target and not target.replace(".", "").isdigit()):
             url_target = target if is_url else f"https://{target}"
-            job_id = _new_job(url_target, job_type="url")
+            job_id = _new_job(url_target, job_type="url", user_id=current_user_id)
             thread = threading.Thread(
-                target=_run_url_scan_job, args=(job_id, url_target), daemon=True
+                target=_run_url_scan_job, args=(job_id, url_target, current_user_id), daemon=True
             )
             thread.start()
             return redirect(url_for("scanning_status_page", job_id=job_id))
 
         ports = "1-65535" if mode == "full" else "top-1000"
-        job_id = _new_job(target, job_type="ip")
+        job_id = _new_job(target, job_type="ip", user_id=current_user_id)
 
         thread = threading.Thread(
-            target=_run_ip_scan_job, args=(job_id, target, ports), daemon=True
+            target=_run_ip_scan_job, args=(job_id, target, ports, current_user_id), daemon=True
         )
         thread.start()
         return redirect(url_for("scanning_status_page", job_id=job_id))
@@ -1625,6 +1650,7 @@ def register_routes(app):
     @app.route("/scan-url", methods=["POST"])
     def scan_url_route():
         url = request.form.get("url", "").strip()
+        current_user_id = session.get("user_id")
 
         if not url:
             return redirect(url_for("dashboard"))
@@ -1632,9 +1658,9 @@ def register_routes(app):
         if not url.startswith("http://") and not url.startswith("https://"):
             url = f"https://{url}"
 
-        job_id = _new_job(url, job_type="url")
+        job_id = _new_job(url, job_type="url", user_id=current_user_id)
         thread = threading.Thread(
-            target=_run_url_scan_job, args=(job_id, url), daemon=True
+            target=_run_url_scan_job, args=(job_id, url, current_user_id), daemon=True
         )
         thread.start()
         return redirect(url_for("scanning_status_page", job_id=job_id))
@@ -1643,7 +1669,8 @@ def register_routes(app):
     def view_ports():
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "")
-        latest_ip = get_latest_ip()
+        current_user_id = session.get("user_id")
+        latest_ip = get_latest_ip(user_id=current_user_id)
         conn = get_db_connection()
 
         if scope == "all":
@@ -1701,7 +1728,8 @@ def register_routes(app):
 
     @app.route("/vulnerabilities")
     def view_vulnerabilities():
-        latest_ip = get_latest_ip()
+        current_user_id = session.get("user_id")
+        latest_ip = get_latest_ip(user_id=current_user_id)
         conn = get_db_connection()
 
         if latest_ip:
@@ -1740,7 +1768,8 @@ def register_routes(app):
     def view_cves():
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "")
-        latest_ip = get_latest_ip()
+        current_user_id = session.get("user_id")
+        latest_ip = get_latest_ip(user_id=current_user_id)
         conn = get_db_connection()
 
         if scope == "all":
@@ -1827,35 +1856,47 @@ def register_routes(app):
             current_target=target or (latest_ip if scope != "all" else "all"),
         )
 
-
-        conn.close()
-        return render_template(
-            "cves.html",
-            active_page="cves",
-            page_title="CVE Database",
-            page_subtitle="Matched CVEs for the latest scan",
-            rows=rows,
-            latest_ip=latest_ip,
-        )
-
     @app.route("/history")
     def history():
         conn = get_db_connection()
-        rows = conn.execute(
-            """
-            SELECT id, target_ip, status, scan_time
-            FROM scan_history
-            ORDER BY id DESC
-        """
-        ).fetchall()
-        if not rows:
+        current_user_id = session.get("user_id")
+        user_role = session.get("role", "VIEWER")
+        if user_role != "ADMIN" and current_user_id is not None:
             rows = conn.execute(
                 """
                 SELECT id, target_ip, status, scan_time
-                FROM host_status
+                FROM scan_history
+                WHERE user_id = ?
+                ORDER BY id DESC
+            """,
+                (current_user_id,),
+            ).fetchall()
+            if not rows:
+                rows = conn.execute(
+                    """
+                    SELECT id, target_ip, status, scan_time
+                    FROM host_status
+                    WHERE user_id = ?
+                    ORDER BY id DESC
+                """,
+                    (current_user_id,),
+                ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, target_ip, status, scan_time
+                FROM scan_history
                 ORDER BY id DESC
             """
             ).fetchall()
+            if not rows:
+                rows = conn.execute(
+                    """
+                    SELECT id, target_ip, status, scan_time
+                    FROM host_status
+                    ORDER BY id DESC
+                """
+                ).fetchall()
         conn.close()
         return render_template(
             "history.html",
@@ -1868,13 +1909,26 @@ def register_routes(app):
     @app.route("/url-history")
     def url_history():
         conn = get_db_connection()
-        rows = conn.execute(
+        current_user_id = session.get("user_id")
+        user_role = session.get("role", "VIEWER")
+        if user_role != "ADMIN" and current_user_id is not None:
+            rows = conn.execute(
+                """
+                SELECT id, url, domain, ip, protocol, score, risk, scan_time
+                FROM url_scan_results
+                WHERE user_id = ?
+                ORDER BY id DESC
+            """,
+                (current_user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT id, url, domain, ip, protocol, score, risk, scan_time
+                FROM url_scan_results
+                ORDER BY id DESC
             """
-            SELECT id, url, domain, ip, protocol, score, risk, scan_time
-            FROM url_scan_results
-            ORDER BY id DESC
-        """
-        ).fetchall()
+            ).fetchall()
         conn.close()
         return render_template(
             "url_history.html",
@@ -1887,7 +1941,8 @@ def register_routes(app):
     @app.route("/risk-report")
     def risk_report():
         requested_target = request.args.get("target", "").strip()
-        latest_ip = get_latest_ip()
+        current_user_id = session.get("user_id")
+        latest_ip = get_latest_ip(user_id=current_user_id)
         target_ip = requested_target if requested_target else latest_ip
 
         conn = get_db_connection()

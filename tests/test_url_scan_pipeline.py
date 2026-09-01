@@ -18,6 +18,20 @@ from dashboard.app import app
 from database.db_helpers import get_db_connection
 
 
+_TEST_SCAN_IDS = []
+
+@pytest.fixture(autouse=True)
+def cleanup_test_scans():
+    yield
+    if _TEST_SCAN_IDS:
+        conn = get_db_connection()
+        for sid in _TEST_SCAN_IDS:
+            conn.execute("DELETE FROM url_scan_results WHERE scan_id = ?", (sid,))
+            conn.execute("DELETE FROM security_posture WHERE scan_id = ?", (sid,))
+        conn.commit()
+        conn.close()
+        _TEST_SCAN_IDS.clear()
+
 @pytest.fixture
 def client():
     app.config["TESTING"] = True
@@ -31,6 +45,7 @@ def client():
 
 
 def _insert_test_url_scan(scan_id, url, domain, ip="93.184.216.34", protocol="HTTPS", score=0, risk="Low"):
+    _TEST_SCAN_IDS.append(scan_id)
     conn = get_db_connection()
     conn.execute(
         """

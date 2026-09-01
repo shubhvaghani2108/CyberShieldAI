@@ -9,8 +9,8 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
 
-def check_host_alive(target, scan_id=None):
-    print(f"\n[+] Checking host availability for {target} [scan_id={scan_id}]...")
+def check_host_alive(target, scan_id=None, user_id=None):
+    print(f"\n[+] Checking host availability for {target} [scan_id={scan_id}, user_id={user_id}]...")
 
     alive = False
     status = "Unreachable"
@@ -102,6 +102,7 @@ def check_host_alive(target, scan_id=None):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS host_status (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             scan_id TEXT,
             target_ip TEXT,
             status TEXT,
@@ -115,11 +116,16 @@ def check_host_alive(target, scan_id=None):
             cursor.execute("ALTER TABLE host_status ADD COLUMN scan_id TEXT")
         except Exception:
             pass
+    if "user_id" not in cols:
+        try:
+            cursor.execute("ALTER TABLE host_status ADD COLUMN user_id INTEGER DEFAULT 1")
+        except Exception:
+            pass
 
     cursor.execute("""
-        INSERT INTO host_status (scan_id, target_ip, status, scan_time)
-        VALUES (?, ?, ?, ?)
-    """, (scan_id, target, status, scan_time))
+        INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time)
+        VALUES (?, ?, ?, ?, ?)
+    """, (scan_id, user_id, target, status, scan_time))
 
     conn.commit()
     conn.close()

@@ -30,13 +30,14 @@ SCAN_JOBS_LOCK = threading.Lock()
 import time
 
 
-def _new_job(target, job_type="ip"):
+def _new_job(target, job_type="ip", user_id=None):
     job_id = uuid.uuid4().hex
     with SCAN_JOBS_LOCK:
         SCAN_JOBS[job_id] = {
             "job_id": job_id,
             "target": target,
             "type": job_type,
+            "user_id": user_id,
             "status": "running",
             "logs": [],
             "error": None,
@@ -69,15 +70,15 @@ def _job_error(job_id, error_message):
             SCAN_JOBS[job_id]["error"] = error_message
 
 
-def _run_ip_scan_job(job_id, target, ports="top-1000"):
+def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
     """Runs the full scan pipeline in a background thread."""
     try:
         scan_id = uuid.uuid4().hex
-        print(f"\n[SCAN] Starting IP scan job_id={job_id} scan_id={scan_id} target={target}")
+        print(f"\n[SCAN] Starting IP scan job_id={job_id} scan_id={scan_id} target={target} user_id={user_id}")
 
         # 1) Host discovery
         _job_log(job_id, f"Checking if {target} is alive...")
-        host_result = check_host_alive(target, scan_id=scan_id)
+        host_result = check_host_alive(target, scan_id=scan_id, user_id=user_id)
 
         # 2) Save scan history
         conn = get_db_connection()
@@ -89,13 +90,18 @@ def _run_ip_scan_job(job_id, target, ports="top-1000"):
                 cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
             except Exception:
                 pass
+        if "user_id" not in cols:
+            try:
+                cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
+            except Exception:
+                pass
 
         cursor.execute(
             """
-            INSERT INTO scan_history (scan_id, target_ip, status, scan_time)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (scan_id, target, host_result["status"], host_result["scan_time"]),
+            (scan_id, user_id, target, host_result["status"], host_result["scan_time"]),
         )
         conn.commit()
         conn.close()
@@ -189,11 +195,11 @@ from scanner.url_scanner import scan_url, score_to_risk_level
 from scanner.virustotal_scanner import query_virustotal
 
 
-def _run_url_scan_job(job_id, url):
+def _run_url_scan_job(job_id, url, user_id=None):
     """Runs the full URL analysis and port-scan pipeline asynchronously in a background thread."""
     try:
         scan_id = uuid.uuid4().hex
-        print(f"\n[SCAN] Starting URL scan job_id={job_id} scan_id={scan_id} target={url}")
+        print(f"\n[SCAN] Starting URL scan job_id={job_id} scan_id={scan_id} target={url} user_id={user_id}")
 
         _job_log(job_id, f"Scanning URL structure and protocol for {url}...")
         result = scan_url(url)
@@ -246,14 +252,24 @@ def _run_url_scan_job(job_id, url):
             remarks = str(result["remarks"])
 
         conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(url_scan_results)")
+        url_cols = [r[1] for r in cursor.fetchall()]
+        if "user_id" not in url_cols:
+            try:
+                cursor.execute("ALTER TABLE url_scan_results ADD COLUMN user_id INTEGER DEFAULT 1")
+            except Exception:
+                pass
+
         conn.execute(
             """
             INSERT INTO url_scan_results
-            (scan_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            """,
             (
                 scan_id,
+                user_id,
                 result["url"],
                 result["domain"],
                 result["ip"],
@@ -289,7 +305,7 @@ def _run_url_scan_job(job_id, url):
 
         if ip != "Unknown":
             _job_log(job_id, f"Checking if resolved IP {ip} is alive...")
-            host_result = check_host_alive(ip, scan_id=scan_id)
+            host_result = check_host_alive(ip, scan_id=scan_id, user_id=user_id)
 
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -300,13 +316,18 @@ def _run_url_scan_job(job_id, url):
                     cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
                 except Exception:
                     pass
+            if "user_id" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
+                except Exception:
+                    pass
 
             cursor.execute(
                 """
-                INSERT INTO scan_history (scan_id, target_ip, status, scan_time)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
+                VALUES (?, ?, ?, ?, ?)
             """,
-                (scan_id, ip, host_result["status"], host_result["scan_time"]),
+                (scan_id, user_id, ip, host_result["status"], host_result["scan_time"]),
             )
             conn.commit()
             conn.close()
@@ -344,6 +365,7 @@ def _run_url_scan_job(job_id, url):
             if ai_job_res and isinstance(ai_job_res, dict):
                 save_security_posture(
                     scan_id=scan_id,
+                    user_id=user_id,
                     ip=ip,
                     url=result["url"],
                     security_score=ai_job_res.get("score"),
