@@ -1166,13 +1166,25 @@ def register_routes(app):
         )
 
         if current_scan_id:
-            # Query all datasets specifically for this scan_id to ensure complete multi-scan isolation
+            # Query all datasets specifically for this scan_id with deduplication
             ports = conn.execute(
-                "SELECT * FROM ports WHERE scan_id=? ORDER BY port ASC",
+                """
+                SELECT * FROM ports 
+                WHERE id IN (
+                    SELECT MAX(id) FROM ports WHERE scan_id=? GROUP BY port
+                )
+                ORDER BY port ASC
+                """,
                 (current_scan_id,),
             ).fetchall()
             services = conn.execute(
-                "SELECT * FROM service_versions WHERE scan_id=? ORDER BY port ASC",
+                """
+                SELECT * FROM service_versions 
+                WHERE id IN (
+                    SELECT MAX(id) FROM service_versions WHERE scan_id=? GROUP BY port
+                )
+                ORDER BY port ASC
+                """,
                 (current_scan_id,),
             ).fetchall()
             os_info = conn.execute(
@@ -1180,11 +1192,23 @@ def register_routes(app):
                 (current_scan_id,),
             ).fetchone()
             raw_vulnerabilities = conn.execute(
-                "SELECT * FROM vulnerabilities WHERE scan_id=? ORDER BY port ASC",
+                """
+                SELECT * FROM vulnerabilities 
+                WHERE id IN (
+                    SELECT MAX(id) FROM vulnerabilities WHERE scan_id=? GROUP BY port
+                )
+                ORDER BY port ASC
+                """,
                 (current_scan_id,),
             ).fetchall()
             cves = conn.execute(
-                "SELECT * FROM cves WHERE scan_id=? ORDER BY port ASC",
+                """
+                SELECT * FROM cves 
+                WHERE id IN (
+                    SELECT MAX(id) FROM cves WHERE scan_id=? GROUP BY cve_id, port
+                )
+                ORDER BY port ASC
+                """,
                 (current_scan_id,),
             ).fetchall()
             risk_summary = conn.execute(
@@ -1245,7 +1269,7 @@ def register_routes(app):
                     SELECT *
                     FROM vulnerabilities
                     WHERE id IN (
-                        SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port, risk, service
+                        SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port
                     )
                     ORDER BY port ASC
                 """,
@@ -1696,11 +1720,16 @@ def register_routes(app):
                     """
                     SELECT ip, port, state, service, banner, scan_time
                     FROM ports
-                    WHERE (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
-                    ) AND state = 'open'
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM ports
+                        WHERE (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        ) AND state = 'open'
+                        GROUP BY ip, port
+                    )
                     ORDER BY ip ASC, port ASC
                     """,
                     (current_user_id, current_user_id, current_user_id),
@@ -1713,11 +1742,16 @@ def register_routes(app):
                     """
                     SELECT ip, port, state, service, banner, scan_time
                     FROM ports
-                    WHERE ip = ? AND (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
-                    ) AND state = 'open'
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM ports
+                        WHERE ip = ? AND (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        ) AND state = 'open'
+                        GROUP BY port
+                    )
                     ORDER BY port ASC
                     """,
                     (target, current_user_id, current_user_id, current_user_id),
@@ -1727,7 +1761,12 @@ def register_routes(app):
                     """
                     SELECT ip, port, state, service, banner, scan_time
                     FROM ports
-                    WHERE ip = ? AND state = 'open'
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM ports
+                        WHERE ip = ? AND state = 'open'
+                        GROUP BY port
+                    )
                     ORDER BY port ASC
                     """,
                     (target,),
@@ -1738,11 +1777,16 @@ def register_routes(app):
                     """
                     SELECT ip, port, state, service, banner, scan_time
                     FROM ports
-                    WHERE ip = ? AND (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
-                    ) AND state = 'open'
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM ports
+                        WHERE ip = ? AND (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        ) AND state = 'open'
+                        GROUP BY port
+                    )
                     ORDER BY port ASC
                     """,
                     (latest_ip, current_user_id, current_user_id, current_user_id),
@@ -1752,7 +1796,12 @@ def register_routes(app):
                     """
                     SELECT ip, port, state, service, banner, scan_time
                     FROM ports
-                    WHERE ip = ? AND state = 'open'
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM ports
+                        WHERE ip = ? AND state = 'open'
+                        GROUP BY port
+                    )
                     ORDER BY port ASC
                     """,
                     (latest_ip,),
@@ -1787,10 +1836,15 @@ def register_routes(app):
                     """
                     SELECT ip, port, service, risk, description, remediation, scan_time
                     FROM vulnerabilities
-                    WHERE ip = ? AND (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM vulnerabilities
+                        WHERE ip = ? AND (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        )
+                        GROUP BY port
                     )
                     ORDER BY
                         CASE LOWER(risk)
@@ -1808,7 +1862,12 @@ def register_routes(app):
                     """
                     SELECT ip, port, service, risk, description, remediation, scan_time
                     FROM vulnerabilities
-                    WHERE ip = ?
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM vulnerabilities
+                        WHERE ip = ?
+                        GROUP BY port
+                    )
                     ORDER BY
                         CASE LOWER(risk)
                             WHEN 'critical' THEN 0
@@ -1847,9 +1906,14 @@ def register_routes(app):
                     """
                     SELECT *
                     FROM cves
-                    WHERE scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                       OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                       OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM cves
+                        WHERE scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                           OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                           OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        GROUP BY ip, cve_id, port
+                    )
                     ORDER BY
                         CASE LOWER(severity)
                             WHEN 'critical' THEN 0
@@ -1869,10 +1933,15 @@ def register_routes(app):
                     """
                     SELECT *
                     FROM cves
-                    WHERE ip = ? AND (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM cves
+                        WHERE ip = ? AND (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        )
+                        GROUP BY cve_id, port
                     )
                     ORDER BY
                         CASE LOWER(severity)
@@ -1890,7 +1959,12 @@ def register_routes(app):
                     """
                     SELECT *
                     FROM cves
-                    WHERE ip = ?
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM cves
+                        WHERE ip = ?
+                        GROUP BY cve_id, port
+                    )
                     ORDER BY
                         CASE LOWER(severity)
                             WHEN 'critical' THEN 0
@@ -1908,10 +1982,15 @@ def register_routes(app):
                     """
                     SELECT *
                     FROM cves
-                    WHERE ip = ? AND (
-                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
-                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM cves
+                        WHERE ip = ? AND (
+                            scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                        )
+                        GROUP BY cve_id, port
                     )
                     ORDER BY
                         CASE LOWER(severity)
@@ -1929,7 +2008,12 @@ def register_routes(app):
                     """
                     SELECT *
                     FROM cves
-                    WHERE ip = ?
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM cves
+                        WHERE ip = ?
+                        GROUP BY cve_id, port
+                    )
                     ORDER BY
                         CASE LOWER(severity)
                             WHEN 'critical' THEN 0
@@ -2108,13 +2192,18 @@ def register_routes(app):
                     posture["security_grade"] = "A" if calc_score >= 80 else ("B" if calc_score >= 60 else "C")
                     posture["risk_level"] = r_latest["risk_level"] or "Medium"
 
-        # 4. Risk Summary History Rows
+        # 4. Risk Summary History Rows (strictly deduplicated by scan_time)
         if target_ip:
             rows = conn.execute(
                 """
                 SELECT ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time
                 FROM risk_summary
-                WHERE ip = ?
+                WHERE id IN (
+                    SELECT MAX(id)
+                    FROM risk_summary
+                    WHERE ip = ?
+                    GROUP BY scan_time
+                )
                 ORDER BY id DESC
             """,
                 (target_ip,),
@@ -2129,7 +2218,7 @@ def register_routes(app):
                 """
                 SELECT * FROM vulnerabilities
                 WHERE id IN (
-                    SELECT MAX(id) FROM vulnerabilities WHERE ip = ? GROUP BY port, service
+                    SELECT MAX(id) FROM vulnerabilities WHERE ip = ? GROUP BY port
                 )
                 ORDER BY
                     CASE LOWER(risk)

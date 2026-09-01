@@ -1465,7 +1465,9 @@ def get_ip_scan_context(user_id=None):
             """
             SELECT *
             FROM ports
-            WHERE scan_id = ?
+            WHERE id IN (
+                SELECT MAX(id) FROM ports WHERE scan_id = ? GROUP BY port
+            )
             ORDER BY port ASC
             """,
             (host_scan_id,),
@@ -1491,7 +1493,9 @@ def get_ip_scan_context(user_id=None):
             """
             SELECT *
             FROM service_versions
-            WHERE scan_id = ?
+            WHERE id IN (
+                SELECT MAX(id) FROM service_versions WHERE scan_id = ? GROUP BY port
+            )
             ORDER BY port ASC
             """,
             (host_scan_id,),
@@ -1517,7 +1521,9 @@ def get_ip_scan_context(user_id=None):
             """
             SELECT *
             FROM vulnerabilities
-            WHERE scan_id = ?
+            WHERE id IN (
+                SELECT MAX(id) FROM vulnerabilities WHERE scan_id = ? GROUP BY port
+            )
             ORDER BY
                 CASE LOWER(risk)
                     WHEN 'critical' THEN 0
@@ -1535,7 +1541,7 @@ def get_ip_scan_context(user_id=None):
             SELECT *
             FROM vulnerabilities
             WHERE id IN (
-                SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port, risk, service
+                SELECT MAX(id) FROM vulnerabilities WHERE ip=? GROUP BY port
             )
             ORDER BY
                 CASE LOWER(risk)
@@ -1557,7 +1563,9 @@ def get_ip_scan_context(user_id=None):
             """
             SELECT *
             FROM cves
-            WHERE scan_id = ?
+            WHERE id IN (
+                SELECT MAX(id) FROM cves WHERE scan_id = ? GROUP BY cve_id, port
+            )
             ORDER BY
                 CASE LOWER(severity)
                     WHEN 'critical' THEN 0
