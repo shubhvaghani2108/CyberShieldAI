@@ -206,3 +206,89 @@ def test_brand_new_user_gets_populated_baseline_scan(client):
     resp_dash = client.get("/")
     assert resp_dash.status_code == 200
     assert b"Security Operations Dashboard" in resp_dash.data
+
+
+def test_logout_and_switch_user_complete_isolation(client):
+    conn = get_db_connection()
+    # Insert User 1 (Alice) distinct data
+    conn.execute(
+        "INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-sw-1", 301, "192.168.100.1", "Alive", "2026-09-01 14:00:00")
+    )
+    conn.execute(
+        "INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-sw-1", 301, "192.168.100.1", "Alive", "2026-09-01 14:00:00")
+    )
+    conn.execute(
+        """
+        INSERT INTO url_scan_results (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("alice-sw-1", 301, "https://user-alice-domain.test", "user-alice-domain.test", "192.168.100.1", "https", 10, "Low", "Alice remarks", "2026-09-01 14:00:00")
+    )
+
+    # Insert User 2 (Bob) distinct data
+    conn.execute(
+        "INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("bob-sw-1", 302, "10.200.0.1", "Alive", "2026-09-01 15:00:00")
+    )
+    conn.execute(
+        "INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("bob-sw-1", 302, "10.200.0.1", "Alive", "2026-09-01 15:00:00")
+    )
+    conn.execute(
+        """
+        INSERT INTO url_scan_results (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("bob-sw-1", 302, "https://user-bob-domain.test", "user-bob-domain.test", "10.200.0.1", "https", 90, "Critical", "Bob remarks", "2026-09-01 15:00:00")
+    )
+    conn.commit()
+    conn.close()
+
+    # Step 1: User 1 (Alice) logs in
+    with client.session_transaction() as sess:
+        sess["user_id"] = 301
+        sess["username"] = "alice301"
+        sess["role"] = "ADMIN"
+
+    resp1_url = client.get("/url-scan-result")
+    assert b"user-alice-domain.test" in resp1_url.data
+    assert b"user-bob-domain.test" not in resp1_url.data
+
+    resp1_hist = client.get("/history")
+    assert b"192.168.100.1" in resp1_hist.data
+    assert b"10.200.0.1" not in resp1_hist.data
+
+    # Step 2: User 1 logs out
+    client.get("/logout")
+
+    # Step 3: User 2 (Bob) logs in
+    with client.session_transaction() as sess:
+        sess["user_id"] = 302
+        sess["username"] = "bob302"
+        sess["role"] = "ADMIN"
+
+    resp2_url = client.get("/url-scan-result")
+    assert b"user-bob-domain.test" in resp2_url.data
+    assert b"user-alice-domain.test" not in resp2_url.data
+
+    resp2_hist = client.get("/history")
+    assert b"10.200.0.1" in resp2_hist.data
+    assert b"192.168.100.1" not in resp2_hist.data
+
+    resp2_url_hist = client.get("/url-history")
+    assert b"user-bob-domain.test" in resp2_url_hist.data
+    assert b"user-alice-domain.test" not in resp2_url_hist.data
+
+    # Step 4: User 2 logs out and User 1 logs back in
+    client.get("/logout")
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 301
+        sess["username"] = "alice301"
+        sess["role"] = "ADMIN"
+
+    resp3_url = client.get("/url-scan-result")
+    assert b"user-alice-domain.test" in resp3_url.data
+    assert b"user-bob-domain.test" not in resp3_url.data

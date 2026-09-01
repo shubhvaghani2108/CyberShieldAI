@@ -939,9 +939,9 @@ def register_routes(app):
         # ALERTS
         # ===============================
 
-        recent_alerts = get_recent_alerts()
+        recent_alerts = get_recent_alerts(user_id=current_user_id)
 
-        alert_stats = get_alert_statistics()
+        alert_stats = get_alert_statistics(user_id=current_user_id)
 
         return render_template(
 
@@ -1691,40 +1691,72 @@ def register_routes(app):
         conn = get_db_connection()
 
         if scope == "all":
-            rows = conn.execute(
-                """
-                SELECT ip, port, state, service, banner, scan_time
-                FROM ports
-                WHERE id IN (
-                    SELECT MAX(id) FROM ports GROUP BY ip, port
-                ) AND state = 'open'
-                ORDER BY ip ASC, port ASC
-            """
-            ).fetchall()
+            if current_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, state, service, banner, scan_time
+                    FROM ports
+                    WHERE (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    ) AND state = 'open'
+                    ORDER BY ip ASC, port ASC
+                    """,
+                    (current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                rows = []
         elif target:
-            rows = conn.execute(
-                """
-                SELECT ip, port, state, service, banner, scan_time
-                FROM ports
-                WHERE id IN (
-                    SELECT MAX(id) FROM ports WHERE ip = ? GROUP BY port
-                ) AND state = 'open'
-                ORDER BY port ASC
-            """,
-                (target,),
-            ).fetchall()
+            if current_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, state, service, banner, scan_time
+                    FROM ports
+                    WHERE ip = ? AND (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    ) AND state = 'open'
+                    ORDER BY port ASC
+                    """,
+                    (target, current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, state, service, banner, scan_time
+                    FROM ports
+                    WHERE ip = ? AND state = 'open'
+                    ORDER BY port ASC
+                    """,
+                    (target,),
+                ).fetchall()
         elif latest_ip:
-            rows = conn.execute(
-                """
-                SELECT ip, port, state, service, banner, scan_time
-                FROM ports
-                WHERE id IN (
-                    SELECT MAX(id) FROM ports WHERE ip = ? GROUP BY port
-                ) AND state = 'open'
-                ORDER BY port ASC
-            """,
-                (latest_ip,),
-            ).fetchall()
+            if current_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, state, service, banner, scan_time
+                    FROM ports
+                    WHERE ip = ? AND (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    ) AND state = 'open'
+                    ORDER BY port ASC
+                    """,
+                    (latest_ip, current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, state, service, banner, scan_time
+                    FROM ports
+                    WHERE ip = ? AND state = 'open'
+                    ORDER BY port ASC
+                    """,
+                    (latest_ip,),
+                ).fetchall()
         else:
             rows = []
 
@@ -1750,24 +1782,44 @@ def register_routes(app):
         conn = get_db_connection()
 
         if latest_ip:
-            rows = conn.execute(
-                """
-                SELECT ip, port, service, risk, description, remediation, scan_time
-                FROM vulnerabilities
-                WHERE ip = ? AND id IN (
-                    SELECT MAX(id) FROM vulnerabilities WHERE ip = ? GROUP BY port, service
-                )
-                ORDER BY
-                    CASE LOWER(risk)
-                        WHEN 'critical' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'medium' THEN 2
-                        ELSE 3
-                    END,
-                    port ASC
-            """,
-                (latest_ip, latest_ip),
-            ).fetchall()
+            if current_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, service, risk, description, remediation, scan_time
+                    FROM vulnerabilities
+                    WHERE ip = ? AND (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    )
+                    ORDER BY
+                        CASE LOWER(risk)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (latest_ip, current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, service, risk, description, remediation, scan_time
+                    FROM vulnerabilities
+                    WHERE ip = ?
+                    ORDER BY
+                        CASE LOWER(risk)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (latest_ip,),
+                ).fetchall()
         else:
             rows = []
 
@@ -1790,61 +1842,105 @@ def register_routes(app):
         conn = get_db_connection()
 
         if scope == "all":
-            raw_cves = conn.execute(
-                """
-                SELECT *
-                FROM cves
-                WHERE id IN (
-                    SELECT MAX(id) FROM cves GROUP BY ip, cve_id, port
-                )
-                ORDER BY
-                    CASE LOWER(severity)
-                        WHEN 'critical' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'medium' THEN 2
-                        ELSE 3
-                    END,
-                    id DESC
-            """
-            ).fetchall()
+            if current_user_id is not None:
+                raw_cves = conn.execute(
+                    """
+                    SELECT *
+                    FROM cves
+                    WHERE scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                       OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                       OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    ORDER BY
+                        CASE LOWER(severity)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        id DESC
+                    """,
+                    (current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                raw_cves = []
         elif target:
-            raw_cves = conn.execute(
-                """
-                SELECT *
-                FROM cves
-                WHERE id IN (
-                    SELECT MAX(id) FROM cves WHERE ip = ? GROUP BY cve_id, port
-                )
-                ORDER BY
-                    CASE LOWER(severity)
-                        WHEN 'critical' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'medium' THEN 2
-                        ELSE 3
-                    END,
-                    port ASC
-            """,
-                (target,),
-            ).fetchall()
+            if current_user_id is not None:
+                raw_cves = conn.execute(
+                    """
+                    SELECT *
+                    FROM cves
+                    WHERE ip = ? AND (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    )
+                    ORDER BY
+                        CASE LOWER(severity)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (target, current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                raw_cves = conn.execute(
+                    """
+                    SELECT *
+                    FROM cves
+                    WHERE ip = ?
+                    ORDER BY
+                        CASE LOWER(severity)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (target,),
+                ).fetchall()
         elif latest_ip:
-            raw_cves = conn.execute(
-                """
-                SELECT *
-                FROM cves
-                WHERE id IN (
-                    SELECT MAX(id) FROM cves WHERE ip = ? GROUP BY cve_id, port
-                )
-                ORDER BY
-                    CASE LOWER(severity)
-                        WHEN 'critical' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'medium' THEN 2
-                        ELSE 3
-                    END,
-                    port ASC
-            """,
-                (latest_ip,),
-            ).fetchall()
+            if current_user_id is not None:
+                raw_cves = conn.execute(
+                    """
+                    SELECT *
+                    FROM cves
+                    WHERE ip = ? AND (
+                        scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                        OR scan_id IN (SELECT scan_id FROM url_scan_results WHERE user_id = ?)
+                    )
+                    ORDER BY
+                        CASE LOWER(severity)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (latest_ip, current_user_id, current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                raw_cves = conn.execute(
+                    """
+                    SELECT *
+                    FROM cves
+                    WHERE ip = ?
+                    ORDER BY
+                        CASE LOWER(severity)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (latest_ip,),
+                ).fetchall()
         else:
             raw_cves = []
 
@@ -1877,15 +1973,14 @@ def register_routes(app):
     def history():
         conn = get_db_connection()
         current_user_id = session.get("user_id")
-        user_role = session.get("role", "VIEWER")
-        if user_role != "ADMIN" and current_user_id is not None:
+        if current_user_id is not None:
             rows = conn.execute(
                 """
                 SELECT id, target_ip, status, scan_time
                 FROM scan_history
                 WHERE user_id = ?
                 ORDER BY id DESC
-            """,
+                """,
                 (current_user_id,),
             ).fetchall()
             if not rows:
@@ -1895,25 +1990,11 @@ def register_routes(app):
                     FROM host_status
                     WHERE user_id = ?
                     ORDER BY id DESC
-                """,
+                    """,
                     (current_user_id,),
                 ).fetchall()
         else:
-            rows = conn.execute(
-                """
-                SELECT id, target_ip, status, scan_time
-                FROM scan_history
-                ORDER BY id DESC
-            """
-            ).fetchall()
-            if not rows:
-                rows = conn.execute(
-                    """
-                    SELECT id, target_ip, status, scan_time
-                    FROM host_status
-                    ORDER BY id DESC
-                """
-                ).fetchall()
+            rows = []
         conn.close()
         return render_template(
             "history.html",
@@ -1927,25 +2008,18 @@ def register_routes(app):
     def url_history():
         conn = get_db_connection()
         current_user_id = session.get("user_id")
-        user_role = session.get("role", "VIEWER")
-        if user_role != "ADMIN" and current_user_id is not None:
+        if current_user_id is not None:
             rows = conn.execute(
                 """
                 SELECT id, url, domain, ip, protocol, score, risk, scan_time
                 FROM url_scan_results
                 WHERE user_id = ?
                 ORDER BY id DESC
-            """,
+                """,
                 (current_user_id,),
             ).fetchall()
         else:
-            rows = conn.execute(
-                """
-                SELECT id, url, domain, ip, protocol, score, risk, scan_time
-                FROM url_scan_results
-                ORDER BY id DESC
-            """
-            ).fetchall()
+            rows = []
         conn.close()
         return render_template(
             "url_history.html",
@@ -1964,23 +2038,31 @@ def register_routes(app):
 
         conn = get_db_connection()
 
-        # 1. Available Targets List
+        # 1. Available Targets List (strictly isolated to current user)
         available_targets = []
         try:
-            target_rows = conn.execute(
-                """
-                SELECT DISTINCT target_ip 
-                FROM host_status 
-                WHERE target_ip IS NOT NULL AND target_ip != ''
-                ORDER BY id DESC
-            """
-            ).fetchall()
+            if current_user_id is not None:
+                target_rows = conn.execute(
+                    """
+                    SELECT DISTINCT target_ip 
+                    FROM host_status 
+                    WHERE target_ip IS NOT NULL AND target_ip != '' AND user_id = ?
+                    ORDER BY id DESC
+                    """,
+                    (current_user_id,),
+                ).fetchall()
+            else:
+                target_rows = []
             for tr in target_rows:
                 ip_val = tr[0]
-                # Get latest risk for this IP
+                # Get latest risk for this IP and user
                 r_row = conn.execute(
-                    "SELECT risk_level, total_score FROM risk_summary WHERE ip = ? ORDER BY id DESC LIMIT 1",
-                    (ip_val,),
+                    """
+                    SELECT risk_level, total_score FROM risk_summary 
+                    WHERE ip = ? AND (scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?) OR scan_id IS NULL)
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (ip_val, current_user_id),
                 ).fetchone()
                 risk_lvl = r_row["risk_level"] if r_row else "Low"
                 available_targets.append({"ip": ip_val, "risk_level": risk_lvl})

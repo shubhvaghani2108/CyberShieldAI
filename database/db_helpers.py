@@ -688,7 +688,7 @@ def migrate_db_add_scan_id():
             if columns and "scan_id" not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN scan_id TEXT")
                 print(f"[MIGRATION] Added scan_id TEXT to {table}")
-            if table in ("url_scan_results", "security_posture", "scan_history", "host_status") and "user_id" not in columns:
+            if table in ("url_scan_results", "security_posture", "scan_history", "host_status", "alerts") and "user_id" not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
                 print(f"[MIGRATION] Added user_id INTEGER to {table}")
         except Exception as e:
