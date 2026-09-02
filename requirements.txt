@@ -15,3 +15,4 @@ dnspython
 gunicorn
 apscheduler
 pytest
+psycopg2-binary
