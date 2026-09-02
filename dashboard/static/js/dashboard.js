@@ -12,11 +12,23 @@ document.addEventListener("DOMContentLoaded", function () {
   initUtcToLocalTimestamps();
 });
 
-/* ---------------- theme toggle (dark / light) ---------------- */
+/* ---------------- theme toggle (dark / light / system) ---------------- */
 function initThemeToggle() {
   const root = document.documentElement;
   const stored = localStorage.getItem("csa-theme");
-  if (stored === "light") root.setAttribute("data-theme", "light");
+  
+  if (stored === "light") {
+    root.setAttribute("data-theme", "light");
+  } else if (stored === "dark") {
+    root.removeAttribute("data-theme");
+  } else {
+    // Default to user's system preference
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      root.setAttribute("data-theme", "light");
+    } else {
+      root.removeAttribute("data-theme");
+    }
+  }
 
   const toggle = document.querySelector("[data-theme-toggle]");
   if (!toggle) return;
@@ -35,6 +47,23 @@ function initThemeToggle() {
     }
   }
   syncUI();
+
+  // Listen for real-time OS theme switches if user has not manually overridden theme
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+      if (!localStorage.getItem("csa-theme")) {
+        if (e.matches) {
+          root.setAttribute("data-theme", "light");
+        } else {
+          root.removeAttribute("data-theme");
+        }
+        syncUI();
+        if (typeof updateChartsTheme === "function") {
+          updateChartsTheme();
+        }
+      }
+    });
+  }
 
   toggle.addEventListener("click", () => {
     const isLight = root.getAttribute("data-theme") === "light";

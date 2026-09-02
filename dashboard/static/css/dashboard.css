@@ -872,13 +872,71 @@ html[data-theme="light"]{
   --text-2:#64748b;
 }
 html[data-theme="light"] .sidebar-brand .mark{ color:#f6feff; }
-html[data-theme="light"] .btn-primary{ color:#f6feff; }
+html[data-theme="light"] .btn-primary{ color:#ffffff; }
 html[data-theme="light"] .sidebar-nav a.active{ background:rgba(8,145,178,0.12); color:var(--accent); }
 
-/* Form select dropdown dark/light readability fix */
-select, option {
-  background-color: var(--panel-solid);
+/* Form inputs & selects light theme readability */
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background-color: #ffffff;
   color: var(--text-0);
+  border-color: rgba(15, 23, 42, 0.20);
+}
+
+html[data-theme="light"] input:focus,
+html[data-theme="light"] select:focus,
+html[data-theme="light"] textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+}
+
+html[data-theme="light"] select, 
+html[data-theme="light"] option {
+  background-color: #ffffff;
+  color: var(--text-0);
+}
+
+html[data-theme="light"] .scan-tab.active {
+  background: #ffffff;
+  color: var(--accent);
+  border: 1px solid rgba(15, 23, 42, 0.20);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="light"] .topbar {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+}
+
+html[data-theme="light"] thead th {
+  background: #f8fafc;
+  color: #475569;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme="light"] tbody tr:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+
+html[data-theme="light"] .mono {
+  color: #334155;
+}
+
+html[data-theme="light"] .user-logout-link {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+  color: #dc2626;
+}
+
+html[data-theme="light"] .user-logout-link:hover {
+  background: rgba(220, 38, 38, 0.18);
+  color: #991b1b;
 }
 
 /* Expandable detail drawer theme parity classes */

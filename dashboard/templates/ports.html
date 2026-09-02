@@ -32,12 +32,12 @@
         {% set meaning_val = meanings[loop.index0] if (meanings and loop.index0 < meanings|length) else "Active network service endpoint" %}
         <tr>
             <td class="mono">
-                <span style="color: #38bdf8; font-weight: 500;">
+                <span style="color: var(--accent); font-weight: 500;">
                     {{ ip_val }}
                 </span>
             </td>
             <td class="mono">
-                <strong style="color: #f8fafc; font-size: 14px;">{{ port_val }}</strong>
+                <strong style="color: var(--text-0); font-size: 14px;">{{ port_val }}</strong>
             </td>
             <td>
                 {% if (state_val or 'open')|lower == 'open' %}
@@ -49,14 +49,14 @@
                 {% endif %}
             </td>
             <td>
-                <span style="color: #f8fafc; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 13px;">
+                <span style="color: var(--text-0); font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 13px;">
                     {{ (service_val or 'unknown')|lower }}
                 </span>
             </td>
-            <td style="max-width: 480px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #f1f5f9; line-height: 1.45;">
+            <td style="max-width: 480px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--text-0); line-height: 1.45;">
                 {{ banner_val or "No banner" }}
             </td>
-            <td style="max-width: 360px; word-wrap: break-word; color: #cbd5e1; font-size: 13px; line-height: 1.45; font-style: italic;">
+            <td style="max-width: 360px; word-wrap: break-word; color: var(--text-1); font-size: 13px; line-height: 1.45; font-style: italic;">
                 {{ meaning_val }}
             </td>
         </tr>
@@ -67,7 +67,7 @@
 {% else %}
 <div class="glass content-panel" style="padding: 40px; text-align: center;">
     <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🛡️</div>
-    <h3 style="margin-bottom: 6px; color: #f8fafc;">No Open Ports Detected</h3>
+    <h3 style="margin-bottom: 6px; color: var(--text-0);">No Open Ports Detected</h3>
     <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 480px; margin: 0 auto;">
         No active open ports were detected on {{ latest_ip or "the target host" }}. Run a new scan from the top navigation bar to profile network ports and services.
     </p>

@@ -168,11 +168,11 @@
     <table class="info-table">
         <tr>
             <th>Operating System</th>
-            <td><b style="color: #f8fafc; font-size: 14.5px;">{{ os_info.os_name }}</b></td>
+            <td><b style="color: var(--text-0); font-size: 14.5px;">{{ os_info.os_name }}</b></td>
         </tr>
         <tr>
             <th>Server / Host Type</th>
-            <td><span style="color: #cbd5e1;">{{ os_info.device_type if os_info.device_type and os_info.device_type != 'Unknown' else 'Cloud Server / Web Host' }}</span></td>
+            <td><span style="color: var(--text-1);">{{ os_info.device_type if os_info.device_type and os_info.device_type != 'Unknown' else 'Cloud Server / Web Host' }}</span></td>
         </tr>
         <tr>
             <th>Detection Status</th>

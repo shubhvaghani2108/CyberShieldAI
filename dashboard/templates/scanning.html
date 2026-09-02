@@ -18,6 +18,12 @@
             document.documentElement.setAttribute("data-theme", "light");
           } else if (t === "dark") {
             document.documentElement.removeAttribute("data-theme");
+          } else {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+              document.documentElement.setAttribute("data-theme", "light");
+            } else {
+              document.documentElement.removeAttribute("data-theme");
+            }
           }
         } catch (e) {}
       })();

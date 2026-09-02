@@ -33,7 +33,7 @@
             <th>Operating System</th>
             <td>
                 {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
-                    <b style="color: #f8fafc;">{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color: #94a3b8; font-size: 12.5px;">({{ os_info.device_type }})</span>{% endif %}
+                    <b style="color: var(--text-0);">{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color: var(--text-2); font-size: 12.5px;">({{ os_info.device_type }})</span>{% endif %}
                 {% else %}
                     <span style="color: var(--text-muted);">Not Identified</span>
                 {% endif %}
