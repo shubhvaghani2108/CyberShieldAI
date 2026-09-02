@@ -1,19 +1,11 @@
-import sqlite3
-import os
-
-# ==========================================================
-# Database Path
-# ==========================================================
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 # ==========================================================
 # Database Connection
 # ==========================================================
 
 def run_init():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""

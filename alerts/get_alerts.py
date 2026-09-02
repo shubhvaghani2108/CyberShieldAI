@@ -1,14 +1,9 @@
-import sqlite3
-import os
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 
 def get_alerts(ip):
 
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
 
     rows = conn.execute(
         """

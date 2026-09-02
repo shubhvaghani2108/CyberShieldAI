@@ -1,12 +1,4 @@
-import sqlite3
-import os
-
-# ==========================================================
-# DATABASE PATH
-# ==========================================================
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 
 # ==========================================================
@@ -19,8 +11,7 @@ def get_dashboard_stats(latest_ip=None, scan_id=None):
     When scan_id is provided, queries the exact scan dataset for complete multi-user isolation.
     """
 
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cur = conn.cursor()
 
     stats = {

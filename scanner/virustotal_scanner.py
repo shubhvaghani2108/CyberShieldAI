@@ -35,11 +35,10 @@ def _load_env():
 _load_env()
 
 
-def _get_conn():
+from database.db_engine import get_db_connection
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _get_conn():
+    return get_db_connection()
 
 
 def init_virustotal_table():

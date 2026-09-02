@@ -1,13 +1,13 @@
 import os
-import sqlite3
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
 
 def calculate_risk(target_ip, scan_id=None):
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:

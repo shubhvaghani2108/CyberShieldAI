@@ -7,13 +7,10 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
-
+from database.db_engine import get_db_connection
 
 def _get_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return get_db_connection()
 
 
 

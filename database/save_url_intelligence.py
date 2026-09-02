@@ -1,4 +1,4 @@
-import sqlite3
+from database.db_engine import get_db_connection
 import os
 from datetime import datetime
 
@@ -38,7 +38,7 @@ def save_url_intelligence(data, scan_id=None):
         isp = geoip_info.get("isp", "Unknown")
         asn = geoip_info.get("asn", "Unknown")
 
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""

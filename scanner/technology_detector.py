@@ -1,7 +1,7 @@
 import os
-import sqlite3
 import socket
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 import requests
 import urllib3
@@ -33,7 +33,7 @@ def save_technology(url, server, technologies):
 
     try:
 
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute("""

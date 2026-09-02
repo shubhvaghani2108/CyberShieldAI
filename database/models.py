@@ -1,11 +1,7 @@
-import os
-import sqlite3
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_PATH = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 def create_models():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("PRAGMA journal_mode=WAL")

@@ -9,44 +9,37 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from database.db_engine import (
+    get_db_connection,
+    is_postgres,
+    resolve_sqlite_path,
+    get_database_url,
+    DbRow,
+)
 from database.assets import get_assets
 from database.dashboard_stats import get_dashboard_stats
 from database.ssl_results import get_latest_ssl
 from scanner.recommendation_engine import generate_recommendations
 
 def _resolve_db_path():
-    if os.environ.get("CYBERSHIELD_DB_PATH"):
-        return os.environ.get("CYBERSHIELD_DB_PATH")
-    for persistent_dir in ["/var/data", "/data", "/persistent"]:
-        if os.path.isdir(persistent_dir) and os.access(persistent_dir, os.W_OK):
-            return os.path.join(persistent_dir, "cybershield.db")
-    if os.environ.get("VERCEL"):
-        tmp_db = os.path.join("/tmp", "cybershield.db")
-        local_db = os.path.join(BASE_DIR, "cybershield.db")
-        if not os.path.exists(tmp_db) and os.path.exists(local_db):
-            import shutil
-            try:
-                shutil.copyfile(local_db, tmp_db)
-            except Exception:
-                pass
-        return tmp_db
-    return os.path.join(BASE_DIR, "cybershield.db")
-
+    return resolve_sqlite_path()
 
 DB_PATH = _resolve_db_path()
-
-
-def get_db_connection():
-    conn = sqlite3.connect(_resolve_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # PORTS
+    if is_postgres():
+        from scripts.migrate_sqlite_to_postgresql import TABLE_SCHEMAS, TABLE_INDEXES
+        combined_ddl = ";\n".join(list(TABLE_SCHEMAS.values()) + TABLE_INDEXES)
+        cursor.execute(combined_ddl)
+        conn.commit()
+        conn.close()
+        return
+
+    # PORTS (SQLite fallback)
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS ports (

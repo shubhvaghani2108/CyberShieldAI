@@ -1,21 +1,23 @@
 import os
-import sqlite3
-from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
 
 def _get_conn():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return get_db_connection()
 
+
+_email_settings_init_done = False
 
 def init_email_settings_table():
     """
     Initializes email_settings table in cybershield.db.
     """
+    global _email_settings_init_done
+    if _email_settings_init_done:
+        return
     conn = _get_conn()
     try:
         conn.execute(
@@ -56,6 +58,7 @@ def init_email_settings_table():
                 """
             )
         conn.commit()
+        _email_settings_init_done = True
     finally:
         conn.close()
 

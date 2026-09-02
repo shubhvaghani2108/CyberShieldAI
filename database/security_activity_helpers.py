@@ -11,8 +11,13 @@ from database.db_helpers import get_db_connection
 from database.user_helpers import get_user_activity_metrics
 
 
+_sec_activity_init_done = False
+
 def init_security_activity_table():
     """Idempotently initializes the security_activity_logs table and indexes."""
+    global _sec_activity_init_done
+    if _sec_activity_init_done:
+        return
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
@@ -36,6 +41,7 @@ def init_security_activity_table():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sec_activity_created_at ON security_activity_logs(created_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sec_activity_user_id ON security_activity_logs(user_id)")
         conn.commit()
+        _sec_activity_init_done = True
     finally:
         conn.close()
 

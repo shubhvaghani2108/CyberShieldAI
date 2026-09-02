@@ -5,9 +5,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import sqlite3
 from datetime import datetime
 import nmap
+from database.db_engine import get_db_connection
 
 from scanner.nmap_utils import get_nmap_path
 
@@ -25,7 +25,7 @@ def detect_services(target_ip, scan_id=None):
         nmap_search_path=(get_nmap_path(),)
     )
 
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # -------------------------------------------------------

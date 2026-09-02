@@ -1,6 +1,5 @@
-import os
-import sqlite3
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
@@ -13,7 +12,7 @@ def _ensure_alerts_table_columns():
     without creating duplicate tables.
     """
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -105,7 +104,7 @@ def save_alert(
     final_msg = message or description or final_title
     final_rec = recommendation or ""
 
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     try:
         cur = conn.cursor()
         cur.execute(

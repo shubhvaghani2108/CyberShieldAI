@@ -1,6 +1,6 @@
 import os
-import sqlite3
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
@@ -476,7 +476,7 @@ def scan_cves(target_ip, scan_id=None):
         print("[!] No target IP provided.")
         return
 
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

@@ -4,6 +4,8 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 
+from database.db_engine import get_db_connection
+
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
@@ -12,9 +14,7 @@ DB_PATH = os.path.join(BASE_DIR, "cybershield.db")
 
 
 def _get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return get_db_connection()
 
 
 def _clean_date_label(timestamp_str: str) -> str:

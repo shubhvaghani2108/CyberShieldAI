@@ -1,9 +1,9 @@
 import os
 import platform
-import sqlite3
 import subprocess
 import socket
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
@@ -96,7 +96,7 @@ def check_host_alive(target, scan_id=None, user_id=None):
 
     scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""

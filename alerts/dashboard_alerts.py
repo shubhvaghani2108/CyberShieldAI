@@ -1,8 +1,4 @@
-import sqlite3
-import os
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 
 def _ensure_user_id_col(conn):
@@ -18,8 +14,7 @@ def _ensure_user_id_col(conn):
 
 
 def get_recent_alerts(limit=10, user_id=None):
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     _ensure_user_id_col(conn)
     try:
         if user_id is not None:
@@ -58,8 +53,7 @@ def get_recent_alerts(limit=10, user_id=None):
 
 
 def get_alert_statistics(user_id=None):
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     _ensure_user_id_col(conn)
     stats = {}
     for severity in ["Critical", "High", "Medium", "Low"]:

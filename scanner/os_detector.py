@@ -5,9 +5,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import sqlite3
 import subprocess
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 from scanner.nmap_utils import get_nmap_path
 
@@ -87,7 +87,7 @@ def detect_os(target_ip, scan_id=None):
         # --------------------------------------------------
         # Database
         # --------------------------------------------------
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute("""

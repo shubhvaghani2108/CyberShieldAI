@@ -13,8 +13,11 @@ htmlcov/
 
 # Local databases & uploads
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 instance/
+.venv/
 
 # OS and Editor configs
 .DS_Store

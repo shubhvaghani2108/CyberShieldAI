@@ -11,7 +11,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import sqlite3
+from database.db_engine import get_db_connection
 
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
@@ -308,8 +308,8 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
         device_type = "Cloud Server / Web Host"
         os_details = "Standard TCP/IP network stack"
 
-    # Save to SQLite Database
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    # Save to Database
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
@@ -398,7 +398,7 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
 
     report(f"Starting Nmap scan for {target} (ports={ports}) [scan_id={scan_id}]")
 
-    conn = sqlite3.connect(DB_FILE, timeout=30)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:

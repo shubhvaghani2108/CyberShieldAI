@@ -1,8 +1,4 @@
-import sqlite3
-import os
-
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
+from database.db_engine import get_db_connection
 
 
 def get_assets(latest_ip=None, latest_only=False, user_id=None):
@@ -11,8 +7,7 @@ def get_assets(latest_ip=None, latest_only=False, user_id=None):
     Guarantees only the MOST RECENT scan data is returned for each host (deduplicated),
     and optionally filters to only the latest scanned IP target or user if requested.
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     cur = conn.cursor()
 
     if latest_only and not latest_ip:

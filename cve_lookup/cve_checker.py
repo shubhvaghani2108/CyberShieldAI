@@ -16,18 +16,16 @@ except ImportError:
             "description": f"Exposed open service on port {port} ({service})."
         }
 
-DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
-if not os.path.exists(DB_FILE):
-    DB_FILE = "cybershield.db"
+from database.db_engine import get_db_connection
 
-conn = sqlite3.connect(DB_FILE)
+conn = get_db_connection()
 cursor = conn.cursor()
 
 # Query ports table first, falling back to vulnerabilities table
 try:
     cursor.execute("SELECT ip, port, service FROM ports")
     rows = cursor.fetchall()
-except sqlite3.OperationalError:
+except Exception:
     rows = []
 
 if not rows:

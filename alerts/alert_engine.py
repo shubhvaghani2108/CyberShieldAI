@@ -1,7 +1,7 @@
 import os
-import sqlite3
 import sys
 from datetime import datetime
+from database.db_engine import get_db_connection
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
@@ -148,8 +148,7 @@ def get_monitoring_alerts(limit=50):
     - message
     - created_at
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+    conn = get_db_connection()
     try:
         rows = conn.execute(
             """
