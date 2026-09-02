@@ -15,19 +15,25 @@ document.addEventListener("DOMContentLoaded", function () {
 /* ---------------- theme toggle (dark / light / system) ---------------- */
 function initThemeToggle() {
   const root = document.documentElement;
-  const stored = localStorage.getItem("csa-theme");
+  let stored = localStorage.getItem("csa-theme");
   
+  if (!stored) {
+    const match = document.cookie.match(new RegExp("(?:^|; )csa_theme=([^;]*)"));
+    if (match) stored = decodeURIComponent(match[1]);
+  }
+
+  if (!stored) {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      stored = "light";
+    } else {
+      stored = "dark";
+    }
+  }
+
   if (stored === "light") {
     root.setAttribute("data-theme", "light");
-  } else if (stored === "dark") {
-    root.removeAttribute("data-theme");
   } else {
-    // Default to user's system preference
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-      root.setAttribute("data-theme", "light");
-    } else {
-      root.removeAttribute("data-theme");
-    }
+    root.setAttribute("data-theme", "dark");
   }
 
   const toggle = document.querySelector("[data-theme-toggle]");
@@ -52,11 +58,8 @@ function initThemeToggle() {
   if (window.matchMedia) {
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
       if (!localStorage.getItem("csa-theme")) {
-        if (e.matches) {
-          root.setAttribute("data-theme", "light");
-        } else {
-          root.removeAttribute("data-theme");
-        }
+        const theme = e.matches ? "light" : "dark";
+        root.setAttribute("data-theme", theme);
         syncUI();
         if (typeof updateChartsTheme === "function") {
           updateChartsTheme();
@@ -67,13 +70,12 @@ function initThemeToggle() {
 
   toggle.addEventListener("click", () => {
     const isLight = root.getAttribute("data-theme") === "light";
-    if (isLight) {
-      root.removeAttribute("data-theme");
-      localStorage.setItem("csa-theme", "dark");
-    } else {
-      root.setAttribute("data-theme", "light");
-      localStorage.setItem("csa-theme", "light");
-    }
+    const nextTheme = isLight ? "dark" : "light";
+    
+    root.setAttribute("data-theme", nextTheme);
+    localStorage.setItem("csa-theme", nextTheme);
+    document.cookie = "csa_theme=" + nextTheme + "; path=/; max-age=31536000; SameSite=Lax";
+    
     syncUI();
     if (typeof updateChartsTheme === "function") {
       updateChartsTheme();

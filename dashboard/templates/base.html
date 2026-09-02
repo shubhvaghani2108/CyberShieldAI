@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {% if request.cookies.get('csa_theme') == 'light' %}data-theme="light"{% elif request.cookies.get('csa_theme') == 'dark' %}data-theme="dark"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,22 +10,26 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 
-    <!-- Applies the saved or system theme before first paint, preventing theme flash -->
+    <!-- Applies the saved or system theme before first paint, preventing theme flash & navigation flips -->
     <script>
       (function () {
         try {
           var t = localStorage.getItem("csa-theme");
+          if (!t) {
+            var match = document.cookie.match(new RegExp('(^| )csa_theme=([^;]+)'));
+            if (match) t = match[2];
+          }
+          if (!t) {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+              t = "light";
+            } else {
+              t = "dark";
+            }
+          }
           if (t === "light") {
             document.documentElement.setAttribute("data-theme", "light");
-          } else if (t === "dark") {
-            document.documentElement.removeAttribute("data-theme");
           } else {
-            // Default to user's operating system mode
-            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-              document.documentElement.setAttribute("data-theme", "light");
-            } else {
-              document.documentElement.removeAttribute("data-theme");
-            }
+            document.documentElement.setAttribute("data-theme", "dark");
           }
         } catch (e) {}
       })();

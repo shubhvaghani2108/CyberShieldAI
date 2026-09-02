@@ -17,6 +17,9 @@ from scanner.recommendation_engine import generate_recommendations
 def _resolve_db_path():
     if os.environ.get("CYBERSHIELD_DB_PATH"):
         return os.environ.get("CYBERSHIELD_DB_PATH")
+    for persistent_dir in ["/var/data", "/data", "/persistent"]:
+        if os.path.isdir(persistent_dir) and os.access(persistent_dir, os.W_OK):
+            return os.path.join(persistent_dir, "cybershield.db")
     if os.environ.get("VERCEL"):
         tmp_db = os.path.join("/tmp", "cybershield.db")
         local_db = os.path.join(BASE_DIR, "cybershield.db")

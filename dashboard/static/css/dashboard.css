@@ -799,7 +799,15 @@ tbody tr:last-child td{ border-bottom:none; }
   background:var(--accent);
   transition:transform .15s ease, background .15s ease;
 }
-html[data-theme="light"] .theme-toggle .thumb{ transform:translateX(15px); background:var(--accent-2); }
+html[data-theme="dark"] .theme-toggle .thumb,
+:root:not([data-theme="light"]) .theme-toggle .thumb {
+  transform: translateX(0);
+  background: var(--accent);
+}
+html[data-theme="light"] .theme-toggle .thumb {
+  transform: translateX(15px);
+  background: var(--accent-2);
+}
 
 /* ---------- mobile / responsive ---------- */
 .sidebar-toggle{
