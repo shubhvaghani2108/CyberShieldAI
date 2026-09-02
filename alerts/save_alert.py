@@ -1,5 +1,6 @@
 from datetime import datetime
 from database.db_engine import get_db_connection
+import os
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
