@@ -21,8 +21,12 @@
         <tbody>
         {% for row in rows %}
         <tr>
-            <td class="mono">{{ row[0] }}</td>
-            <td class="mono">{{ row[1] }}</td>
+            <td class="mono" style="font-weight:600; color:var(--accent);">#{{ loop.index }}</td>
+            <td class="mono">
+                <a href="{{ url_for('ip_scan_result_page') }}?ip={{ row[1] }}" style="color:var(--accent); font-weight:600; text-decoration:none;">
+                    {{ row[1] }}
+                </a>
+            </td>
             <td>
                 {% if 'Alive' in row[2] or row[2] == 'Online' or row[2] == 'Up' %}
                     <span class="badge badge-alive">{{ row[2] }}</span>

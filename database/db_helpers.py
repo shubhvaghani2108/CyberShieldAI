@@ -1107,14 +1107,37 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
     return trend
 
 
-def get_ip_scan_context(user_id=None):
-    """Gathers everything about the latest IP/host scan into one dict."""
+def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None):
+    """Gathers everything about the specified or latest IP/host scan into one dict."""
     data = get_dashboard_data(user_id=user_id)
     conn = get_db_connection()
-    latest_ip = get_latest_ip(user_id=user_id)
+    latest_ip = target_ip or get_latest_ip(user_id=user_id)
 
     # Host
-    if user_id is not None:
+    host = None
+    if scan_id:
+        if user_id is not None:
+            host = conn.execute(
+                "SELECT * FROM host_status WHERE scan_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id, user_id),
+            ).fetchone()
+        if not host:
+            host = conn.execute(
+                "SELECT * FROM host_status WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id,),
+            ).fetchone()
+    elif target_ip:
+        if user_id is not None:
+            host = conn.execute(
+                "SELECT * FROM host_status WHERE target_ip = ? AND user_id = ? ORDER BY id DESC LIMIT 1",
+                (target_ip, user_id),
+            ).fetchone()
+        if not host:
+            host = conn.execute(
+                "SELECT * FROM host_status WHERE target_ip = ? ORDER BY id DESC LIMIT 1",
+                (target_ip,),
+            ).fetchone()
+    elif user_id is not None:
         host = conn.execute(
             """
             SELECT *
@@ -1135,7 +1158,7 @@ def get_ip_scan_context(user_id=None):
             """
         ).fetchone()
 
-    host_scan_id = host["scan_id"] if host and "scan_id" in host.keys() else None
+    host_scan_id = scan_id or (host["scan_id"] if host and "scan_id" in host.keys() else None)
 
     # Ports
     if host_scan_id:

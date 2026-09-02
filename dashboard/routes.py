@@ -988,9 +988,12 @@ def register_routes(app):
         )
 
     @app.route("/ip-scan-result")
-    def ip_scan_result_page():
+    @app.route("/ip-scan-result/<target_ip>")
+    def ip_scan_result_page(target_ip=None):
+        req_ip = target_ip or request.args.get("ip") or request.args.get("target")
+        req_scan_id = request.args.get("scan_id")
         current_user_id = session.get("user_id")
-        data = get_ip_scan_context(user_id=current_user_id)
+        data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id)
 
         return render_template(
             "ip_result.html",

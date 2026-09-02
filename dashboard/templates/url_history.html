@@ -22,7 +22,7 @@
         <tbody>
         {% for row in rows %}
         <tr>
-            <td class="mono" style="white-space:nowrap;">{{ row['id'] if 'id' in row.keys() else row[0] }}</td>
+            <td class="mono" style="white-space:nowrap; font-weight:600; color:var(--accent);">#{{ loop.index }}</td>
             <td style="min-width:240px; word-break:break-all;">
                 <a href="{{ url_for('url_scan_result_page') }}?{% if 'scan_id' in row.keys() and row['scan_id'] %}scan_id={{ row['scan_id'] }}{% else %}id={{ row['id'] if 'id' in row.keys() else row[0] }}{% endif %}" style="color:var(--accent); font-weight:600; text-decoration:none;">
                     {{ row['url'] if 'url' in row.keys() else row[1] }}
