@@ -23,6 +23,18 @@
 
 {% if latest_ip %}
 
+{% if host and 'Private LAN' in host.status %}
+<div class="glass" style="margin-bottom: 20px; padding: 16px 20px; border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.08); border-radius: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <span style="font-size: 20px;">⚠️</span>
+        <strong style="color: #f59e0b; font-size: 15px;">Private Network Target (RFC 1918)</strong>
+    </div>
+    <p style="margin: 0; font-size: 13.5px; color: var(--text-1); line-height: 1.5;">
+        Target <code>{{ latest_ip }}</code> is a private/internal local network address. Cloud-hosted scanner environments (such as Render) cannot route network packets into internal private LANs. This host is reported as unreachable from the cloud scanner, not as a machine with zero open ports. To scan private network devices, run CyberShieldAI locally on your network.
+    </p>
+</div>
+{% endif %}
+
 <div class="glass content-panel">
     <span class="eyebrow">Target Overview</span>
     <table class="info-table">

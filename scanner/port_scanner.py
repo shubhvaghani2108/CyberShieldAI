@@ -436,9 +436,6 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
 
     report(f"Starting Nmap scan for {target} (ports={ports}) [scan_id={scan_id}]")
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
         report("Phase 1/2: Discovering open ports (fast sweep)...")
         discovery_scanner = nmap.PortScanner(nmap_search_path=(get_nmap_path(),))
@@ -452,7 +449,6 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
 
         if not discovery_scanner.all_hosts():
             report("Nmap found 0 open ports; verifying with native socket probe...")
-            conn.close()
             return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id, hostname=hostname)
 
         open_ports_dict = {}
@@ -475,7 +471,6 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
                         }
 
         if not open_ports_dict:
-            conn.close()
             return _scan_target_sockets(target, ports=ports, progress_callback=progress_callback, scan_id=scan_id, hostname=hostname)
 
         open_ports = sorted(list(open_ports_dict.keys()))
@@ -483,16 +478,8 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
 
         # Phase 2: Detailed Service Scan
         report("Phase 2/2: Running service/version + OS detection on open ports...")
-        os_saved = False
+        os_info_list = []
         try:
-            cursor.execute("PRAGMA table_info(os_info)")
-            os_cols = [r[1] for r in cursor.fetchall()]
-            if "scan_id" not in os_cols:
-                try:
-                    cursor.execute("ALTER TABLE os_info ADD COLUMN scan_id TEXT")
-                except Exception:
-                    pass
-
             detail_scanner = nmap.PortScanner(nmap_search_path=(get_nmap_path(),))
             port_list = ",".join(str(p) for p in open_ports)
             detail_args = "-Pn -T4 -sV --version-intensity 2 --host-timeout 45s --max-rtt-timeout 800ms"
@@ -512,14 +499,7 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
                     device_type = "Unknown"
                     os_details = "OS could not be determined"
 
-                cursor.execute(
-                    """
-                    INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (scan_id, host, os_name, device_type, os_details, scan_time),
-                )
-                os_saved = True
+                os_info_list.append((scan_id, host, os_name, device_type, os_details, scan_time))
 
                 for proto in detail_scanner[host].all_protocols():
                     for port in detail_scanner[host][proto].keys():
@@ -541,45 +521,68 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
         except Exception as e:
             report(f"Detailed inspection note: {e}")
 
-        if not os_saved:
-            cursor.execute(
-                """
-                INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target, "Unknown", "General Purpose / Server", "Heuristic network profile", scan_time),
-            )
+        if not os_info_list:
+            os_info_list.append((scan_id, target, "Unknown", "General Purpose / Server", "Heuristic network profile", scan_time))
 
-        total_ports = 0
+        # Grab banners in memory before touching DB
+        banners_dict = {}
         for port, p_info in open_ports_dict.items():
             proto = p_info.get("proto", "tcp")
             service = p_info.get("service") or COMMON_PORTS.get(port, "unknown")
             product = p_info.get("product", "")
             version = p_info.get("version", "")
-            extra_info = p_info.get("extra_info", "")
-            state = "open"
-            banner = grab_banner(target, port, hostname=hostname)
-
+            banners_dict[port] = grab_banner(target, port, hostname=hostname)
             report(f"Port {port}/{proto} OPEN | service={service} product={product} version={version}")
 
-            cursor.execute(
-                """
-                INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target, port, state, service, banner, scan_time),
-            )
-            cursor.execute(
-                """
-                INSERT INTO service_versions (scan_id, ip, port, service, product, version, extra_info, scan_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (scan_id, target, port, service, product, version, extra_info, scan_time),
-            )
-            total_ports += 1
+        # Quick DB commit phase — hold connection for milliseconds only
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(os_info)")
+            os_cols = [r["name"] if hasattr(r, "keys") else r[1] for r in cursor.fetchall()]
+            if "scan_id" not in os_cols:
+                try:
+                    cursor.execute("ALTER TABLE os_info ADD COLUMN scan_id TEXT")
+                except Exception:
+                    pass
 
-        conn.commit()
-        conn.close()
+            for os_rec in os_info_list:
+                cursor.execute(
+                    """
+                    INSERT INTO os_info (scan_id, ip, os_name, device_type, os_details, scan_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    os_rec,
+                )
+
+            total_ports = 0
+            for port, p_info in open_ports_dict.items():
+                service = p_info.get("service") or COMMON_PORTS.get(port, "unknown")
+                product = p_info.get("product", "")
+                version = p_info.get("version", "")
+                extra_info = p_info.get("extra_info", "")
+                state = "open"
+                banner = banners_dict.get(port, "")
+
+                cursor.execute(
+                    """
+                    INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (scan_id, target, port, state, service, banner, scan_time),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO service_versions (scan_id, ip, port, service, product, version, extra_info, scan_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (scan_id, target, port, service, product, version, extra_info, scan_time),
+                )
+                total_ports += 1
+
+            conn.commit()
+        finally:
+            conn.close()
 
         report(f"Scan completed successfully: {total_ports} open port(s) profiled.")
 

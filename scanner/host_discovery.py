@@ -92,43 +92,56 @@ def check_host_alive(target, scan_id=None, user_id=None):
             print(f"[!] Nmap discovery fallback error: {e}")
 
     if not alive:
-        print(f"[!] Host {target} is NOT reachable via ICMP, TCP, or Nmap probes.")
+        import ipaddress
+        is_private = False
+        try:
+            ip_obj = ipaddress.ip_address(target)
+            is_private = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local
+        except ValueError:
+            pass
+
+        if is_private:
+            status = "Unreachable (Private LAN Target)"
+            print(f"[!] Target {target} is an RFC 1918 private LAN address and is unreachable from the current scanner environment.")
+        else:
+            print(f"[!] Host {target} is NOT reachable via ICMP, TCP, or Nmap probes.")
 
     scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS host_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                scan_id TEXT,
+                target_ip TEXT,
+                status TEXT,
+                scan_time TEXT
+            )
+        """)
+        cursor.execute("PRAGMA table_info(host_status)")
+        cols = [r["name"] if hasattr(r, "keys") else r[1] for r in cursor.fetchall()]
+        if "scan_id" not in cols:
+            try:
+                cursor.execute("ALTER TABLE host_status ADD COLUMN scan_id TEXT")
+            except Exception:
+                pass
+        if "user_id" not in cols:
+            try:
+                cursor.execute("ALTER TABLE host_status ADD COLUMN user_id INTEGER DEFAULT 1")
+            except Exception:
+                pass
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS host_status (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            scan_id TEXT,
-            target_ip TEXT,
-            status TEXT,
-            scan_time TEXT
-        )
-    """)
-    cursor.execute("PRAGMA table_info(host_status)")
-    cols = [r[1] for r in cursor.fetchall()]
-    if "scan_id" not in cols:
-        try:
-            cursor.execute("ALTER TABLE host_status ADD COLUMN scan_id TEXT")
-        except Exception:
-            pass
-    if "user_id" not in cols:
-        try:
-            cursor.execute("ALTER TABLE host_status ADD COLUMN user_id INTEGER DEFAULT 1")
-        except Exception:
-            pass
+        cursor.execute("""
+            INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time)
+            VALUES (?, ?, ?, ?, ?)
+        """, (scan_id, user_id, target, status, scan_time))
 
-    cursor.execute("""
-        INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time)
-        VALUES (?, ?, ?, ?, ?)
-    """, (scan_id, user_id, target, status, scan_time))
-
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
     return {
         "scan_id": scan_id,

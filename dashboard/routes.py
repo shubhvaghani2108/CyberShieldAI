@@ -1402,8 +1402,24 @@ def register_routes(app):
                     "confidence": "High" if (raw_url_info.get("waf") and raw_url_info.get("waf") not in ("None", "none", "", None)) else "Low",
                 }
                 target_domain = result.get("domain") or (result.get("url") or "").replace("https://", "").replace("http://", "").split("/")[0]
-                # Default DNS info from database without running live network requests on page render
-                raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
+                dns_loaded = False
+                if raw_url_info.get("dns_records"):
+                    try:
+                        parsed_dns = json.loads(raw_url_info["dns_records"])
+                        if isinstance(parsed_dns, dict) and any(parsed_dns.values()):
+                            raw_url_info["dns"] = parsed_dns
+                            dns_loaded = True
+                    except Exception:
+                        pass
+                if not dns_loaded:
+                    if target_domain and target_domain not in ("Unknown", "-", "", None):
+                        from scanner.dns_lookup import get_dns_records
+                        try:
+                            raw_url_info["dns"] = get_dns_records(target_domain)
+                        except Exception:
+                            raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
+                    else:
+                        raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
             elif result and result.get("url"):
                 raw_url_info = {}
         except Exception as e:
@@ -1705,15 +1721,28 @@ def register_routes(app):
 
     @app.route("/ports")
     def view_ports():
+        req_scan_id = request.args.get("scan_id", "").strip()
         scope = request.args.get("scope", "latest")
-        target = request.args.get("target", "")
+        target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
-        latest_ip = get_latest_ip(user_id=current_user_id)
-        active_target = target if target else latest_ip
         conn = get_db_connection()
 
-        scan_id = None
-        if active_target and scope != "all":
+        scan_id = req_scan_id if req_scan_id else None
+        if scan_id and not target:
+            row_target = conn.execute(
+                "SELECT target_ip FROM host_status WHERE scan_id=? LIMIT 1", (scan_id,)
+            ).fetchone()
+            if not row_target:
+                row_target = conn.execute(
+                    "SELECT ip AS target_ip FROM ports WHERE scan_id=? LIMIT 1", (scan_id,)
+                ).fetchone()
+            if row_target and row_target["target_ip"]:
+                target = row_target["target_ip"]
+
+        latest_ip = get_latest_ip(user_id=current_user_id)
+        active_target = target if target else latest_ip
+
+        if not scan_id and active_target and scope != "all":
             if current_user_id is not None:
                 h = conn.execute(
                     "SELECT scan_id FROM host_status WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
@@ -1721,7 +1750,7 @@ def register_routes(app):
                 ).fetchone()
                 if not h:
                     h = conn.execute(
-                        "SELECT scan_id FROM scan_history WHERE ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
+                        "SELECT scan_id FROM scan_history WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
                         (active_target, current_user_id),
                     ).fetchone()
             else:
@@ -1884,31 +1913,75 @@ def register_routes(app):
 
     @app.route("/vulnerabilities")
     def view_vulnerabilities():
+        req_scan_id = request.args.get("scan_id", "").strip()
+        scope = request.args.get("scope", "latest")
+        target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
-        latest_ip = get_latest_ip(user_id=current_user_id)
         conn = get_db_connection()
 
-        scan_id = None
-        if latest_ip:
+        scan_id = req_scan_id if req_scan_id else None
+        if scan_id and not target:
+            row_target = conn.execute(
+                "SELECT target_ip FROM host_status WHERE scan_id=? LIMIT 1", (scan_id,)
+            ).fetchone()
+            if not row_target:
+                row_target = conn.execute(
+                    "SELECT ip AS target_ip FROM vulnerabilities WHERE scan_id=? LIMIT 1", (scan_id,)
+                ).fetchone()
+            if row_target and row_target["target_ip"]:
+                target = row_target["target_ip"]
+
+        latest_ip = get_latest_ip(user_id=current_user_id)
+        active_target = target if target else latest_ip
+
+        if not scan_id and active_target and scope != "all":
             if current_user_id is not None:
                 h = conn.execute(
                     "SELECT scan_id FROM host_status WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
-                    (latest_ip, current_user_id),
+                    (active_target, current_user_id),
                 ).fetchone()
                 if not h:
                     h = conn.execute(
-                        "SELECT scan_id FROM scan_history WHERE ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
-                        (latest_ip, current_user_id),
+                        "SELECT scan_id FROM scan_history WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
+                        (active_target, current_user_id),
                     ).fetchone()
             else:
                 h = conn.execute(
                     "SELECT scan_id FROM host_status WHERE target_ip=? ORDER BY id DESC LIMIT 1",
-                    (latest_ip,),
+                    (active_target,),
                 ).fetchone()
             if h and "scan_id" in h.keys() and h["scan_id"]:
                 scan_id = h["scan_id"]
 
-        if scan_id:
+        if scope == "all":
+            if current_user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT ip, port, service, risk, description, remediation, scan_time
+                    FROM vulnerabilities
+                    WHERE id IN (
+                        SELECT MAX(id)
+                        FROM vulnerabilities
+                        WHERE (
+                            scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                            OR scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                        )
+                        GROUP BY ip, port
+                    )
+                    ORDER BY
+                        CASE LOWER(risk)
+                            WHEN 'critical' THEN 0
+                            WHEN 'high' THEN 1
+                            WHEN 'medium' THEN 2
+                            ELSE 3
+                        END,
+                        port ASC
+                    """,
+                    (current_user_id, current_user_id),
+                ).fetchall()
+            else:
+                rows = []
+        elif scan_id:
             rows = conn.execute(
                 """
                 SELECT ip, port, service, risk, description, remediation, scan_time
@@ -1927,7 +2000,7 @@ def register_routes(app):
                 """,
                 (scan_id,),
             ).fetchall()
-        elif latest_ip:
+        elif active_target:
             rows = conn.execute(
                 """
                 SELECT ip, port, service, risk, description, remediation, scan_time
@@ -1944,7 +2017,7 @@ def register_routes(app):
                     END,
                     port ASC
                 """,
-                (latest_ip,),
+                (active_target,),
             ).fetchall()
         else:
             rows = []
@@ -1954,23 +2027,38 @@ def register_routes(app):
             "vulnerabilities.html",
             active_page="vulnerabilities",
             page_title="Vulnerabilities",
-            page_subtitle=f"Active findings for target {latest_ip}" if latest_ip else "Active vulnerability findings",
+            page_subtitle=f"Active findings for target {active_target}" if active_target else "Active vulnerability findings",
             rows=rows,
-            latest_ip=latest_ip,
-            has_scanned=bool(latest_ip),
+            latest_ip=active_target,
+            current_target=active_target,
+            scan_id=scan_id,
+            has_scanned=bool(active_target),
         )
 
     @app.route("/cves")
     def view_cves():
+        req_scan_id = request.args.get("scan_id", "").strip()
         scope = request.args.get("scope", "latest")
-        target = request.args.get("target", "")
+        target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
-        latest_ip = get_latest_ip(user_id=current_user_id)
-        active_target = target if target else latest_ip
         conn = get_db_connection()
 
-        scan_id = None
-        if active_target and scope != "all":
+        scan_id = req_scan_id if req_scan_id else None
+        if scan_id and not target:
+            row_target = conn.execute(
+                "SELECT target_ip FROM host_status WHERE scan_id=? LIMIT 1", (scan_id,)
+            ).fetchone()
+            if not row_target:
+                row_target = conn.execute(
+                    "SELECT ip AS target_ip FROM cves WHERE scan_id=? LIMIT 1", (scan_id,)
+                ).fetchone()
+            if row_target and row_target["target_ip"]:
+                target = row_target["target_ip"]
+
+        latest_ip = get_latest_ip(user_id=current_user_id)
+        active_target = target if target else latest_ip
+
+        if not scan_id and active_target and scope != "all":
             if current_user_id is not None:
                 h = conn.execute(
                     "SELECT scan_id FROM host_status WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
@@ -1978,7 +2066,7 @@ def register_routes(app):
                 ).fetchone()
                 if not h:
                     h = conn.execute(
-                        "SELECT scan_id FROM scan_history WHERE ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
+                        "SELECT scan_id FROM scan_history WHERE target_ip=? AND user_id=? ORDER BY id DESC LIMIT 1",
                         (active_target, current_user_id),
                     ).fetchone()
             else:
@@ -2149,12 +2237,24 @@ def register_routes(app):
 
     @app.route("/risk-report")
     def risk_report():
+        req_scan_id = request.args.get("scan_id", "").strip()
         requested_target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
-        latest_ip = get_latest_ip(user_id=current_user_id)
-        target_ip = requested_target if requested_target else latest_ip
 
         conn = get_db_connection()
+
+        scan_id = req_scan_id if req_scan_id else None
+        target_ip = requested_target
+        if scan_id and not target_ip:
+            r_row = conn.execute("SELECT ip FROM risk_summary WHERE scan_id=? LIMIT 1", (scan_id,)).fetchone()
+            if not r_row:
+                r_row = conn.execute("SELECT target_ip AS ip FROM host_status WHERE scan_id=? LIMIT 1", (scan_id,)).fetchone()
+            if r_row and r_row["ip"]:
+                target_ip = r_row["ip"]
+
+        latest_ip = get_latest_ip(user_id=current_user_id)
+        if not target_ip:
+            target_ip = latest_ip
 
         # 1. Available Targets List (strictly isolated to current user)
         available_targets = []
@@ -2190,7 +2290,22 @@ def register_routes(app):
 
         # 2. Host Metadata
         host_meta = {}
-        if target_ip:
+        if scan_id:
+            h_row = conn.execute(
+                "SELECT * FROM host_status WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id,),
+            ).fetchone()
+            if h_row:
+                host_meta = dict(h_row)
+            os_row = conn.execute(
+                "SELECT * FROM os_info WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id,),
+            ).fetchone()
+            if os_row:
+                host_meta["os_name"] = os_row["os_name"] or host_meta.get("os_name", "Linux / Generic")
+                host_meta["device_type"] = os_row["device_type"] or host_meta.get("device_type", "Unknown")
+                host_meta["os_accuracy"] = os_row["os_details"] or "95%"
+        elif target_ip:
             h_row = conn.execute(
                 "SELECT * FROM host_status WHERE target_ip = ? ORDER BY id DESC LIMIT 1",
                 (target_ip,),
@@ -2208,7 +2323,25 @@ def register_routes(app):
 
         # 3. Posture / Score
         posture = {"security_score": 75, "security_grade": "B", "risk_level": "Medium"}
-        if target_ip:
+        if scan_id:
+            p_row = conn.execute(
+                "SELECT * FROM security_posture WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id,),
+            ).fetchone()
+            if p_row:
+                posture = dict(p_row)
+            else:
+                r_latest = conn.execute(
+                    "SELECT * FROM risk_summary WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                    (scan_id,),
+                ).fetchone()
+                if r_latest:
+                    tot = r_latest["total_score"] or 0
+                    calc_score = max(20, min(100, 100 - (tot * 3)))
+                    posture["security_score"] = calc_score
+                    posture["security_grade"] = "A" if calc_score >= 80 else ("B" if calc_score >= 60 else "C")
+                    posture["risk_level"] = r_latest["risk_level"] or "Medium"
+        elif target_ip:
             p_row = conn.execute(
                 "SELECT * FROM security_posture WHERE ip = ? ORDER BY id DESC LIMIT 1",
                 (target_ip,),
@@ -2227,8 +2360,18 @@ def register_routes(app):
                     posture["security_grade"] = "A" if calc_score >= 80 else ("B" if calc_score >= 60 else "C")
                     posture["risk_level"] = r_latest["risk_level"] or "Medium"
 
-        # 4. Risk Summary History Rows (strictly deduplicated by scan_time)
-        if target_ip:
+        # 4. Risk Summary History Rows
+        if scan_id:
+            rows = conn.execute(
+                """
+                SELECT ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time
+                FROM risk_summary
+                WHERE scan_id = ?
+                ORDER BY id DESC
+                """,
+                (scan_id,),
+            ).fetchall()
+        elif target_ip:
             rows = conn.execute(
                 """
                 SELECT ip, critical_count, high_count, medium_count, low_count, total_score, risk_level, scan_time
@@ -2248,7 +2391,25 @@ def register_routes(app):
 
         # 5. Active Findings & Deduplicated Vulnerabilities
         vuln_rows = []
-        if target_ip:
+        if scan_id:
+            vuln_rows = conn.execute(
+                """
+                SELECT * FROM vulnerabilities
+                WHERE id IN (
+                    SELECT MAX(id) FROM vulnerabilities WHERE scan_id = ? GROUP BY port
+                )
+                ORDER BY
+                    CASE LOWER(risk)
+                        WHEN 'critical' THEN 0
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        ELSE 3
+                    END,
+                    port ASC
+            """,
+                (scan_id,),
+            ).fetchall()
+        elif target_ip:
             vuln_rows = conn.execute(
                 """
                 SELECT * FROM vulnerabilities
@@ -2269,7 +2430,18 @@ def register_routes(app):
 
         # 6. Deduplicated Ports & Services
         port_rows = []
-        if target_ip:
+        if scan_id:
+            port_rows = conn.execute(
+                """
+                SELECT * FROM ports
+                WHERE id IN (
+                    SELECT MAX(id) FROM ports WHERE scan_id = ? GROUP BY port
+                )
+                ORDER BY port ASC
+            """,
+                (scan_id,),
+            ).fetchall()
+        elif target_ip:
             port_rows = conn.execute(
                 """
                 SELECT * FROM ports

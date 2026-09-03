@@ -68,9 +68,9 @@ SCAN_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT_SCANS)
 
 
 def _sanitize_error_message(err):
-    """Ensures no internal credentials, database URLs, or stack traces are shown to users."""
+    """Ensures no internal credentials, database URLs, or stack traces are shown to users, while giving informative feedback."""
     if not err:
-        return "Scan temporarily unavailable. Please try again."
+        return "Scan encountered an unexpected condition. Please try again."
     err_str = str(err)
     sensitive_markers = [
         "password", "pooler.supabase", "postgresql://", "postgres://", "conn.cursor",
@@ -78,10 +78,12 @@ def _sanitize_error_message(err):
         "aws-0-ap-south-1", "port 5432", "port 6543", "database_url", "dsn=", "connection to server"
     ]
     if any(m.lower() in err_str.lower() for m in sensitive_markers):
-        return "Scan temporarily unavailable. Please try again."
+        return "Database service is temporarily at maximum capacity. Please retry your scan in a moment."
     if "Traceback" in err_str or "File \"" in err_str:
-        return "Scan temporarily unavailable. Please try again."
-    return err_str
+        lines = [l.strip() for l in err_str.splitlines() if l.strip()]
+        last_line = lines[-1] if lines else "Internal processing error"
+        return f"Scan failed: {last_line}"
+    return err_str[:250]
 
 
 def _job_error(job_id, error_message):
@@ -96,10 +98,13 @@ def _job_error(job_id, error_message):
 
 def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
     """Runs the full scan pipeline in a background thread."""
-    acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+    acquired = SCAN_SEMAPHORE.acquire(blocking=False)
     if not acquired:
-        _job_error(job_id, "Scanner is currently busy with other tasks. Please try again shortly.")
-        return
+        _job_log(job_id, "Scan queued — another scan is currently running.")
+        acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+        if not acquired:
+            _job_error(job_id, "Scan queue timed out. Please try again shortly.")
+            return
 
     try:
         scan_id = uuid.uuid4().hex
@@ -138,6 +143,28 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
             conn.close()
 
         if not host_result["alive"]:
+            import ipaddress
+            is_private = False
+            try:
+                ip_obj = ipaddress.ip_address(target)
+                is_private = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local
+            except ValueError:
+                pass
+
+            if is_private:
+                _job_log(
+                    job_id,
+                    f"Notice: Target IP {target} is a private local network address (RFC 1918). "
+                    "Cloud-hosted environments (such as Render) cannot route packets into internal private LANs. "
+                    "To scan local devices, run CyberShieldAI locally on your network.",
+                )
+                _job_log(
+                    job_id,
+                    f"Target {target} is unreachable from this cloud scanner environment. Stopping scan.",
+                )
+                _job_done(job_id, result_ip=target, scan_id=scan_id)
+                return
+
             _job_log(
                 job_id,
                 f"Initial ICMP/TCP ping probes showed {target} un-responsive. Running full port scan (-Pn) to verify open ports...",
@@ -150,14 +177,18 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
                     job_id,
                     f"Host {target} is unreachable (0 open ports found). Stopping scan.",
                 )
-                _job_done(job_id, result_ip=target)
+                _job_done(job_id, result_ip=target, scan_id=scan_id)
                 return
             else:
-                # Ports were found! Update host status to Alive
+                # Ports were found! Update host status to Alive in both tables
                 conn = get_db_connection()
                 try:
                     conn.execute(
                         "UPDATE host_status SET status = 'Alive' WHERE target_ip = ? AND (scan_id = ? OR scan_id IS NULL)",
+                        (target, scan_id),
+                    )
+                    conn.execute(
+                        "UPDATE scan_history SET status = 'Alive' WHERE target_ip = ? AND (scan_id = ? OR scan_id IS NULL)",
                         (target, scan_id),
                     )
                     conn.commit()
@@ -232,10 +263,13 @@ from scanner.virustotal_scanner import query_virustotal
 
 def _run_url_scan_job(job_id, url, user_id=None):
     """Runs the full URL analysis and port-scan pipeline asynchronously in a background thread."""
-    acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+    acquired = SCAN_SEMAPHORE.acquire(blocking=False)
     if not acquired:
-        _job_error(job_id, "Scanner is currently busy with other tasks. Please try again shortly.")
-        return
+        _job_log(job_id, "Scan queued — another scan is currently running.")
+        acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+        if not acquired:
+            _job_error(job_id, "Scan queue timed out. Please try again shortly.")
+            return
 
     try:
         scan_id = uuid.uuid4().hex

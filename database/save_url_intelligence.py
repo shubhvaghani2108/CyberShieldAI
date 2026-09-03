@@ -38,44 +38,102 @@ def save_url_intelligence(data, scan_id=None):
         isp = geoip_info.get("isp", "Unknown")
         asn = geoip_info.get("asn", "Unknown")
 
+    import json
+    dns_info = data.get("dns") or {}
+    dns_json = json.dumps(dns_info)
+
     conn = get_db_connection()
     try:
         cur = conn.cursor()
 
-        cur.execute("""
-        INSERT INTO url_intelligence(
-            scan_id,
-            ip,
-            url,
-            registrar,
-            creation_date,
-            expiration_date,
-            updated_date,
-            country,
-            region,
-            city,
-            isp,
-            asn,
-            waf,
-            scan_time
-        )
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            scan_id or data.get("scan_id"),
-            target_ip,
-            data.get("url", ""),
-            registrar,
-            creation_date,
-            expiration_date,
-            updated_date,
-            country,
-            region,
-            city,
-            isp,
-            asn,
-            waf_info.get("provider", "None"),
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ))
+        has_dns_col = False
+        try:
+            cur.execute("PRAGMA table_info(url_intelligence)")
+            cols = [r["name"] if hasattr(r, "keys") else r[1] for r in cur.fetchall()]
+            if "dns_records" in cols:
+                has_dns_col = True
+            else:
+                try:
+                    cur.execute("ALTER TABLE url_intelligence ADD COLUMN dns_records TEXT")
+                    conn.commit()
+                    has_dns_col = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        if has_dns_col:
+            cur.execute("""
+            INSERT INTO url_intelligence(
+                scan_id,
+                ip,
+                url,
+                registrar,
+                creation_date,
+                expiration_date,
+                updated_date,
+                country,
+                region,
+                city,
+                isp,
+                asn,
+                waf,
+                dns_records,
+                scan_time
+            )
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                scan_id or data.get("scan_id"),
+                target_ip,
+                data.get("url", ""),
+                registrar,
+                creation_date,
+                expiration_date,
+                updated_date,
+                country,
+                region,
+                city,
+                isp,
+                asn,
+                waf_info.get("provider", "None"),
+                dns_json,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
+        else:
+            cur.execute("""
+            INSERT INTO url_intelligence(
+                scan_id,
+                ip,
+                url,
+                registrar,
+                creation_date,
+                expiration_date,
+                updated_date,
+                country,
+                region,
+                city,
+                isp,
+                asn,
+                waf,
+                scan_time
+            )
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                scan_id or data.get("scan_id"),
+                target_ip,
+                data.get("url", ""),
+                registrar,
+                creation_date,
+                expiration_date,
+                updated_date,
+                country,
+                region,
+                city,
+                isp,
+                asn,
+                waf_info.get("provider", "None"),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
 
         conn.commit()
         print("[OK] URL Intelligence Saved")
