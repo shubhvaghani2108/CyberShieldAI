@@ -33,8 +33,25 @@ def init_db():
 
     if is_postgres():
         from scripts.migrate_sqlite_to_postgresql import TABLE_SCHEMAS, TABLE_INDEXES
-        combined_ddl = ";\n".join(list(TABLE_SCHEMAS.values()) + TABLE_INDEXES)
-        cursor.execute(combined_ddl)
+        
+        # 1. Create tables if they don't exist
+        schema_ddl = ";\n".join(list(TABLE_SCHEMAS.values()))
+        cursor.execute(schema_ddl)
+        
+        # 2. Add missing columns to existing tables (auto-migration)
+        tables_with_scan_id = ['alerts', 'cves', 'host_status', 'os_info', 'ports', 'risk_summary', 'scan_history', 'security_headers', 'security_posture', 'service_versions', 'ssl_results', 'technology_detection', 'url_intelligence', 'url_scan_results', 'virustotal_results', 'vulnerabilities']
+        tables_with_user_id = ['alerts', 'host_status', 'password_resets', 'scan_history', 'security_activity_logs', 'security_posture', 'url_scan_results']
+        
+        for t in tables_with_scan_id:
+            cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "scan_id" TEXT;')
+            
+        for t in tables_with_user_id:
+            cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "user_id" INTEGER DEFAULT 1;')
+            
+        # 3. Create indexes
+        index_ddl = ";\n".join(TABLE_INDEXES)
+        cursor.execute(index_ddl)
+        
         conn.commit()
         conn.close()
         return

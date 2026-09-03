@@ -12,25 +12,48 @@ def get_database_url():
     """
     Resolves the PostgreSQL DATABASE_URL from environment variables or .env file.
     Does not log credentials.
+    Supports Supabase Session Pooler strings by cleaning up unsupported psycopg2 parameters.
     """
     url = os.environ.get("DATABASE_URL")
-    if url:
-        return url.strip()
+    if not url:
+        env_file = os.path.join(BASE_DIR, ".env")
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("DATABASE_URL="):
+                            val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if val:
+                                url = val
+                                break
+            except Exception:
+                pass
 
-    env_file = os.path.join(BASE_DIR, ".env")
-    if os.path.exists(env_file):
+    if url:
+        url = url.strip()
+        # Clean up Supabase pooler query parameters that psycopg2 rejects
+        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
         try:
-            with open(env_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("DATABASE_URL="):
-                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            return val
+            parsed = urlparse(url)
+            qs = parse_qs(parsed.query)
+            changed = False
+            for bad_param in ['pgbouncer', 'options']:
+                if bad_param in qs:
+                    qs.pop(bad_param)
+                    changed = True
+            
+            # psycopg2 requires SSL to connect to Supabase
+            if 'sslmode' not in qs:
+                qs['sslmode'] = ['require']
+                changed = True
+                
+            if changed:
+                url = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
         except Exception:
             pass
 
-    return None
+    return url
 
 
 def is_postgres():
