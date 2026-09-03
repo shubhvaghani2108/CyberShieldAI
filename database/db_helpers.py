@@ -532,7 +532,7 @@ def get_latest_host_status(user_id=None):
     if user_id is not None:
         row = conn.execute(
             """
-            SELECT target_ip, status, scan_time
+            SELECT *
             FROM host_status
             WHERE user_id = ?
             ORDER BY id DESC
@@ -543,7 +543,7 @@ def get_latest_host_status(user_id=None):
     else:
         row = conn.execute(
             """
-            SELECT target_ip, status, scan_time
+            SELECT *
             FROM host_status
             ORDER BY id DESC
             LIMIT 1

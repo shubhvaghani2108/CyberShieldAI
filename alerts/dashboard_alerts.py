@@ -1,7 +1,12 @@
 from database.db_engine import get_db_connection
 
 
+_has_ensured_user_id_col = False
+
 def _ensure_user_id_col(conn):
+    global _has_ensured_user_id_col
+    if _has_ensured_user_id_col:
+        return
     try:
         cur = conn.cursor()
         cur.execute("PRAGMA table_info(alerts)")
@@ -9,6 +14,7 @@ def _ensure_user_id_col(conn):
         if cols and "user_id" not in cols:
             cur.execute("ALTER TABLE alerts ADD COLUMN user_id INTEGER DEFAULT 1")
             conn.commit()
+        _has_ensured_user_id_col = True
     except Exception:
         pass
 
