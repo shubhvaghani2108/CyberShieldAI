@@ -5,10 +5,11 @@ from database.db_engine import get_db_connection
 # DASHBOARD STATS
 # ==========================================================
 
-def get_dashboard_stats(latest_ip=None, scan_id=None):
+def get_dashboard_stats(latest_ip=None, scan_id=None, user_id=None):
     """
     Build the stat-card numbers for the dashboard.
     When scan_id is provided, queries the exact scan dataset for complete multi-user isolation.
+    If user_id is provided, filters global counts to the specific user.
     """
 
     conn = get_db_connection()
@@ -36,34 +37,41 @@ def get_dashboard_stats(latest_ip=None, scan_id=None):
     # ======================================================
 
     if latest_ip:
+        # Build query conditionally based on user_id
+        base_where = "WHERE target_ip=?"
+        params = [latest_ip]
+        if user_id:
+            base_where += " AND user_id=?"
+            params.append(user_id)
+
         try:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COUNT(DISTINCT target_ip)
                 FROM host_status
-                WHERE target_ip=?
-            """, (latest_ip,))
+                {base_where}
+            """, params)
             row = cur.fetchone()
             stats["total_assets"] = row[0] if row else 0
         except Exception as e:
             print("Total Assets Error:", e)
 
         try:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COUNT(*)
                 FROM host_status
-                WHERE target_ip=? AND (status LIKE 'Alive%' OR status = 'Online' OR status = 'Up')
-            """, (latest_ip,))
+                {base_where} AND (status LIKE 'Alive%' OR status = 'Online' OR status = 'Up')
+            """, params)
             row = cur.fetchone()
             stats["live_hosts"] = row[0] if row else 0
         except Exception as e:
             print("Live Hosts Error:", e)
 
         try:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COUNT(*)
                 FROM host_status
-                WHERE target_ip=? AND (status LIKE 'Dead%' OR status LIKE 'Unreachable%' OR status = 'Offline' OR status = 'Down')
-            """, (latest_ip,))
+                {base_where} AND (status LIKE 'Dead%' OR status LIKE 'Unreachable%' OR status = 'Offline' OR status = 'Down')
+            """, params)
             row = cur.fetchone()
             stats["offline_hosts"] = row[0] if row else 0
         except Exception as e:
