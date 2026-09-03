@@ -136,24 +136,13 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
                 target, ports=ports, progress_callback=lambda m: _job_log(job_id, m), scan_id=scan_id
             )
 
-        # 4) Vulnerability scan & 5) CVE scan (Parallelized)
-        _job_log(job_id, "Running vulnerability and CVE scans concurrently...")
-        import concurrent.futures
-        from scanner.config import SCAN_MAX_WORKERS
+        # 4) Vulnerability scan
+        _job_log(job_id, "Running vulnerability scan...")
+        scan_vulnerabilities(target, scan_id=scan_id)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=SCAN_MAX_WORKERS) as executor:
-            fut_vuln = executor.submit(scan_vulnerabilities, target, scan_id=scan_id)
-            fut_cve = executor.submit(scan_cves, target, scan_id=scan_id)
-            
-            try:
-                fut_vuln.result()
-            except Exception as e:
-                print("[VULN SCAN ERROR]", e)
-                
-            try:
-                fut_cve.result()
-            except Exception as e:
-                print("[CVE SCAN ERROR]", e)
+        # 5) CVE scan
+        _job_log(job_id, "Running CVE lookup...")
+        scan_cves(target, scan_id=scan_id)
 
         # 6) Risk calculation
         _job_log(job_id, "Calculating risk score...")
@@ -212,74 +201,49 @@ def _run_url_scan_job(job_id, url, user_id=None):
         scan_id = uuid.uuid4().hex
         print(f"\n[SCAN] Starting URL scan job_id={job_id} scan_id={scan_id} target={url} user_id={user_id}")
 
-        import concurrent.futures
-        from scanner.config import SCAN_MAX_WORKERS
-
         _job_log(job_id, f"Scanning URL structure and protocol for {url}...")
         result = scan_url(url)
 
-        _job_log(job_id, "Running external intelligence queries concurrently (VT, Tech, Headers, SSL)...")
-        
-        vt_res = None
-        technology = None
-        url_info = None
-        ssl_data = None
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=SCAN_MAX_WORKERS) as executor:
-            future_vt = executor.submit(query_virustotal, result["url"], scan_id=scan_id)
-            future_tech = executor.submit(detect_technology, result["url"])
-            future_url_info = executor.submit(analyze_url_intelligence, result["url"], scan_id=scan_id)
-            future_ssl = executor.submit(analyze_ssl, result["url"])
+        _job_log(job_id, "Querying VirusTotal reputation intelligence...")
+        try:
+            vt_res = query_virustotal(result["url"], scan_id=scan_id)
+            if vt_res and vt_res.get("configured"):
+                _job_log(job_id, f"VirusTotal findings: {vt_res.get('risk_badge')} ({vt_res.get('malicious', 0)} malicious engines)")
+        except Exception as vt_err:
+            print("[VIRUSTOTAL QUERY ERROR]", vt_err)
 
+        _job_log(job_id, "Detecting web technologies...")
+        technology = detect_technology(result["url"])
+
+        _job_log(job_id, "Gathering URL intelligence (WHOIS, GeoIP, DNS, WAF, Security Headers)...")
+        url_info = analyze_url_intelligence(result["url"], scan_id=scan_id)
+        save_url_intelligence(url_info, scan_id=scan_id)
+
+        whois_info = url_info.get("whois", {}) if isinstance(url_info, dict) else {}
+        creation_date_str = whois_info.get("creation_date") if isinstance(whois_info, dict) else None
+        if creation_date_str and creation_date_str != "Unknown":
             try:
-                vt_res = future_vt.result()
-                if vt_res and vt_res.get("configured"):
-                    _job_log(job_id, f"VirusTotal findings: {vt_res.get('risk_badge')} ({vt_res.get('malicious', 0)} malicious engines)")
-            except Exception as vt_err:
-                print("[VIRUSTOTAL QUERY ERROR]", vt_err)
+                created = datetime.strptime(creation_date_str, "%Y-%m-%d")
+                age_days = (datetime.now() - created).days
+                if age_days < 30:
+                    result["score"] += 25
+                    result["remarks"].append(
+                        f"Domain was registered only {age_days} day(s) ago "
+                        "(newly registered domains are commonly used for phishing/scam sites)"
+                    )
+                elif age_days < 180:
+                    result["score"] += 10
+                    result["remarks"].append(
+                        f"Domain is relatively new ({age_days} days old)"
+                    )
+            except (ValueError, TypeError):
+                pass
+        result["risk"] = score_to_risk_level(result["score"])
 
-            try:
-                technology = future_tech.result()
-            except Exception as e:
-                print("[TECH DETECT ERROR]", e)
-                technology = {}
-
-            try:
-                url_info = future_url_info.result()
-                save_url_intelligence(url_info, scan_id=scan_id)
-                
-                whois_info = url_info.get("whois", {}) if isinstance(url_info, dict) else {}
-                creation_date_str = whois_info.get("creation_date") if isinstance(whois_info, dict) else None
-                if creation_date_str and creation_date_str != "Unknown":
-                    try:
-                        created = datetime.strptime(creation_date_str, "%Y-%m-%d")
-                        age_days = (datetime.now() - created).days
-                        if age_days < 30:
-                            result["score"] += 25
-                            result["remarks"].append(
-                                f"Domain was registered only {age_days} day(s) ago "
-                                "(newly registered domains are commonly used for phishing/scam sites)"
-                            )
-                        elif age_days < 180:
-                            result["score"] += 10
-                            result["remarks"].append(
-                                f"Domain is relatively new ({age_days} days old)"
-                            )
-                    except (ValueError, TypeError):
-                        pass
-                result["risk"] = score_to_risk_level(result["score"])
-
-            except Exception as e:
-                print("[URL INTEL ERROR]", e)
-                url_info = {}
-
-            try:
-                ssl_data = future_ssl.result()
-                if ssl_data:
-                    save_ssl(ssl_data, scan_id=scan_id)
-            except Exception as e:
-                print("[SSL ERROR]", e)
-                ssl_data = None
+        _job_log(job_id, "Analyzing SSL/TLS certificate...")
+        ssl_data = analyze_ssl(result["url"])
+        if ssl_data:
+            save_ssl(ssl_data, scan_id=scan_id)
 
         ip = result["ip"]
         if isinstance(result["remarks"], list):

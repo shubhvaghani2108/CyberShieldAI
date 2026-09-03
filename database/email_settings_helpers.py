@@ -59,11 +59,11 @@ def init_email_settings_table():
             )
         conn.commit()
         _email_settings_init_done = True
+    except Exception as e:
+        print(f"[EMAIL] Notice: init_email_settings_table deferred ({e})")
     finally:
         conn.close()
 
-
-init_email_settings_table()
 
 
 def get_email_settings() -> dict:

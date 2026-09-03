@@ -218,8 +218,7 @@ def query_virustotal(url: str, api_key: str = None, scan_id: str = None) -> dict
             method="GET",
         )
 
-        from scanner.config import SCAN_READ_TIMEOUT
-        with urllib.request.urlopen(req, timeout=SCAN_READ_TIMEOUT) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             if response.status == 200:
                 body = response.read().decode("utf-8")
                 json_data = json.loads(body)

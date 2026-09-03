@@ -12,35 +12,44 @@ if BASE_DIR not in sys.path:
 from database.db_helpers import get_db_connection
 
 
+_PASSWORD_RESET_TABLE_INITIALIZED = False
+
 def init_password_reset_table():
     """
     Idempotently creates the password_resets table in cybershield.db.
     """
-    conn = get_db_connection()
+    global _PASSWORD_RESET_TABLE_INITIALIZED
+    if _PASSWORD_RESET_TABLE_INITIALIZED:
+        return
     try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS password_resets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                reset_id TEXT UNIQUE NOT NULL,
-                user_id INTEGER NOT NULL,
-                email TEXT NOT NULL,
-                otp_hash TEXT NOT NULL,
-                reset_token_hash TEXT DEFAULT NULL,
-                attempts INTEGER DEFAULT 0,
-                max_attempts INTEGER DEFAULT 5,
-                expires_at TIMESTAMP NOT NULL,
-                last_resend_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_used INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_id ON password_resets(reset_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_email ON password_resets(email)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_user_id ON password_resets(user_id)")
-        conn.commit()
-    finally:
-        conn.close()
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS password_resets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    reset_id TEXT UNIQUE NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    email TEXT NOT NULL,
+                    otp_hash TEXT NOT NULL,
+                    reset_token_hash TEXT DEFAULT NULL,
+                    attempts INTEGER DEFAULT 0,
+                    max_attempts INTEGER DEFAULT 5,
+                    expires_at TIMESTAMP NOT NULL,
+                    last_resend_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_used INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_id ON password_resets(reset_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_email ON password_resets(email)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reset_user_id ON password_resets(user_id)")
+            conn.commit()
+            _PASSWORD_RESET_TABLE_INITIALIZED = True
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[AUTH] Notice: init_password_reset_table deferred ({e})")
 
 
 def create_password_reset_request(user_id, email, otp_hash, expires_in_minutes=10, max_attempts=5):
@@ -226,5 +235,3 @@ def delete_password_reset(reset_id):
         conn.close()
 
 
-# Initialize table on import
-init_password_reset_table()

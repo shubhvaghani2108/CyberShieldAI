@@ -27,11 +27,10 @@ def analyze_security_headers(url):
     }
 
     try:
-        from scanner.config import SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT
         response = requests.get(
             url,
             headers=headers,
-            timeout=(SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT),
+            timeout=5,
             allow_redirects=True,
             verify=False
         )

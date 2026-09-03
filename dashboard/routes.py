@@ -2067,6 +2067,7 @@ def register_routes(app):
                 FROM scan_history
                 WHERE user_id = ?
                 ORDER BY id DESC
+                LIMIT 150
                 """,
                 (current_user_id,),
             ).fetchall()
@@ -2077,6 +2078,7 @@ def register_routes(app):
                     FROM host_status
                     WHERE user_id = ?
                     ORDER BY id DESC
+                    LIMIT 150
                     """,
                     (current_user_id,),
                 ).fetchall()
@@ -2102,6 +2104,7 @@ def register_routes(app):
                 FROM url_scan_results
                 WHERE user_id = ?
                 ORDER BY id DESC
+                LIMIT 150
                 """,
                 (current_user_id,),
             ).fetchall()

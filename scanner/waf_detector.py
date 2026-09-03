@@ -64,13 +64,15 @@ def detect_waf(url):
 
     try:
 
-        from scanner.config import SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT
         response = requests.get(
+
             url,
-            headers={},
-            timeout=(SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT),
-            allow_redirects=True,
-            verify=False)
+
+            timeout=5,
+
+            allow_redirects=True
+
+        )
 
         headers = response.headers
 

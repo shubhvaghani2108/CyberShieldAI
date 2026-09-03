@@ -330,10 +330,119 @@ class PostgresCursorWrapper:
         return row
 
 
+import threading
+
+_PG_POOL = None
+_PG_POOL_LOCK = threading.Lock()
+
+
+def _get_pg_pool():
+    """Returns the singleton ThreadedConnectionPool for PostgreSQL connections."""
+    global _PG_POOL
+    if _PG_POOL is not None:
+        return _PG_POOL
+
+    with _PG_POOL_LOCK:
+        if _PG_POOL is not None:
+            return _PG_POOL
+        db_url = get_database_url()
+        if not db_url:
+            return None
+        try:
+            from psycopg2.pool import ThreadedConnectionPool
+            # maxconn=20 provides ample pooled connections under high concurrent load
+            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=20, dsn=db_url, connect_timeout=5)
+            return _PG_POOL
+        except Exception as e:
+            print(f"[DB_ENGINE] Warning: could not initialize ThreadedConnectionPool: {e}")
+            return None
+
+
+def _check_pg_conn_alive(raw_conn):
+    """Performs a lightweight sanity check to verify connection is open and ready."""
+    try:
+        if raw_conn.closed != 0:
+            return False
+        # Fast query to verify backend connection hasn't been dropped by server/pooler
+        with raw_conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        return True
+    except Exception:
+        return False
+
+
+def _get_pooled_pg_conn():
+    """Acquires an active, verified connection from the pool, re-creating if stale."""
+    pool = _get_pg_pool()
+    db_url = get_database_url()
+    if pool:
+        try:
+            conn = pool.getconn()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            try:
+                conn.autocommit = True
+            except Exception:
+                pass
+
+            if not _check_pg_conn_alive(conn):
+                try:
+                    pool.putconn(conn, close=True)
+                except Exception:
+                    pass
+                conn = pool.getconn()
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    conn.autocommit = True
+                except Exception:
+                    pass
+
+            return conn, pool
+        except Exception:
+            pass
+
+    # Fallback to direct connection if pool is exhausted or unavailable
+    import psycopg2
+    raw_conn = psycopg2.connect(db_url, connect_timeout=5)
+    raw_conn.autocommit = True
+    return raw_conn, None
+
+
+def _release_pooled_pg_conn(raw_conn, pool, force_close=False):
+    """Returns connection to pool or closes it cleanly."""
+    if not raw_conn:
+        return
+    if pool:
+        try:
+            if force_close or raw_conn.closed != 0:
+                pool.putconn(raw_conn, close=True)
+            else:
+                try:
+                    raw_conn.rollback()
+                except Exception:
+                    pass
+                pool.putconn(raw_conn)
+            return
+        except Exception:
+            pass
+    try:
+        raw_conn.close()
+    except Exception:
+        pass
+
+
 class PostgresConnectionWrapper:
     """Connection wrapper for PostgreSQL providing sqlite3-compatible interface."""
-    def __init__(self, pg_conn):
+    def __init__(self, pg_conn, pool=None, is_request_scoped=False):
         self._conn = pg_conn
+        self._pool = pool
+        self._is_request_scoped = is_request_scoped
+        self._closed = False
         self.row_factory = None
 
     def cursor(self):
@@ -364,10 +473,20 @@ class PostgresConnectionWrapper:
             pass
 
     def close(self):
-        try:
-            self._conn.close()
-        except Exception:
-            pass
+        # In request-scoped mode, .close() during the request is a no-op;
+        # the connection is closed/returned once at teardown_appcontext.
+        if self._is_request_scoped:
+            return
+
+        if not self._closed:
+            self._closed = True
+            _release_pooled_pg_conn(self._conn, self._pool)
+
+    def force_close(self):
+        """Used by request teardown to return request-scoped connection to pool."""
+        if not self._closed:
+            self._closed = True
+            _release_pooled_pg_conn(self._conn, self._pool)
 
     def __enter__(self):
         return self
@@ -377,22 +496,136 @@ class PostgresConnectionWrapper:
             self.rollback()
         else:
             self.commit()
+        self.close()
+
+
+class SQLiteConnectionProxy:
+    """Proxy for SQLite connection during request scope to avoid premature close."""
+    def __init__(self, real_conn, is_request_scoped=False):
+        self._conn = real_conn
+        self._is_request_scoped = is_request_scoped
+        self.row_factory = real_conn.row_factory
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def execute(self, *args, **kwargs):
+        return self._conn.execute(*args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        return self._conn.executemany(*args, **kwargs)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        if self._is_request_scoped:
+            return
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def force_close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def close_request_db_connection(exception=None):
+    """Teardown handler to return any request-scoped database connection."""
+    try:
+        from flask import has_request_context, g
+        if has_request_context():
+            conn = getattr(g, "_csa_db_conn", None)
+            if conn:
+                g._csa_db_conn = None
+                if hasattr(conn, "force_close"):
+                    conn.force_close()
+                else:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+
+def register_db_teardown(app):
+    """Registers connection teardown on the Flask app."""
+    app.teardown_appcontext(close_request_db_connection)
 
 
 def get_db_connection():
     """
     Returns an active database connection:
-    - If DATABASE_URL is set: connects to PostgreSQL and returns a PostgresConnectionWrapper.
-    - Otherwise: connects to local SQLite and returns sqlite3.Connection with row_factory=sqlite3.Row.
+    - If in a Flask request context: reuses request-scoped connection via g.
+    - If DATABASE_URL is set: acquires pooled PostgreSQL connection.
+    - Otherwise: connects to local SQLite with sqlite3.Row.
     """
+    # 1. Check for active Flask request context to reuse connection
+    try:
+        from flask import has_request_context, g
+        if has_request_context():
+            cached = getattr(g, "_csa_db_conn", None)
+            if cached is not None:
+                # Verify connection is still open
+                is_alive = True
+                if isinstance(cached, PostgresConnectionWrapper):
+                    if cached._conn.closed != 0:
+                        is_alive = False
+                if is_alive:
+                    return cached
+    except Exception:
+        pass
+
     db_url = get_database_url()
     if db_url:
-        import psycopg2
-        raw_conn = psycopg2.connect(db_url)
-        raw_conn.autocommit = True
-        return PostgresConnectionWrapper(raw_conn)
+        raw_conn, pool = _get_pooled_pg_conn()
+        in_request = False
+        try:
+            from flask import has_request_context, g
+            in_request = has_request_context()
+        except Exception:
+            in_request = False
+
+        conn = PostgresConnectionWrapper(raw_conn, pool=pool, is_request_scoped=in_request)
+        if in_request:
+            try:
+                g._csa_db_conn = conn
+            except Exception:
+                pass
+        return conn
     else:
         import sqlite3
-        conn = sqlite3.connect(resolve_sqlite_path())
-        conn.row_factory = sqlite3.Row
+        raw_sqlite = sqlite3.connect(resolve_sqlite_path())
+        raw_sqlite.row_factory = sqlite3.Row
+
+        in_request = False
+        try:
+            from flask import has_request_context, g
+            in_request = has_request_context()
+        except Exception:
+            in_request = False
+
+        conn = SQLiteConnectionProxy(raw_sqlite, is_request_scoped=in_request)
+        if in_request:
+            try:
+                g._csa_db_conn = conn
+            except Exception:
+                pass
         return conn
+

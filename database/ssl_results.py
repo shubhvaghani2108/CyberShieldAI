@@ -22,53 +22,60 @@ def _get_conn():
     return get_db_connection()
 
 
+_SSL_TABLE_INITIALIZED = False
+
 def init_ssl_table():
-    conn = _get_conn()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS ssl_results (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-            host               TEXT,
-            port               INTEGER,
-            has_ssl            INTEGER,
-            tls_version        TEXT,
-            cipher_suite       TEXT,
-            key_type           TEXT,
-            key_size           TEXT,
-            fingerprint_sha256 TEXT,
-            cert_chain         TEXT,
-            san_names          TEXT,
-            issuer             TEXT,
-            subject            TEXT,
-            valid_from         TEXT,
-            valid_to           TEXT,
-            days_remaining     INTEGER,
-            self_signed        INTEGER,
-            expired            INTEGER,
-            warnings           TEXT,
-            scan_time          TEXT
+    global _SSL_TABLE_INITIALIZED
+    if _SSL_TABLE_INITIALIZED:
+        return
+    try:
+        conn = _get_conn()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ssl_results (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                host               TEXT,
+                port               INTEGER,
+                has_ssl            INTEGER,
+                tls_version        TEXT,
+                cipher_suite       TEXT,
+                key_type           TEXT,
+                key_size           TEXT,
+                fingerprint_sha256 TEXT,
+                cert_chain         TEXT,
+                san_names          TEXT,
+                issuer             TEXT,
+                subject            TEXT,
+                valid_from         TEXT,
+                valid_to           TEXT,
+                days_remaining     INTEGER,
+                self_signed        INTEGER,
+                expired            INTEGER,
+                warnings           TEXT,
+                scan_time          TEXT
+            )
+            """
         )
-        """
-    )
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(ssl_results)")
-    cols = [r[1] for r in cursor.fetchall()]
-    new_cols = [
-        ("cipher_suite", "TEXT"),
-        ("key_type", "TEXT"),
-        ("key_size", "TEXT"),
-        ("fingerprint_sha256", "TEXT"),
-        ("cert_chain", "TEXT"),
-        ("san_names", "TEXT"),
-    ]
-    for col_name, col_type in new_cols:
-        if col_name not in cols:
-            cursor.execute(f"ALTER TABLE ssl_results ADD COLUMN {col_name} {col_type}")
-    conn.commit()
-    conn.close()
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(ssl_results)")
+        cols = [r[1] for r in cursor.fetchall()]
+        new_cols = [
+            ("cipher_suite", "TEXT"),
+            ("key_type", "TEXT"),
+            ("key_size", "TEXT"),
+            ("fingerprint_sha256", "TEXT"),
+            ("cert_chain", "TEXT"),
+            ("san_names", "TEXT"),
+        ]
+        for col_name, col_type in new_cols:
+            if col_name not in cols:
+                cursor.execute(f"ALTER TABLE ssl_results ADD COLUMN {col_name} {col_type}")
+        conn.commit()
+        conn.close()
+        _SSL_TABLE_INITIALIZED = True
+    except Exception as e:
+        print(f"[SSL] Notice: init_ssl_table deferred ({e})")
 
-
-init_ssl_table()
 
 
 def save_ssl(ssl_data: dict, scan_id: str = None):

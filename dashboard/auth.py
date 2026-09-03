@@ -143,15 +143,24 @@ def setup_auth_middleware(app):
     # 3. Global Authentication Gatekeeper
     @app.before_request
     def require_login_gatekeeper():
-        # First-time setup wizard check: if database has 0 users, force /setup
-        if not has_users():
-            if request.endpoint in ("setup", "health", "readiness", "static") or request.path.startswith("/static/"):
-                return None
-            return redirect(url_for("setup"))
+        # Fast path: static assets, health, and readiness bypass all checks immediately
+        if request.endpoint in ("health", "readiness", "static") or request.path.startswith("/static/"):
+            return None
 
-        # If system is already set up and user tries to access /setup, redirect to /login
-        if request.endpoint == "setup" or request.path == "/setup":
-            return redirect(url_for("login"))
+        # If user is already authenticated, the system clearly has users
+        if is_authenticated():
+            if request.endpoint == "setup" or request.path == "/setup":
+                return redirect(url_for("dashboard"))
+        else:
+            # First-time setup wizard check: if database has 0 users, force /setup
+            if not has_users():
+                if request.endpoint == "setup":
+                    return None
+                return redirect(url_for("setup"))
+
+            # If system is already set up and user tries to access /setup, redirect to /login
+            if request.endpoint == "setup" or request.path == "/setup":
+                return redirect(url_for("login"))
 
         # Allow static files and public routes
         if request.endpoint in PUBLIC_ENDPOINTS:

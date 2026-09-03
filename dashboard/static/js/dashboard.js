@@ -430,12 +430,11 @@ function initUtcToLocalTimestamps() {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 
-  function convertAll() {
+  function convertScope(container = document) {
     const timestampRegex = /\b(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})\b/g;
 
-    // 1. Convert elements with explicit data-utc or utc-to-local class
-    document.querySelectorAll("[data-utc], .utc-to-local").forEach((el) => {
-      if (el.dataset.tzDone) return;
+    // 1. Explicit class/data elements
+    container.querySelectorAll("[data-utc]:not([data-tz-done]), .utc-to-local:not([data-tz-done])").forEach((el) => {
       const raw = el.getAttribute("data-utc") || el.textContent.trim();
       const formatted = formatUtcTimestamp(raw);
       if (formatted) {
@@ -445,14 +444,13 @@ function initUtcToLocalTimestamps() {
       }
     });
 
-    // 2. Scan all text elements across tables, cards, and history lists
-    const targetElements = document.querySelectorAll(
-      "td, th, span, div, p, li, time, .mono, .stat-value, .feed-meta, .info-table td"
+    // 2. Targeted table cells and meta items
+    const targetElements = container.querySelectorAll(
+      "td:not([data-tz-done]), .feed-meta:not([data-tz-done]), .stat-sub:not([data-tz-done]), time:not([data-tz-done])"
     );
 
     targetElements.forEach((el) => {
-      // Don't convert inputs, scripts, or elements with multiple complex children
-      if (el.children.length === 0 && !el.dataset.tzDone) {
+      if (el.children.length === 0) {
         const text = el.textContent;
         if (text && timestampRegex.test(text)) {
           const newText = text.replace(timestampRegex, (match) => {
@@ -467,7 +465,24 @@ function initUtcToLocalTimestamps() {
     });
   }
 
-  convertAll();
-  // Periodically check in case of AJAX / dynamically updated dashboard tables
-  setInterval(convertAll, 3000);
+  // Initial pass
+  convertScope(document);
+
+  // Modern MutationObserver handles AJAX/live tables efficiently with zero polling overhead
+  try {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType === 1) {
+            convertScope(node);
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  } catch (e) {
+    // Gentle fallback for older browsers
+    setInterval(() => convertScope(document), 10000);
+  }
 }
+

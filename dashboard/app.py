@@ -54,13 +54,21 @@ from dashboard.routes import register_routes
 from dashboard.auth import setup_auth_middleware
 from database.user_helpers import init_users_table
 
+from database.db_engine import register_db_teardown
+
 # Instantiate Flask application
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", "cybershield-monitoring-secret-key-soc")
 
-# Initialize database tables and user authentication tables
-init_db()
-init_users_table()
+# Register connection pooling teardown
+register_db_teardown(app)
+
+# Safe database initialization (never crashes boot if Supabase connection is establishing)
+try:
+    init_db()
+    init_users_table()
+except Exception as e:
+    print(f"[STARTUP] Notice: Initial database sync deferred ({e})")
 
 # Configure authentication middleware and session security
 setup_auth_middleware(app)
@@ -148,9 +156,14 @@ def handle_500(e):
     return render_template("base.html", error_message="500 - Internal Server Error"), 500
 
 
-# Start background monitoring daemon
-from scheduler.monitor import start_background_scheduler
-start_background_scheduler(check_interval_seconds=60)
+# Start background monitoring daemon safely (avoid duplicate instances in test runs or worker reloads)
+if os.environ.get("ENABLE_BACKGROUND_SCHEDULER", "1") == "1":
+    if os.environ.get("WERKZEUG_RUN_MAIN") in (None, "true"):
+        try:
+            from scheduler.monitor import start_background_scheduler
+            start_background_scheduler(check_interval_seconds=60)
+        except Exception as e:
+            print(f"[STARTUP] Notice: background monitoring scheduler initialization: {e}")
 
 if __name__ == "__main__":
     app.run(debug=True)

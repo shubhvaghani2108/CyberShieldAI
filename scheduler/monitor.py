@@ -38,7 +38,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 # ==========================================================
 # Database Table Initialization for Monitoring Logs
 # ==========================================================
+_MONITORING_LOGS_INITIALIZED = False
+
 def _ensure_monitoring_logs_table():
+    global _MONITORING_LOGS_INITIALIZED
+    if _MONITORING_LOGS_INITIALIZED:
+        return
     try:
         conn = get_db_connection()
         conn.execute(
@@ -55,10 +60,10 @@ def _ensure_monitoring_logs_table():
         )
         conn.commit()
         conn.close()
+        _MONITORING_LOGS_INITIALIZED = True
     except Exception as e:
         print("[MONITORING] Warning initializing monitoring_logs table:", e)
 
-_ensure_monitoring_logs_table()
 
 
 # ==========================================================
@@ -92,6 +97,7 @@ def _log(target, status, message="", details=None):
     # SQLite Database persistence
     try:
         details_str = json.dumps(details) if isinstance(details, (dict, list)) else (str(details) if details else "")
+        _ensure_monitoring_logs_table()
         conn = get_db_connection()
         conn.execute(
             """

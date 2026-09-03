@@ -391,67 +391,88 @@ def seed_default_url_scan_if_empty(user_id=1):
     return
 
 
+_SCAN_ID_MIGRATION_DONE = False
+
+
 def migrate_db_add_scan_id():
     """
-    Ensures scan_id TEXT and user_id INTEGER columns exist on all scan output tables.
+    Ensures scan_id TEXT and user_id INTEGER columns and composite indexes exist.
+    Guarded to run at most once per application lifecycle.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    global _SCAN_ID_MIGRATION_DONE
+    if _SCAN_ID_MIGRATION_DONE:
+        return
 
-    tables = [
-        "url_scan_results",
-        "security_posture",
-        "ports",
-        "service_versions",
-        "security_headers",
-        "ssl_results",
-        "technology_detection",
-        "vulnerabilities",
-        "cves",
-        "url_intelligence",
-        "os_info",
-        "risk_summary",
-        "scan_history",
-        "host_status",
-        "virustotal_results",
-        "alerts",
-    ]
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    for table in tables:
-        try:
-            cursor.execute(f"PRAGMA table_info({table})")
-            columns = [row[1] for row in cursor.fetchall()]
-            if columns and "scan_id" not in columns:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN scan_id TEXT")
-                print(f"[MIGRATION] Added scan_id TEXT to {table}")
-            if table in ("url_scan_results", "security_posture", "scan_history", "host_status", "alerts") and "user_id" not in columns:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
-                print(f"[MIGRATION] Added user_id INTEGER to {table}")
-        except Exception as e:
-            print(f"[MIGRATION] Warning migration {table}: {e}")
+        tables = [
+            "url_scan_results",
+            "security_posture",
+            "ports",
+            "service_versions",
+            "security_headers",
+            "ssl_results",
+            "technology_detection",
+            "vulnerabilities",
+            "cves",
+            "url_intelligence",
+            "os_info",
+            "risk_summary",
+            "scan_history",
+            "host_status",
+            "virustotal_results",
+            "alerts",
+        ]
 
-    indexes = [
-        ("idx_posture_scan_id", "security_posture", "scan_id"),
-        ("idx_ports_ip_scan", "ports", "ip, scan_id"),
-        ("idx_vuln_ip_scan", "vulnerabilities", "ip, scan_id"),
-        ("idx_cves_ip_scan", "cves", "ip, scan_id"),
-        ("idx_risk_ip_scan", "risk_summary", "ip, scan_id"),
-        ("idx_os_ip_scan", "os_info", "ip, scan_id"),
-        ("idx_ssl_host_scan", "ssl_results", "host, scan_id"),
-        ("idx_url_scan_id", "url_scan_results", "scan_id"),
-        ("idx_url_user_id", "url_scan_results", "user_id"),
-        ("idx_history_user_id", "scan_history", "user_id"),
-        ("idx_host_user_id", "host_status", "user_id"),
-        ("idx_alerts_scan_time", "alerts", "scan_time"),
-    ]
-    for idx_name, tbl, cols in indexes:
-        try:
-            cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {tbl}({cols})")
-        except Exception as e:
-            print(f"[MIGRATION] Index {idx_name}: {e}")
+        for table in tables:
+            try:
+                cursor.execute(f"PRAGMA table_info({table})")
+                columns = [row[1] for row in cursor.fetchall()]
+                if columns and "scan_id" not in columns:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN scan_id TEXT")
+                if table in ("url_scan_results", "security_posture", "scan_history", "host_status", "alerts") and "user_id" not in columns:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
+            except Exception:
+                pass
 
-    conn.commit()
-    conn.close()
+        indexes = [
+            ("idx_posture_scan_id", "security_posture", "scan_id"),
+            ("idx_ports_scan_id", "ports", "scan_id"),
+            ("idx_ports_ip_scan", "ports", "ip, scan_id"),
+            ("idx_vulns_scan_id", "vulnerabilities", "scan_id"),
+            ("idx_vuln_ip_scan", "vulnerabilities", "ip, scan_id"),
+            ("idx_cves_scan_id", "cves", "scan_id"),
+            ("idx_cves_ip_scan", "cves", "ip, scan_id"),
+            ("idx_risk_scan_id", "risk_summary", "scan_id"),
+            ("idx_risk_ip_scan", "risk_summary", "ip, scan_id"),
+            ("idx_os_scan_id", "os_info", "scan_id"),
+            ("idx_os_ip_scan", "os_info", "ip, scan_id"),
+            ("idx_ssl_host", "ssl_results", "host"),
+            ("idx_ssl_host_scan", "ssl_results", "host, scan_id"),
+            ("idx_url_scan_id", "url_scan_results", "scan_id"),
+            ("idx_url_user_id_id", "url_scan_results", "user_id, id DESC"),
+            ("idx_history_user_id_id", "scan_history", "user_id, id DESC"),
+            ("idx_host_user_id_id", "host_status", "user_id, id DESC"),
+            ("idx_alerts_user_id_id", "alerts", "user_id, id DESC"),
+            ("idx_alerts_scan_time", "alerts", "scan_time"),
+            ("idx_tech_url_scan", "technology_detection", "url, scan_id"),
+            ("idx_url_intel_url_scan", "url_intelligence", "url, scan_id"),
+            ("idx_vt_url_scan", "virustotal_results", "url, scan_id"),
+        ]
+        for idx_name, tbl, cols in indexes:
+            try:
+                cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {tbl}({cols})")
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+        _SCAN_ID_MIGRATION_DONE = True
+    except Exception as e:
+        print(f"[DB] Notice: migrate_db_add_scan_id deferred ({e})")
+
 
 
 def seed_default_url_scan_if_empty(user_id=1):

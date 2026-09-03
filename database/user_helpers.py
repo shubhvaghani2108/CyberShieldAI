@@ -675,6 +675,20 @@ def get_user_count():
         conn.close()
 
 
+_HAS_USERS_CACHED = False
+
+
 def has_users():
-    """Returns True if there is at least one local user in the database."""
-    return get_user_count() > 0
+    """Returns True if there is at least one local user in the database, caching result in memory."""
+    global _HAS_USERS_CACHED
+    if _HAS_USERS_CACHED:
+        return True
+    try:
+        count = get_user_count()
+        if count > 0:
+            _HAS_USERS_CACHED = True
+            return True
+        return False
+    except Exception:
+        return True
+

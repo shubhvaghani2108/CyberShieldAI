@@ -23,12 +23,11 @@ def check_host_alive(target, scan_id=None, user_id=None):
 
     try:
         cmd = ["ping", count_flag, "1", timeout_flag, "1500", target]
-        from scanner.config import SCAN_CONNECT_TIMEOUT
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=SCAN_CONNECT_TIMEOUT,
+            timeout=5,
         )
         output = result.stdout.lower()
 

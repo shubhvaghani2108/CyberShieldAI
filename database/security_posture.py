@@ -10,40 +10,46 @@ def _get_conn():
     return get_db_connection()
 
 
+_SECURITY_POSTURE_INITIALIZED = False
+
 def init_security_posture_table():
-    conn = _get_conn()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS security_posture (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            scan_id TEXT,
-            ip TEXT,
-            url TEXT,
-            security_score INTEGER,
-            security_grade TEXT,
-            threat_score INTEGER,
-            risk_level TEXT,
-            assessment_status TEXT DEFAULT 'ASSESSED',
-            scan_time TEXT
+    global _SECURITY_POSTURE_INITIALIZED
+    if _SECURITY_POSTURE_INITIALIZED:
+        return
+    try:
+        conn = _get_conn()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS security_posture (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                scan_id TEXT,
+                ip TEXT,
+                url TEXT,
+                security_score INTEGER,
+                security_grade TEXT,
+                threat_score INTEGER,
+                risk_level TEXT,
+                assessment_status TEXT DEFAULT 'ASSESSED',
+                scan_time TEXT
+            )
+            """
         )
-        """
-    )
-    # Migration: check columns
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(security_posture)")
-    cols = [r["name"] for r in cursor.fetchall()]
-    if "assessment_status" not in cols:
-        cursor.execute("ALTER TABLE security_posture ADD COLUMN assessment_status TEXT DEFAULT 'ASSESSED'")
-    if "scan_id" not in cols:
-        cursor.execute("ALTER TABLE security_posture ADD COLUMN scan_id TEXT")
-    if "user_id" not in cols:
-        cursor.execute("ALTER TABLE security_posture ADD COLUMN user_id INTEGER DEFAULT 1")
-    conn.commit()
-    conn.close()
-
-
-init_security_posture_table()
+        # Migration: check columns
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(security_posture)")
+        cols = [r["name"] for r in cursor.fetchall()]
+        if "assessment_status" not in cols:
+            cursor.execute("ALTER TABLE security_posture ADD COLUMN assessment_status TEXT DEFAULT 'ASSESSED'")
+        if "scan_id" not in cols:
+            cursor.execute("ALTER TABLE security_posture ADD COLUMN scan_id TEXT")
+        if "user_id" not in cols:
+            cursor.execute("ALTER TABLE security_posture ADD COLUMN user_id INTEGER DEFAULT 1")
+        conn.commit()
+        conn.close()
+        _SECURITY_POSTURE_INITIALIZED = True
+    except Exception as e:
+        print(f"[POSTURE] Notice: init_security_posture_table deferred ({e})")
 
 
 def save_security_posture(

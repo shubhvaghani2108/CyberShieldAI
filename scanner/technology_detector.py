@@ -126,11 +126,10 @@ def detect_technology(url):
 
     try:
 
-        from scanner.config import SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT
         response = requests.get(
             url,
             headers=headers,
-            timeout=(SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT),
+            timeout=8,
             allow_redirects=True,
             verify=False
         )
