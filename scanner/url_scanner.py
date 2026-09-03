@@ -31,10 +31,11 @@ def check_protocol(test_url):
         "User-Agent": "Mozilla/5.0"
     }
 
+    from scanner.config import SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT
     try:
         response = requests.get(
             test_url,
-            timeout=5,
+            timeout=(SCAN_CONNECT_TIMEOUT, SCAN_READ_TIMEOUT),
             allow_redirects=True,
             headers=headers
         )

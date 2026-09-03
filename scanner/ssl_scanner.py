@@ -46,7 +46,8 @@ def analyze_ssl(url_or_host: str, port: int = 443, timeout: float = 5.0):
     der_cert = None
 
     try:
-        with socket.create_connection((host, port), timeout=timeout) as sock:
+        from scanner.config import SCAN_CONNECT_TIMEOUT
+        with socket.create_connection((host, port), timeout=SCAN_CONNECT_TIMEOUT) as sock:
             with context.wrap_socket(sock, server_hostname=host) as ssock:
                 tls_version = ssock.version()
                 cipher_info = ssock.cipher()
