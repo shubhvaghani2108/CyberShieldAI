@@ -185,12 +185,50 @@ def _probe_single_socket(target_ip, port, timeout=1.0, hostname=None):
                     m = re.search(r"openssh_?([\d\.\w]+)", banner, re.I)
                     if m:
                         version = m.group(1)
-                elif "mysql" in b_lower:
-                    service = "mysql"
-                    product = "MySQL"
+                elif "vsftpd" in b_lower:
+                    service = "ftp"
+                    product = "vsftpd"
+                    m = re.search(r"vsftpd\s*\(?([\d\.]+)\)?", banner, re.I)
+                    if m:
+                        version = m.group(1)
+                elif "pure-ftpd" in b_lower:
+                    service = "ftp"
+                    product = "Pure-FTPd"
+                elif "proftpd" in b_lower:
+                    service = "ftp"
+                    product = "ProFTPD"
+                    m = re.search(r"proftpd\s*([\d\.]+)", banner, re.I)
+                    if m:
+                        version = m.group(1)
+                elif "dovecot" in b_lower:
+                    product = "Dovecot"
+                    m = re.search(r"dovecot\s*([\d\.]+)", banner, re.I)
+                    if m:
+                        version = m.group(1)
                 elif "postfix" in b_lower or "esmtp" in b_lower:
                     service = "smtp"
                     product = "Postfix / ESMTP"
+                elif "exim" in b_lower:
+                    service = "smtp"
+                    product = "Exim"
+                    m = re.search(r"exim\s*([\d\.]+)", banner, re.I)
+                    if m:
+                        version = m.group(1)
+                elif "mysql" in b_lower:
+                    service = "mysql"
+                    product = "MySQL"
+                    m = re.search(r"([\d\.]+(?:-[\w\.\-]+)?)", banner)
+                    if m:
+                        version = m.group(1)
+                elif "postgresql" in b_lower:
+                    service = "postgresql"
+                    product = "PostgreSQL"
+                elif "bind" in b_lower or "named" in b_lower:
+                    service = "dns"
+                    product = "BIND DNS"
+
+            if not product and service and service != "unknown":
+                product = service.upper()
 
             return {
                 "port": port,

@@ -14,11 +14,15 @@
     <table>
         <thead>
             <tr>
-                <th>IP ADDRESS</th>
                 <th>PORT</th>
+                <th>PROTO</th>
                 <th>STATE</th>
                 <th>SERVICE</th>
+                <th>PRODUCT</th>
+                <th>VERSION</th>
                 <th>BANNER</th>
+                <th>RISK</th>
+                <th>RELATED FINDINGS</th>
                 <th>WHAT THIS MEANS</th>
             </tr>
         </thead>
@@ -26,18 +30,21 @@
         {% for row in rows %}
         {% set ip_val = row['ip'] if row['ip'] is defined else row[0] %}
         {% set port_val = row['port'] if row['port'] is defined else row[1] %}
-        {% set state_val = row['state'] if row['state'] is defined else row[2] %}
-        {% set service_val = row['service'] if row['service'] is defined else row[3] %}
-        {% set banner_val = row['banner'] if row['banner'] is defined else row[4] %}
+        {% set proto_val = row['proto'] if row['proto'] is defined else 'TCP' %}
+        {% set state_val = row['state'] if row['state'] is defined else (row[2] if row|length > 2 else 'OPEN') %}
+        {% set service_val = row['service'] if row['service'] is defined else (row[3] if row|length > 3 else 'unknown') %}
+        {% set product_val = row['product'] if row['product'] is defined else 'Not detected' %}
+        {% set version_val = row['version'] if row['version'] is defined else 'Not detected' %}
+        {% set banner_val = row['banner'] if row['banner'] is defined else (row[4] if row|length > 4 else 'Not detected') %}
+        {% set risk_val = row['risk'] if row['risk'] is defined else 'Informational' %}
+        {% set vuln_val = row['vuln_mapping'] if row['vuln_mapping'] is defined else 'None detected' %}
         {% set meaning_val = meanings[loop.index0] if (meanings and loop.index0 < meanings|length) else "Active network service endpoint" %}
         <tr>
             <td class="mono">
-                <span style="color: var(--accent); font-weight: 500;">
-                    {{ ip_val }}
-                </span>
+                <strong style="color: var(--accent); font-size: 14px;">{{ port_val }}</strong>
             </td>
-            <td class="mono">
-                <strong style="color: var(--text-0); font-size: 14px;">{{ port_val }}</strong>
+            <td class="mono" style="font-size: 12px; color: var(--text-2);">
+                {{ proto_val|upper }}
             </td>
             <td>
                 {% if (state_val or 'open')|lower == 'open' %}
@@ -53,10 +60,35 @@
                     {{ (service_val or 'unknown')|lower }}
                 </span>
             </td>
-            <td style="max-width: 480px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--text-0); line-height: 1.45;">
-                {{ banner_val or "No banner" }}
+            <td>
+                {% if product_val and product_val != 'Not detected' %}
+                    <span style="color: var(--text-0); font-weight: 500;">{{ product_val }}</span>
+                {% else %}
+                    <span style="color: var(--text-muted);">Not detected</span>
+                {% endif %}
             </td>
-            <td style="max-width: 360px; word-wrap: break-word; color: var(--text-1); font-size: 13px; line-height: 1.45; font-style: italic;">
+            <td class="mono" style="font-size: 12px;">
+                {% if version_val and version_val != 'Not detected' %}
+                    <span style="color: var(--cyan); font-weight: 600;">{{ version_val }}</span>
+                {% else %}
+                    <span style="color: var(--text-muted);">Not detected</span>
+                {% endif %}
+            </td>
+            <td style="max-width: 260px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text-1); line-height: 1.4;">
+                {{ banner_val if banner_val and banner_val != 'No banner' else 'Not detected' }}
+            </td>
+            <td>
+                {% set r_clean = (risk_val or 'low')|lower %}
+                <span class="badge badge-{{ r_clean }}" style="font-weight: 700; text-transform: capitalize;">{{ risk_val }}</span>
+            </td>
+            <td style="max-width: 240px; word-wrap: break-word; font-size: 12px; line-height: 1.4;">
+                {% if vuln_val and vuln_val != 'None detected' %}
+                    <span style="color: var(--danger, #ef4444); font-weight: 500;">{{ vuln_val }}</span>
+                {% else %}
+                    <span style="color: var(--text-muted);">None detected</span>
+                {% endif %}
+            </td>
+            <td style="max-width: 220px; word-wrap: break-word; color: var(--text-2); font-size: 12px; line-height: 1.4; font-style: italic;">
                 {{ meaning_val }}
             </td>
         </tr>

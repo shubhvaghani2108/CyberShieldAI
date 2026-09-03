@@ -166,8 +166,20 @@ function toggleCveDetail(elementId) {
 </script>
 
 {% else %}
-<div class="glass content-panel">
-    <p class="empty-note">No CVE data recorded for this scan.</p>
+<div class="glass content-panel" style="padding: 40px; text-align: center;">
+    {% if has_scanned %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.85;">🔒</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">0 CVE Vulnerabilities Matched</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            Scan completed for <strong>{{ latest_ip }}</strong>. No matching CVE entries or known exploits were identified in the NIST NVD database for the scanned services.
+        </p>
+    {% else %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🔍</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">No Scan Performed Yet</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            No scan has been performed yet. Launch a new scan from the top navigation bar to query services against the CVE vulnerability database.
+        </p>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

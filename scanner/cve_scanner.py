@@ -443,6 +443,7 @@ def _ensure_tables(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cves (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT,
             ip TEXT NOT NULL,
             port INTEGER NOT NULL,
             service TEXT,
@@ -460,15 +461,6 @@ def _ensure_tables(conn):
         )
     """)
     conn.commit()
-
-    cursor = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='ports'"
-    )
-    if cursor.fetchone() is None:
-        raise RuntimeError(
-            "Table 'ports' does not exist in cybershield.db. "
-            "Run your port scan step first so `ports` is populated."
-        )
 
 
 def scan_cves(target_ip, scan_id=None):
@@ -497,13 +489,27 @@ def scan_cves(target_ip, scan_id=None):
                 WHERE ip = ?
             """, (target_ip,))
         rows = cursor.fetchall()
+        parsed_rows = []
+        for r in rows:
+            if hasattr(r, "keys"):
+                ip_v = r.get("ip") or target_ip
+                port_v = r.get("port")
+                svc_v = r.get("service") or ""
+            else:
+                ip_v = r[0] if len(r) > 0 else target_ip
+                port_v = r[1] if len(r) > 1 else None
+                svc_v = r[2] if len(r) > 2 else ""
+            try:
+                parsed_rows.append((ip_v, int(port_v), svc_v))
+            except (ValueError, TypeError):
+                continue
 
         found = False
 
         print(f"\nCVE REPORT [scan_id={scan_id}]")
         print("=" * 70)
 
-        for ip, port, service in rows:
+        for ip, port, service in parsed_rows:
             entry = get_cve_info(port, service)
             if not entry:
                 continue

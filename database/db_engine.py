@@ -98,10 +98,14 @@ def resolve_sqlite_path():
     return os.path.join(BASE_DIR, "cybershield.db")
 
 
-class DbRow(Mapping):
+class DbRow:
     """
     Case-insensitive, dict-accessible, tuple-accessible row wrapper.
     100% compatible with sqlite3.Row and RealDictRow.
+    Iterating yields column values (like sqlite3.Row), ensuring that:
+        ip, port, service = row
+    correctly unpacks the actual column values, while .keys(), .items(),
+    and string indexing provide full dictionary access.
     """
     def __init__(self, description, values):
         self._values = tuple(values) if values is not None else ()
@@ -109,9 +113,7 @@ class DbRow(Mapping):
         self._key_map = {k.lower(): i for i, k in enumerate(self._keys)}
 
     def __getitem__(self, item):
-        if isinstance(item, int):
-            return self._values[item]
-        if isinstance(item, slice):
+        if isinstance(item, (int, slice)):
             return self._values[item]
         if isinstance(item, str):
             idx = self._key_map.get(item.lower())
@@ -121,7 +123,10 @@ class DbRow(Mapping):
         raise TypeError(f"Row indices must be integers or strings, not {type(item).__name__}")
 
     def __iter__(self):
-        return iter(self._keys)
+        # Like sqlite3.Row, iterating yields column values so that:
+        # a, b, c = row
+        # unpacks the actual values instead of column names.
+        return iter(self._values)
 
     def __len__(self):
         return len(self._values)
@@ -199,18 +204,20 @@ def translate_sql_for_postgres(sql):
         """, False
 
     # Handle sqlite_master
-    s = re.sub(
-        r"FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*'table'",
-        "FROM information_schema.tables WHERE table_schema = 'public'",
-        s,
-        flags=re.IGNORECASE
-    )
-    s = re.sub(
-        r"FROM\s+sqlite_master",
-        "FROM information_schema.tables WHERE table_schema = 'public'",
-        s,
-        flags=re.IGNORECASE
-    )
+    if "sqlite_master" in s.lower():
+        s = re.sub(r"\bname\b", "table_name", s, flags=re.IGNORECASE)
+        s = re.sub(
+            r"FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*'table'",
+            "FROM information_schema.tables WHERE table_schema = 'public'",
+            s,
+            flags=re.IGNORECASE
+        )
+        s = re.sub(
+            r"FROM\s+sqlite_master",
+            "FROM information_schema.tables WHERE table_schema = 'public'",
+            s,
+            flags=re.IGNORECASE
+        )
 
     # Handle SQLite datetime functions
     s = re.sub(r"datetime\s*\(\s*'now'\s*,\s*'-(\d+)\s+days?'\s*\)", r"(NOW() - INTERVAL '\1 days')", s, flags=re.IGNORECASE)
@@ -376,13 +383,12 @@ def _get_pg_pool():
 
 
 def _check_pg_conn_alive(raw_conn):
-    """Performs a lightweight sanity check to verify connection is open and ready."""
+    """Performs a fast, non-blocking check to verify connection is open and ready."""
     try:
         if raw_conn.closed != 0:
             return False
-        # Fast query to verify backend connection hasn't been dropped by server/pooler
-        with raw_conn.cursor() as cur:
-            cur.execute("SELECT 1")
+        # raw_conn.poll() checks socket health instantly without a round-trip network query
+        raw_conn.poll()
         return True
     except Exception:
         return False

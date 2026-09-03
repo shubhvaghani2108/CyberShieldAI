@@ -52,7 +52,19 @@
 </div>
 {% else %}
 <div class="glass content-panel" style="padding: 40px; text-align: center;">
-    <p class="empty-note" style="font-size: 14px; color: var(--text-2);">No active vulnerabilities detected for the latest scan target.</p>
+    {% if has_scanned %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.85;">🛡️</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">0 Vulnerabilities Detected</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            Scan completed for <strong>{{ latest_ip }}</strong>. All scanned open ports and services passed baseline security risk policies.
+        </p>
+    {% else %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🔍</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">No Scan Performed Yet</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            No scan has been performed yet. Launch a new scan from the top navigation bar to analyze targets for security vulnerabilities.
+        </p>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

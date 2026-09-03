@@ -1141,9 +1141,12 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
     return trend
 
 
-def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None):
+def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
     """Gathers everything about the specified or latest IP/host scan into one dict."""
-    data = get_dashboard_data(user_id=user_id)
+    if include_dashboard_data:
+        data = get_dashboard_data(user_id=user_id)
+    else:
+        data = {}
     conn = get_db_connection()
     latest_ip = target_ip or get_latest_ip(user_id=user_id)
 
@@ -1428,37 +1431,43 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None):
     else:
         data["security_score"] = 100
 
-    # Dashboard Stats
-    stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
-    assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
-    recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip, user_id=user_id)
+    if include_dashboard_data:
+        # Dashboard Stats
+        stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
+        assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
+        recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip, user_id=user_id)
 
-    if risk:
-        severity = {
-            "critical": risk["critical_count"] or 0,
-            "high": risk["high_count"] or 0,
-            "medium": risk["medium_count"] or 0,
-            "low": risk["low_count"] or 0,
+        if risk:
+            severity = {
+                "critical": risk["critical_count"] or 0,
+                "high": risk["high_count"] or 0,
+                "medium": risk["medium_count"] or 0,
+                "low": risk["low_count"] or 0,
+            }
+        else:
+            severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+        service_counts = Counter(
+            (p["service"] or "unknown") for p in ports if p["state"] == "open"
+        )
+        port_distribution = [
+            {"label": svc, "count": cnt} for svc, cnt in service_counts.most_common(8)
+        ]
+
+        chart_data = {
+            "severity": severity,
+            "port_distribution": port_distribution,
+            "risk_trend": get_risk_trend(limit=8, latest_ip=latest_ip, user_id=user_id),
         }
+
+        data["stats"] = stats
+        data["assets"] = assets
+        data["recent_activity"] = recent_activity
+        data["chart_data"] = chart_data
     else:
-        severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-
-    service_counts = Counter(
-        (p["service"] or "unknown") for p in ports if p["state"] == "open"
-    )
-    port_distribution = [
-        {"label": svc, "count": cnt} for svc, cnt in service_counts.most_common(8)
-    ]
-
-    chart_data = {
-        "severity": severity,
-        "port_distribution": port_distribution,
-        "risk_trend": get_risk_trend(limit=8, latest_ip=latest_ip, user_id=user_id),
-    }
-
-    data["stats"] = stats
-    data["assets"] = assets
-    data["recent_activity"] = recent_activity
-    data["chart_data"] = chart_data
+        data["stats"] = {}
+        data["assets"] = []
+        data["recent_activity"] = []
+        data["chart_data"] = {}
 
     return data
