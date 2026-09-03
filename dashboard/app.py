@@ -156,14 +156,30 @@ def handle_500(e):
     return render_template("base.html", error_message="500 - Internal Server Error"), 500
 
 
-# Start background monitoring daemon safely (avoid duplicate instances in test runs or worker reloads)
+# Start background monitoring daemon safely in a single worker process
 if os.environ.get("ENABLE_BACKGROUND_SCHEDULER", "1") == "1":
     if os.environ.get("WERKZEUG_RUN_MAIN") in (None, "true"):
+        import tempfile, atexit
+        lock_file = os.path.join(tempfile.gettempdir(), f"csa_scheduler_{os.getpid()}.lock")
+        master_lock = os.path.join(tempfile.gettempdir(), "csa_scheduler_master.lock")
+        _acquired = False
         try:
-            from scheduler.monitor import start_background_scheduler
-            start_background_scheduler(check_interval_seconds=60)
-        except Exception as e:
-            print(f"[STARTUP] Notice: background monitoring scheduler initialization: {e}")
+            # Atomic lock creation: only the first worker to start becomes the scheduler host
+            fd = os.open(master_lock, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            _acquired = True
+            atexit.register(lambda: os.remove(master_lock) if os.path.exists(master_lock) else None)
+        except OSError:
+            # Another worker is already running the scheduler
+            _acquired = False
+
+        if _acquired:
+            try:
+                from scheduler.monitor import start_background_scheduler
+                start_background_scheduler(check_interval_seconds=60)
+            except Exception as e:
+                print(f"[STARTUP] Notice: background monitoring scheduler initialization: {e}")
 
 if __name__ == "__main__":
     app.run(debug=True)

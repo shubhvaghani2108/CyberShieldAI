@@ -87,75 +87,82 @@ def save_ssl(ssl_data: dict, scan_id: str = None):
         return
 
     conn = _get_conn()
-    san_val = ssl_data.get("san_names")
-    if isinstance(san_val, list):
-        san_str = json.dumps(san_val)
-    else:
-        san_str = str(san_val or "")
+    try:
+        san_val = ssl_data.get("san_names")
+        if isinstance(san_val, list):
+            san_str = json.dumps(san_val)
+        else:
+            san_str = str(san_val or "")
 
-    conn.execute(
-        """
-        INSERT INTO ssl_results
-        (scan_id, host, port, has_ssl, tls_version, cipher_suite, key_type, key_size,
-         fingerprint_sha256, cert_chain, san_names, issuer, subject,
-         valid_from, valid_to, days_remaining, self_signed,
-         expired, warnings, scan_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            scan_id or ssl_data.get("scan_id"),
-            ssl_data.get("host"),
-            ssl_data.get("port"),
-            1 if ssl_data.get("has_ssl") else 0,
-            ssl_data.get("tls_version"),
-            ssl_data.get("cipher_suite"),
-            ssl_data.get("key_type"),
-            ssl_data.get("key_size"),
-            ssl_data.get("fingerprint_sha256"),
-            ssl_data.get("cert_chain"),
-            san_str,
-            ssl_data.get("issuer"),
-            ssl_data.get("subject"),
-            ssl_data.get("valid_from"),
-            ssl_data.get("valid_to"),
-            ssl_data.get("days_remaining"),
-            1 if ssl_data.get("self_signed") else 0,
-            1 if ssl_data.get("expired") else 0,
-            " | ".join(ssl_data.get("warnings", [])) if ssl_data.get("warnings") else "",
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        ),
-    )
-    conn.commit()
-    conn.close()
+        conn.execute(
+            """
+            INSERT INTO ssl_results
+            (scan_id, host, port, has_ssl, tls_version, cipher_suite, key_type, key_size,
+             fingerprint_sha256, cert_chain, san_names, issuer, subject,
+             valid_from, valid_to, days_remaining, self_signed,
+             expired, warnings, scan_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                scan_id or ssl_data.get("scan_id"),
+                ssl_data.get("host"),
+                ssl_data.get("port"),
+                1 if ssl_data.get("has_ssl") else 0,
+                ssl_data.get("tls_version"),
+                ssl_data.get("cipher_suite"),
+                ssl_data.get("key_type"),
+                ssl_data.get("key_size"),
+                ssl_data.get("fingerprint_sha256"),
+                ssl_data.get("cert_chain"),
+                san_str,
+                ssl_data.get("issuer"),
+                ssl_data.get("subject"),
+                ssl_data.get("valid_from"),
+                ssl_data.get("valid_to"),
+                ssl_data.get("days_remaining"),
+                1 if ssl_data.get("self_signed") else 0,
+                1 if ssl_data.get("expired") else 0,
+                " | ".join(ssl_data.get("warnings", [])) if ssl_data.get("warnings") else "",
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[SSL] Error saving SSL data: {e}")
+    finally:
+        conn.close()
 
 
 def get_latest_ssl(host: str, scan_id=None):
     conn = _get_conn()
-    row = None
-    if scan_id:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM ssl_results
-            WHERE scan_id = ?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (scan_id,),
-        ).fetchone()
+    try:
+        row = None
+        if scan_id:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ssl_results
+                WHERE scan_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (scan_id,),
+            ).fetchone()
 
-    if not row and host:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM ssl_results
-            WHERE host = ?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (host,),
-        ).fetchone()
-    conn.close()
+        if not row and host:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ssl_results
+                WHERE host = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (host,),
+            ).fetchone()
+    finally:
+        conn.close()
+
     if row:
         res = dict(row)
         if res.get("san_names"):
@@ -197,32 +204,32 @@ def get_latest_ssl(host: str, scan_id=None):
 
 def get_previous_ssl(host, current_id=None):
     conn = _get_conn()
-
-    if current_id is not None:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM ssl_results
-            WHERE host = ?
-              AND id < ?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (host, current_id),
-        ).fetchone()
-    else:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM ssl_results
-            WHERE host = ?
-            ORDER BY id DESC
-            LIMIT 1 OFFSET 1
-            """,
-            (host,),
-        ).fetchone()
-
-    conn.close()
+    try:
+        if current_id is not None:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ssl_results
+                WHERE host = ?
+                  AND id < ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (host, current_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM ssl_results
+                WHERE host = ?
+                ORDER BY id DESC
+                LIMIT 1 OFFSET 1
+                """,
+                (host,),
+            ).fetchone()
+    finally:
+        conn.close()
 
     return dict(row) if row else None
 

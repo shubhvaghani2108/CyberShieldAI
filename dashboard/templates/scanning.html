@@ -467,7 +467,11 @@
                 if (job.status === 'error'){
                     setStatus('error');
                     document.getElementById('errorBox').style.display = 'block';
-                    document.getElementById('errorBox').textContent = job.error || 'Unknown error occurred during the scan.';
+                    let safeError = job.error || 'Scan temporarily unavailable. Please try again.';
+                    if (/password|pooler|supabase|postgresql|postgres|psycopg2|port\s*\d+|FATAL|EMAXCONN|Traceback/i.test(safeError)) {
+                        safeError = 'Scan temporarily unavailable. Please try again.';
+                    }
+                    document.getElementById('errorBox').textContent = safeError;
                     showActions('<a class="csa-btn csa-btn-primary" href="/"><i class="bi bi-house"></i> Back to Dashboard</a>');
                     return;
                 }

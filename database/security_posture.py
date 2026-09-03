@@ -71,86 +71,90 @@ def save_security_posture(
         assessment_status = "INCONCLUSIVE"
 
     conn = _get_conn()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    existing = None
-    if scan_id:
-        existing = cursor.execute("SELECT id FROM security_posture WHERE scan_id = ?", (scan_id,)).fetchone()
-    if not existing:
-        existing = cursor.execute(
-            "SELECT id FROM security_posture WHERE ip = ? AND url = ? AND scan_time = ?",
-            (ip, url, scan_time)
-        ).fetchone()
+        existing = None
+        if scan_id:
+            existing = cursor.execute("SELECT id FROM security_posture WHERE scan_id = ?", (scan_id,)).fetchone()
+        if not existing:
+            existing = cursor.execute(
+                "SELECT id FROM security_posture WHERE ip = ? AND url = ? AND scan_time = ?",
+                (ip, url, scan_time)
+            ).fetchone()
 
-    score_val = int(security_score) if security_score is not None else None
-    grade_val = str(security_grade or "N/A")
-    t_score_val = int(threat_score or 0)
-    risk_val = str(risk_level or "Low")
+        score_val = int(security_score) if security_score is not None else None
+        grade_val = str(security_grade or "N/A")
+        t_score_val = int(threat_score or 0)
+        risk_val = str(risk_level or "Low")
 
-    if existing:
-        posture_id = existing["id"]
-        if user_id is not None:
-            cursor.execute(
-                """
-                UPDATE security_posture
-                SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?, user_id = ?
-                WHERE id = ?
-                """,
-                (
-                    score_val,
-                    grade_val,
-                    t_score_val,
-                    risk_val,
-                    assessment_status,
-                    scan_time,
-                    user_id,
-                    posture_id
+        if existing:
+            posture_id = existing["id"]
+            if user_id is not None:
+                cursor.execute(
+                    """
+                    UPDATE security_posture
+                    SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?, user_id = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        score_val,
+                        grade_val,
+                        t_score_val,
+                        risk_val,
+                        assessment_status,
+                        scan_time,
+                        user_id,
+                        posture_id
+                    )
                 )
-            )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE security_posture
+                    SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        score_val,
+                        grade_val,
+                        t_score_val,
+                        risk_val,
+                        assessment_status,
+                        scan_time,
+                        posture_id
+                    )
+                )
         else:
             cursor.execute(
                 """
-                UPDATE security_posture
-                SET security_score = ?, security_grade = ?, threat_score = ?, risk_level = ?, assessment_status = ?, scan_time = ?
-                WHERE id = ?
+                INSERT INTO security_posture
+                (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
+                    scan_id,
+                    user_id,
+                    ip,
+                    url,
                     score_val,
                     grade_val,
                     t_score_val,
                     risk_val,
                     assessment_status,
-                    scan_time,
-                    posture_id
+                    scan_time
                 )
             )
-    else:
-        cursor.execute(
-            """
-            INSERT INTO security_posture
-            (scan_id, user_id, ip, url, security_score, security_grade, threat_score, risk_level, assessment_status, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                user_id,
-                ip,
-                url,
-                score_val,
-                grade_val,
-                t_score_val,
-                risk_val,
-                assessment_status,
-                scan_time
-            )
-        )
-        posture_id = cursor.lastrowid
+            posture_id = cursor.lastrowid
 
-    conn.commit()
-    conn.close()
-
-    print(f"[POSTURE] Security posture saved: {score_val if score_val is not None else 'N/A'}/100 ({grade_val}) status={assessment_status} [scan_id={scan_id}]")
-    return posture_id
+        conn.commit()
+        print(f"[POSTURE] Security posture saved: {score_val if score_val is not None else 'N/A'}/100 ({grade_val}) status={assessment_status} [scan_id={scan_id}]")
+        return posture_id
+    except Exception as e:
+        print(f"[POSTURE] Error saving posture: {e}")
+        return None
+    finally:
+        conn.close()
 
 
 def get_previous_security_posture(target: str, current_id: int = None):
@@ -158,34 +162,36 @@ def get_previous_security_posture(target: str, current_id: int = None):
     Retrieves the previous security posture record for an IP or URL.
     """
     conn = _get_conn()
-    like_target = f"%{target}%"
+    try:
+        like_target = f"%{target}%"
 
-    if current_id is not None:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM security_posture
-            WHERE (ip = ? OR url = ? OR url LIKE ?)
-              AND id < ?
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (target, target, like_target, current_id),
-        ).fetchone()
-    else:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM security_posture
-            WHERE ip = ? OR url = ? OR url LIKE ?
-            ORDER BY id DESC
-            LIMIT 1 OFFSET 1
-            """,
-            (target, target, like_target),
-        ).fetchone()
+        if current_id is not None:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM security_posture
+                WHERE (ip = ? OR url = ? OR url LIKE ?)
+                  AND id < ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (target, target, like_target, current_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM security_posture
+                WHERE ip = ? OR url = ? OR url LIKE ?
+                ORDER BY id DESC
+                LIMIT 1 OFFSET 1
+                """,
+                (target, target, like_target),
+            ).fetchone()
 
-    conn.close()
-    return dict(row) if row else None
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
 
 def get_latest_security_posture(target: str):
@@ -193,16 +199,18 @@ def get_latest_security_posture(target: str):
     Retrieves the latest security posture record for an IP or URL.
     """
     conn = _get_conn()
-    like_target = f"%{target}%"
-    row = conn.execute(
-        """
-        SELECT *
-        FROM security_posture
-        WHERE ip = ? OR url = ? OR url LIKE ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (target, target, like_target),
-    ).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        like_target = f"%{target}%"
+        row = conn.execute(
+            """
+            SELECT *
+            FROM security_posture
+            WHERE ip = ? OR url = ? OR url LIKE ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (target, target, like_target),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()

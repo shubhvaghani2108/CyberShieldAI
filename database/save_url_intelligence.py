@@ -39,43 +39,47 @@ def save_url_intelligence(data, scan_id=None):
         asn = geoip_info.get("asn", "Unknown")
 
     conn = get_db_connection()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    cur.execute("""
-    INSERT INTO url_intelligence(
-        scan_id,
-        ip,
-        url,
-        registrar,
-        creation_date,
-        expiration_date,
-        updated_date,
-        country,
-        region,
-        city,
-        isp,
-        asn,
-        waf,
-        scan_time
-    )
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (
-        scan_id or data.get("scan_id"),
-        target_ip,
-        data.get("url", ""),
-        registrar,
-        creation_date,
-        expiration_date,
-        updated_date,
-        country,
-        region,
-        city,
-        isp,
-        asn,
-        waf_info.get("provider", "None"),
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+        cur.execute("""
+        INSERT INTO url_intelligence(
+            scan_id,
+            ip,
+            url,
+            registrar,
+            creation_date,
+            expiration_date,
+            updated_date,
+            country,
+            region,
+            city,
+            isp,
+            asn,
+            waf,
+            scan_time
+        )
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            scan_id or data.get("scan_id"),
+            target_ip,
+            data.get("url", ""),
+            registrar,
+            creation_date,
+            expiration_date,
+            updated_date,
+            country,
+            region,
+            city,
+            isp,
+            asn,
+            waf_info.get("provider", "None"),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
 
-    conn.commit()
-    conn.close()
-    print("[OK] URL Intelligence Saved")
+        conn.commit()
+        print("[OK] URL Intelligence Saved")
+    except Exception as e:
+        print(f"[URL INTEL] Error saving intelligence data: {e}")
+    finally:
+        conn.close()

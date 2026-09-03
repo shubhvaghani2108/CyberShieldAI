@@ -63,15 +63,44 @@ def _job_done(job_id, result_ip=None, scan_id=None):
                 SCAN_JOBS[job_id]["scan_id"] = scan_id
 
 
+MAX_CONCURRENT_SCANS = 2
+SCAN_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT_SCANS)
+
+
+def _sanitize_error_message(err):
+    """Ensures no internal credentials, database URLs, or stack traces are shown to users."""
+    if not err:
+        return "Scan temporarily unavailable. Please try again."
+    err_str = str(err)
+    sensitive_markers = [
+        "password", "pooler.supabase", "postgresql://", "postgres://", "conn.cursor",
+        "EMAXCONNSESSION", "EMAXCONNECTION", "OperationalError", "psycopg2",
+        "aws-0-ap-south-1", "port 5432", "port 6543", "database_url", "dsn=", "connection to server"
+    ]
+    if any(m.lower() in err_str.lower() for m in sensitive_markers):
+        return "Scan temporarily unavailable. Please try again."
+    if "Traceback" in err_str or "File \"" in err_str:
+        return "Scan temporarily unavailable. Please try again."
+    return err_str
+
+
 def _job_error(job_id, error_message):
     with SCAN_JOBS_LOCK:
         if job_id in SCAN_JOBS:
             SCAN_JOBS[job_id]["status"] = "error"
-            SCAN_JOBS[job_id]["error"] = error_message
+            import re
+            cleaned_log = re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", str(error_message))
+            print(f"[JOB ERROR] job_id={job_id}: {cleaned_log}")
+            SCAN_JOBS[job_id]["error"] = _sanitize_error_message(error_message)
 
 
 def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
     """Runs the full scan pipeline in a background thread."""
+    acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+    if not acquired:
+        _job_error(job_id, "Scanner is currently busy with other tasks. Please try again shortly.")
+        return
+
     try:
         scan_id = uuid.uuid4().hex
         print(f"\n[SCAN] Starting IP scan job_id={job_id} scan_id={scan_id} target={target} user_id={user_id}")
@@ -82,29 +111,31 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
 
         # 2) Save scan history
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(scan_history)")
-        cols = [r[1] for r in cursor.fetchall()]
-        if "scan_id" not in cols:
-            try:
-                cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
-            except Exception:
-                pass
-        if "user_id" not in cols:
-            try:
-                cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
-            except Exception:
-                pass
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(scan_history)")
+            cols = [r[1] for r in cursor.fetchall()]
+            if "scan_id" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
+                except Exception:
+                    pass
+            if "user_id" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
+                except Exception:
+                    pass
 
-        cursor.execute(
-            """
-            INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (scan_id, user_id, target, host_result["status"], host_result["scan_time"]),
-        )
-        conn.commit()
-        conn.close()
+            cursor.execute(
+                """
+                INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (scan_id, user_id, target, host_result["status"], host_result["scan_time"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
         if not host_result["alive"]:
             _job_log(
@@ -124,12 +155,14 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
             else:
                 # Ports were found! Update host status to Alive
                 conn = get_db_connection()
-                conn.execute(
-                    "UPDATE host_status SET status = 'Alive' WHERE target_ip = ? AND (scan_id = ? OR scan_id IS NULL)",
-                    (target, scan_id),
-                )
-                conn.commit()
-                conn.close()
+                try:
+                    conn.execute(
+                        "UPDATE host_status SET status = 'Alive' WHERE target_ip = ? AND (scan_id = ? OR scan_id IS NULL)",
+                        (target, scan_id),
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
         else:
             # 3) Port scan
             scan_target(
@@ -180,6 +213,8 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
 
     except Exception as e:
         _job_error(job_id, str(e))
+    finally:
+        SCAN_SEMAPHORE.release()
 
 
 import json
@@ -197,6 +232,11 @@ from scanner.virustotal_scanner import query_virustotal
 
 def _run_url_scan_job(job_id, url, user_id=None):
     """Runs the full URL analysis and port-scan pipeline asynchronously in a background thread."""
+    acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+    if not acquired:
+        _job_error(job_id, "Scanner is currently busy with other tasks. Please try again shortly.")
+        return
+
     try:
         scan_id = uuid.uuid4().hex
         print(f"\n[SCAN] Starting URL scan job_id={job_id} scan_id={scan_id} target={url} user_id={user_id}")
@@ -252,85 +292,89 @@ def _run_url_scan_job(job_id, url, user_id=None):
             remarks = str(result["remarks"])
 
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(url_scan_results)")
-        url_cols = [r[1] for r in cursor.fetchall()]
-        if "user_id" not in url_cols:
-            try:
-                cursor.execute("ALTER TABLE url_scan_results ADD COLUMN user_id INTEGER DEFAULT 1")
-            except Exception:
-                pass
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(url_scan_results)")
+            url_cols = [r[1] for r in cursor.fetchall()]
+            if "user_id" not in url_cols:
+                try:
+                    cursor.execute("ALTER TABLE url_scan_results ADD COLUMN user_id INTEGER DEFAULT 1")
+                except Exception:
+                    pass
 
-        conn.execute(
-            """
-            INSERT INTO url_scan_results
-            (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           """,
-            (
-                scan_id,
-                user_id,
-                result["url"],
-                result["domain"],
-                result["ip"],
-                result["protocol"],
-                result["score"],
-                result["risk"],
-                remarks,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            ),
-        )
+            conn.execute(
+                """
+                INSERT INTO url_scan_results
+                (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               """,
+                (
+                    scan_id,
+                    user_id,
+                    result["url"],
+                    result["domain"],
+                    result["ip"],
+                    result["protocol"],
+                    result["score"],
+                    result["risk"],
+                    remarks,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
 
-        if isinstance(technology, (dict, list)):
-            technology_json = json.dumps(technology)
-        else:
-            technology_json = json.dumps({"raw": str(technology)})
+            if isinstance(technology, (dict, list)):
+                technology_json = json.dumps(technology)
+            else:
+                technology_json = json.dumps({"raw": str(technology)})
 
-        conn.execute(
-            """
-            INSERT INTO technology_detection
-            (scan_id, ip, url, technologies, scan_time)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                ip,
-                result["url"],
-                technology_json,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            ),
-        )
-        conn.commit()
-        conn.close()
+            conn.execute(
+                """
+                INSERT INTO technology_detection
+                (scan_id, ip, url, technologies, scan_time)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id,
+                    ip,
+                    result["url"],
+                    technology_json,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
         if ip != "Unknown":
             _job_log(job_id, f"Checking if resolved IP {ip} is alive...")
             host_result = check_host_alive(ip, scan_id=scan_id, user_id=user_id)
 
             conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(scan_history)")
-            cols = [r[1] for r in cursor.fetchall()]
-            if "scan_id" not in cols:
-                try:
-                    cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
-                except Exception:
-                    pass
-            if "user_id" not in cols:
-                try:
-                    cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
-                except Exception:
-                    pass
+            try:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(scan_history)")
+                cols = [r[1] for r in cursor.fetchall()]
+                if "scan_id" not in cols:
+                    try:
+                        cursor.execute("ALTER TABLE scan_history ADD COLUMN scan_id TEXT")
+                    except Exception:
+                        pass
+                if "user_id" not in cols:
+                    try:
+                        cursor.execute("ALTER TABLE scan_history ADD COLUMN user_id INTEGER DEFAULT 1")
+                    except Exception:
+                        pass
 
-            cursor.execute(
-                """
-                INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
-                VALUES (?, ?, ?, ?, ?)
-            """,
-                (scan_id, user_id, ip, host_result["status"], host_result["scan_time"]),
-            )
-            conn.commit()
-            conn.close()
+                cursor.execute(
+                    """
+                    INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time)
+                    VALUES (?, ?, ?, ?, ?)
+                """,
+                    (scan_id, user_id, ip, host_result["status"], host_result["scan_time"]),
+                )
+                conn.commit()
+            finally:
+                conn.close()
 
             _job_log(job_id, f"Scanning open ports for IP {ip}...")
             scan_target(
@@ -412,5 +456,7 @@ def _run_url_scan_job(job_id, url, user_id=None):
 
     except Exception as e:
         _job_error(job_id, str(e))
+    finally:
+        SCAN_SEMAPHORE.release()
 
 
