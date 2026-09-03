@@ -116,7 +116,7 @@
                         required 
                         style="width: 100%; background: var(--bg-0); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; color: var(--text-0); font-size: 13.5px; box-sizing: border-box;"
                     >
-                        <option value="VIEWER" {% if target_user and target_user.role in ['VIEWER', 'USER'] %}selected{% endif %}>USER (Standard Access)</option>
+                        <option value="USER" {% if target_user and target_user.role in ['USER', 'USER'] %}selected{% endif %}>USER (Standard Access)</option>
                         <option value="ANALYST" {% if not target_user or target_user.role == 'ANALYST' %}selected{% endif %}>ANALYST (Scan &amp; Triage)</option>
                         <option value="ADMIN" {% if target_user and target_user.role == 'ADMIN' %}selected{% endif %}>ADMIN (Full Control &amp; RBAC)</option>
                     </select>

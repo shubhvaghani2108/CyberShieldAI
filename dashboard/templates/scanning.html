@@ -14,16 +14,21 @@
       (function () {
         try {
           var t = localStorage.getItem("csa-theme");
+          if (!t) {
+            var match = document.cookie.match(new RegExp('(^| )csa_theme=([^;]+)'));
+            if (match) t = match[2];
+          }
+          if (!t) {
+            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+              t = "light";
+            } else {
+              t = "dark";
+            }
+          }
           if (t === "light") {
             document.documentElement.setAttribute("data-theme", "light");
-          } else if (t === "dark") {
-            document.documentElement.removeAttribute("data-theme");
           } else {
-            if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-              document.documentElement.setAttribute("data-theme", "light");
-            } else {
-              document.documentElement.removeAttribute("data-theme");
-            }
+            document.documentElement.setAttribute("data-theme", "dark");
           }
         } catch (e) {}
       })();

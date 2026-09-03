@@ -182,11 +182,11 @@ def generate_unique_username(base_name):
     return candidate
 
 
-def create_google_user(email, google_sub, full_name="", avatar_url="", role="VIEWER"):
+def create_google_user(email, google_sub, full_name="", avatar_url="", role="USER"):
     """
     Creates a new user authenticated via Google OAuth.
     Sets auth_provider='google', securely generates random password hash (no plaintext password),
-    and assigns the default VIEWER role (non-admin).
+    and assigns the default USER role (non-admin).
     """
     import secrets
     email = (email or "").strip()
@@ -196,7 +196,7 @@ def create_google_user(email, google_sub, full_name="", avatar_url="", role="VIE
     base_name = email.split("@")[0]
     username = generate_unique_username(base_name)
     dummy_password_hash = generate_password_hash(secrets.token_urlsafe(32))
-    role = (role or "VIEWER").strip().upper()
+    role = (role or "USER").strip().upper()
 
     conn = get_db_connection()
     try:
@@ -582,7 +582,7 @@ def list_users():
         conn.close()
 
 
-def admin_update_user(user_id, username, email="", role="VIEWER", is_active=1, new_password=None, full_name=None):
+def admin_update_user(user_id, username, email="", role="USER", is_active=1, new_password=None, full_name=None):
     """
     Updates user details by an administrator.
     If new_password is provided and non-empty, updates the securely hashed password.
@@ -595,9 +595,9 @@ def admin_update_user(user_id, username, email="", role="VIEWER", is_active=1, n
     if not username:
         return False, "Username is required."
 
-    role = (role or "VIEWER").strip().upper()
-    if role not in ("ADMIN", "ANALYST", "VIEWER"):
-        role = "VIEWER"
+    role = (role or "USER").strip().upper()
+    if role not in ("ADMIN", "ANALYST", "USER"):
+        role = "USER"
 
     conn = get_db_connection()
     try:

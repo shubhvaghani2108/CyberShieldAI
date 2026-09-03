@@ -828,9 +828,9 @@ def register_routes(app):
                     link_google_identity(existing_email_user["id"], google_sub, avatar_url=avatar_url)
                     user = get_user_by_id(existing_email_user["id"])
                 else:
-                    # First-time Google login: if system has 0 users (first setup), grant ADMIN, else default to VIEWER
+                    # First-time Google login: if system has 0 users (first setup), grant ADMIN, else default to USER
                     from database.user_helpers import has_users
-                    initial_role = "ADMIN" if not has_users() else "VIEWER"
+                    initial_role = "ADMIN" if not has_users() else "USER"
                     user = create_google_user(
                         email=google_email,
                         google_sub=google_sub,
@@ -2779,7 +2779,7 @@ def register_routes(app):
             username = request.form.get("username", "").strip()
             email = request.form.get("email", "").strip().lower()
             full_name = request.form.get("full_name", "").strip()
-            role = request.form.get("role", "VIEWER").strip().upper()
+            role = request.form.get("role", "USER").strip().upper()
             password = request.form.get("password", "")
             is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
 
@@ -2860,7 +2860,7 @@ def register_routes(app):
             username = request.form.get("username", "").strip()
             email = request.form.get("email", "").strip().lower()
             full_name = request.form.get("full_name", "").strip()
-            role = request.form.get("role", "VIEWER").strip().upper()
+            role = request.form.get("role", "USER").strip().upper()
             password = request.form.get("password", "").strip() or None
             is_active = 1 if request.form.get("is_active") in ("1", "true", "True", True) else 0
 
