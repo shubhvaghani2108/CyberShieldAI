@@ -1,0 +1,408 @@
+
+
+===== alerts =====
+CREATE TABLE alerts(
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    ip TEXT,
+
+    severity TEXT,
+
+    title TEXT,
+
+    description TEXT,
+
+    recommendation TEXT,
+
+    scan_time TEXT
+
+, target TEXT, alert_type TEXT, message TEXT, created_at TEXT, scan_id TEXT, user_id INTEGER DEFAULT 1)
+
+
+===== cves =====
+CREATE TABLE cves (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            port INTEGER,
+            service TEXT,
+            cve_id TEXT,
+            severity TEXT,
+            description TEXT,
+            scan_time TEXT
+        , cvss_score REAL, cvss_vector TEXT, published_date TEXT, exploit_available INTEGER, cwe_id TEXT, cwe_name TEXT, ref_links TEXT, scan_id TEXT)
+
+
+===== email_settings =====
+CREATE TABLE email_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                smtp_server TEXT DEFAULT '',
+                smtp_port INTEGER DEFAULT 587,
+                smtp_user TEXT DEFAULT '',
+                smtp_password TEXT DEFAULT '',
+                from_email TEXT DEFAULT '',
+                recipient_email TEXT DEFAULT '',
+                use_tls INTEGER DEFAULT 1,
+                use_ssl INTEGER DEFAULT 0,
+                enabled INTEGER DEFAULT 0,
+                alert_score_drop INTEGER DEFAULT 1,
+                alert_new_vuln INTEGER DEFAULT 1,
+                alert_critical INTEGER DEFAULT 1,
+                alert_ssl_expiry INTEGER DEFAULT 1,
+                alert_new_port INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== host_status =====
+CREATE TABLE host_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_ip TEXT,
+            status TEXT,
+            scan_time TEXT
+        , scan_id TEXT, user_id INTEGER DEFAULT 1)
+
+
+===== monitored_targets =====
+CREATE TABLE monitored_targets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target TEXT NOT NULL,
+        scan_frequency INTEGER DEFAULT 24,
+        enabled INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+
+
+===== monitoring_logs =====
+CREATE TABLE monitoring_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== nvd_cache =====
+CREATE TABLE nvd_cache (
+                query TEXT PRIMARY KEY,
+                response_json TEXT NOT NULL,
+                fetched_at TEXT NOT NULL
+            )
+
+
+===== os_detection =====
+CREATE TABLE os_detection(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT,
+    os_name TEXT,
+    accuracy INTEGER,
+    scan_time TEXT
+)
+
+
+===== os_info =====
+CREATE TABLE os_info(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT,
+    os_name TEXT,
+    device_type TEXT,
+    os_details TEXT,
+    scan_time TEXT
+, scan_id TEXT)
+
+
+===== password_resets =====
+CREATE TABLE password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reset_id TEXT UNIQUE NOT NULL,
+                user_id INTEGER NOT NULL,
+                email TEXT NOT NULL,
+                otp_hash TEXT NOT NULL,
+                reset_token_hash TEXT DEFAULT NULL,
+                attempts INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 5,
+                expires_at TIMESTAMP NOT NULL,
+                last_resend_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== pending_registrations =====
+CREATE TABLE pending_registrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                registration_id TEXT UNIQUE NOT NULL,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                otp_hash TEXT NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                max_attempts INTEGER DEFAULT 5,
+                expires_at TIMESTAMP NOT NULL,
+                last_resend_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== ports =====
+CREATE TABLE ports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            port INTEGER,
+            state TEXT,
+            service TEXT,
+            banner TEXT,
+            scan_time TEXT
+        , scan_id TEXT)
+
+
+===== risk_summary =====
+CREATE TABLE risk_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            critical_count INTEGER,
+            high_count INTEGER,
+            medium_count INTEGER,
+            low_count INTEGER,
+            total_score INTEGER,
+            risk_level TEXT,
+            scan_time TEXT
+        , scan_id TEXT)
+
+
+===== scan_history =====
+CREATE TABLE scan_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_ip TEXT,
+    scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+, status TEXT, scan_id TEXT, user_id INTEGER DEFAULT 1)
+
+
+===== security_activity_logs =====
+CREATE TABLE security_activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT DEFAULT '',
+                email TEXT DEFAULT '',
+                event_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'SUCCESS',
+                ip_address TEXT DEFAULT '',
+                user_agent TEXT DEFAULT '',
+                details TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== security_headers =====
+CREATE TABLE security_headers(
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    ip TEXT,
+
+    url TEXT,
+
+    header_name TEXT,
+
+    status TEXT,
+
+    risk TEXT,
+
+    recommendation TEXT,
+
+    scan_time TEXT
+
+, scan_id TEXT)
+
+
+===== security_posture =====
+CREATE TABLE security_posture(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip TEXT,
+        url TEXT,
+        security_score INTEGER,
+        security_grade TEXT,
+        threat_score INTEGER,
+        risk_level TEXT,
+        scan_time TEXT
+    , scan_id TEXT, assessment_status TEXT DEFAULT 'ASSESSED', user_id INTEGER DEFAULT 1)
+
+
+===== service_versions =====
+CREATE TABLE service_versions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT,
+    port INTEGER,
+    service TEXT,
+    product TEXT,
+    version TEXT,
+    extra_info TEXT,
+    scan_time TEXT
+, scan_id TEXT)
+
+
+===== services =====
+CREATE TABLE services (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            port INTEGER,
+            service TEXT,
+            version TEXT,
+            scan_time TEXT
+        )
+
+
+===== ssl_info =====
+CREATE TABLE ssl_info(
+
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+ip TEXT,
+
+url TEXT,
+
+issuer TEXT,
+
+subject TEXT,
+
+tls_version TEXT,
+
+cipher TEXT,
+
+valid_from TEXT,
+
+valid_to TEXT,
+
+days_remaining INTEGER,
+
+signature_algorithm TEXT,
+
+key_size TEXT,
+
+grade TEXT,
+
+scan_time TEXT
+
+)
+
+
+===== ssl_results =====
+CREATE TABLE ssl_results (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            host           TEXT,
+            port           INTEGER,
+            has_ssl        INTEGER,
+            tls_version    TEXT,
+            issuer         TEXT,
+            subject        TEXT,
+            valid_from     TEXT,
+            valid_to       TEXT,
+            days_remaining INTEGER,
+            self_signed    INTEGER,
+            expired        INTEGER,
+            warnings       TEXT,
+            scan_time      TEXT
+        , cipher_suite TEXT, key_type TEXT, key_size TEXT, fingerprint_sha256 TEXT, cert_chain TEXT, san_names TEXT, scan_id TEXT)
+
+
+===== technology_detection =====
+CREATE TABLE technology_detection(
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    ip TEXT,
+
+    url TEXT,
+
+    server TEXT,
+
+    technologies TEXT,
+
+    scan_time TEXT
+
+, scan_id TEXT)
+
+
+===== url_intelligence =====
+CREATE TABLE url_intelligence(
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    ip TEXT,
+
+    url TEXT,
+
+    registrar TEXT,
+
+    creation_date TEXT,
+
+    expiration_date TEXT,
+
+    updated_date TEXT,
+
+    country TEXT,
+
+    region TEXT,
+
+    city TEXT,
+
+    isp TEXT,
+
+    asn TEXT,
+
+    waf TEXT,
+
+    scan_time TEXT
+
+, scan_id TEXT)
+
+
+===== url_scan_results =====
+CREATE TABLE url_scan_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT,
+            domain TEXT,
+            ip TEXT,
+            protocol TEXT,
+            score INTEGER,
+            risk TEXT,
+            remarks TEXT,
+            scan_time TEXT
+        , https_status TEXT, suspicious_score INTEGER, risk_level TEXT, scan_id TEXT, user_id INTEGER DEFAULT 1)
+
+
+===== users =====
+CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'ANALYST', email TEXT DEFAULT '', full_name TEXT DEFAULT '', phone TEXT DEFAULT '', department TEXT DEFAULT '', timezone TEXT DEFAULT 'Asia/Kolkata', bio TEXT DEFAULT '', avatar_url TEXT DEFAULT '', google_sub TEXT UNIQUE, auth_provider TEXT DEFAULT 'local', is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_login TIMESTAMP, last_seen TIMESTAMP)
+
+
+===== virustotal_results =====
+CREATE TABLE virustotal_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_id TEXT,
+                url TEXT,
+                domain TEXT,
+                malicious INTEGER DEFAULT 0,
+                suspicious INTEGER DEFAULT 0,
+                harmless INTEGER DEFAULT 0,
+                undetected INTEGER DEFAULT 0,
+                total_engines INTEGER DEFAULT 0,
+                risk_badge TEXT DEFAULT 'Safe',
+                reputation INTEGER DEFAULT 0,
+                categories TEXT,
+                status TEXT DEFAULT 'success',
+                message TEXT,
+                scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+
+
+===== vulnerabilities =====
+CREATE TABLE vulnerabilities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            port INTEGER,
+            service TEXT,
+            risk TEXT,
+            scan_time TEXT
+        , description TEXT, remediation TEXT, scan_id TEXT)

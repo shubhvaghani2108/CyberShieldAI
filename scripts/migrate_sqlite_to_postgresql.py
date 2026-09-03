@@ -40,14 +40,6 @@ def get_database_url():
                 line = line.strip()
                 if line.startswith("DATABASE_URL="):
                     return line.split("=", 1)[1].strip().strip('"').strip("'")
-    
-    notes_file = os.path.join(BASE_DIR, "NOTES.md")
-    if os.path.exists(notes_file):
-        with open(notes_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("postgresql://") or line.startswith("postgres://"):
-                    return line
     return None
 
 
