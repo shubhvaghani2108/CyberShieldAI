@@ -47,6 +47,23 @@ def get_database_url():
             if 'sslmode' not in qs:
                 qs['sslmode'] = ['require']
                 changed = True
+
+            # If connecting to Supabase pooler in session mode (port 5432 or default),
+            # switch to port 6543 (transaction mode). Session mode has a hard limit of
+            # 15 concurrent clients across all processes (causing EMAXCONNSESSION),
+            # whereas transaction mode multiplexes connections and supports high concurrency.
+            if parsed.hostname and "pooler.supabase.com" in parsed.hostname:
+                if parsed.port == 5432 or parsed.port is None:
+                    netloc = parsed.netloc
+                    if "@" in netloc:
+                        user_pass, host_part = netloc.rsplit("@", 1)
+                        host = host_part.split(":")[0]
+                        netloc = f"{user_pass}@{host}:6543"
+                    else:
+                        host = netloc.split(":")[0]
+                        netloc = f"{host}:6543"
+                    parsed = parsed._replace(netloc=netloc)
+                    changed = True
                 
             if changed:
                 url = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
@@ -350,8 +367,8 @@ def _get_pg_pool():
             return None
         try:
             from psycopg2.pool import ThreadedConnectionPool
-            # maxconn=20 provides ample pooled connections under high concurrent load
-            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=20, dsn=db_url, connect_timeout=5)
+            # maxconn=4 per worker prevents exceeding Supabase pooler connection quotas
+            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=4, dsn=db_url, connect_timeout=5)
             return _PG_POOL
         except Exception as e:
             print(f"[DB_ENGINE] Warning: could not initialize ThreadedConnectionPool: {e}")
@@ -373,25 +390,12 @@ def _check_pg_conn_alive(raw_conn):
 
 def _get_pooled_pg_conn():
     """Acquires an active, verified connection from the pool, re-creating if stale."""
+    import time
     pool = _get_pg_pool()
     db_url = get_database_url()
     if pool:
-        try:
-            conn = pool.getconn()
+        for _ in range(10):
             try:
-                conn.rollback()
-            except Exception:
-                pass
-            try:
-                conn.autocommit = True
-            except Exception:
-                pass
-
-            if not _check_pg_conn_alive(conn):
-                try:
-                    pool.putconn(conn, close=True)
-                except Exception:
-                    pass
                 conn = pool.getconn()
                 try:
                     conn.rollback()
@@ -402,9 +406,24 @@ def _get_pooled_pg_conn():
                 except Exception:
                     pass
 
-            return conn, pool
-        except Exception:
-            pass
+                if not _check_pg_conn_alive(conn):
+                    try:
+                        pool.putconn(conn, close=True)
+                    except Exception:
+                        pass
+                    conn = pool.getconn()
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    try:
+                        conn.autocommit = True
+                    except Exception:
+                        pass
+
+                return conn, pool
+            except Exception:
+                time.sleep(0.05)
 
     # Fallback to direct connection if pool is exhausted or unavailable
     import psycopg2
@@ -444,6 +463,12 @@ class PostgresConnectionWrapper:
         self._is_request_scoped = is_request_scoped
         self._closed = False
         self.row_factory = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def cursor(self):
         return PostgresCursorWrapper(self._conn.cursor())
