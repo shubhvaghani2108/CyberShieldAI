@@ -38,14 +38,14 @@ class AuthenticationTestCase(unittest.TestCase):
         # Set up test users
         conn = get_db_connection()
         try:
-            conn.execute("DELETE FROM users WHERE username IN ('test_admin', 'test_analyst', 'test_viewer', 'existing_local_user', 'google_user', 'new_registered_user')")
+            conn.execute("DELETE FROM users WHERE username IN ('test_admin', 'test_analyst', 'test_USER', 'existing_local_user', 'google_user', 'new_registered_user')")
             conn.commit()
         finally:
             conn.close()
 
         create_user(username="test_admin", password="AdminPassword123!", role="ADMIN", email="admin@cybershield.test")
         create_user(username="test_analyst", password="AnalystPassword456!", role="ANALYST", email="analyst@cybershield.test")
-        create_user(username="test_viewer", password="ViewerPassword789!", role="VIEWER", email="viewer@cybershield.test")
+        create_user(username="test_USER", password="USERPassword789!", role="USER", email="USER@cybershield.test")
         create_user(username="existing_local_user", password="LocalPassword123!", role="ANALYST", email="conflict@gmail.com")
 
     @classmethod
@@ -218,7 +218,7 @@ class AuthenticationTestCase(unittest.TestCase):
                 res = client.get("/auth/google/callback?code=mock_auth_code&state=state_123", follow_redirects=True)
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(session.get("username"), "verified_analyst")
-                self.assertEqual(session.get("role"), "VIEWER")
+                self.assertEqual(session.get("role"), "USER")
 
     # 9. Existing Google User Login
     @patch("urllib.request.urlopen")
@@ -236,7 +236,7 @@ class AuthenticationTestCase(unittest.TestCase):
             email="existing_google_user@gmail.com",
             google_sub="google_sub_existing_777",
             full_name="Existing Google Operator",
-            role="VIEWER",
+            role="USER",
         )
         self.assertIsNotNone(created_user)
 
@@ -313,7 +313,7 @@ class AuthenticationTestCase(unittest.TestCase):
     # 11. Google-Created Account Defaults to Non-Admin Role
     @patch("urllib.request.urlopen")
     def test_11_google_created_account_defaults_to_non_admin_role(self, mock_urlopen):
-        """11. New Google users must NOT automatically become ADMIN; defaults to VIEWER."""
+        """11. New Google users must NOT automatically become ADMIN; defaults to USER."""
         conn = get_db_connection()
         try:
             conn.execute("DELETE FROM users WHERE google_sub = 'google_sub_non_admin_222'")
@@ -347,7 +347,7 @@ class AuthenticationTestCase(unittest.TestCase):
                 user = get_user_by_google_sub("google_sub_non_admin_222")
                 self.assertIsNotNone(user)
                 self.assertNotEqual(user["role"], "ADMIN")
-                self.assertEqual(user["role"], "VIEWER")
+                self.assertEqual(user["role"], "USER")
 
     # 12. Existing Account Links Verified Google Identity
     @patch("urllib.request.urlopen")
@@ -457,14 +457,14 @@ class AuthenticationTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 302)
         self.assertIn("/login", res.headers["Location"])
 
-    # 20. /users Forbidden for Non-Admin (VIEWER and ANALYST)
-    def test_20_users_route_forbidden_for_viewer_and_analyst(self):
-        """20. Non-admin roles (VIEWER and ANALYST) are denied access (403/redirect) to /users."""
-        # Test VIEWER
+    # 20. /users Forbidden for Non-Admin (USER and ANALYST)
+    def test_20_users_route_forbidden_for_USER_and_analyst(self):
+        """20. Non-admin roles (USER and ANALYST) are denied access (403/redirect) to /users."""
+        # Test USER
         with self.client as client:
-            client.post("/login", data={"username": "test_viewer", "password": "ViewerPassword789!"})
-            res_viewer = client.get("/users")
-            self.assertEqual(res_viewer.status_code, 403)
+            client.post("/login", data={"username": "test_USER", "password": "USERPassword789!"})
+            res_USER = client.get("/users")
+            self.assertEqual(res_USER.status_code, 403)
             client.get("/logout")
 
         # Test ANALYST
@@ -527,7 +527,7 @@ class AuthenticationTestCase(unittest.TestCase):
                     "username": "managed_operator_1_renamed",
                     "email": "managed1_updated@cybershield.ai",
                     "full_name": "Managed Operator Renamed",
-                    "role": "VIEWER",
+                    "role": "USER",
                     "password": "",  # Unchanged password
                     "is_active": "1",
                 },
@@ -539,7 +539,7 @@ class AuthenticationTestCase(unittest.TestCase):
             # Verify in DB
             updated = get_user_by_id(target["id"])
             self.assertEqual(updated["username"], "managed_operator_1_renamed")
-            self.assertEqual(updated["role"], "VIEWER")
+            self.assertEqual(updated["role"], "USER")
             self.assertEqual(updated["email"], "managed1_updated@cybershield.ai")
             client.get("/logout")
 
@@ -602,7 +602,7 @@ class AuthenticationTestCase(unittest.TestCase):
         create_user(
             username="test_disabled_user",
             password="DisabledPassword123!",
-            role="VIEWER",
+            role="USER",
             email="disabled@cybershield.test",
             is_active=0,
         )

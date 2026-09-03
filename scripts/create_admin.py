@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--username", "-u", default="admin", help="Username (default: admin)")
     parser.add_argument("--password", "-p", default=None, help="Password (prompted securely if omitted)")
     parser.add_argument("--email", "-e", default="", help="User email address")
-    parser.add_argument("--role", "-r", default="ADMIN", choices=["ADMIN", "ANALYST", "OPERATOR", "VIEWER"], help="User role")
+    parser.add_argument("--role", "-r", default="ADMIN", choices=["ADMIN", "ANALYST", "OPERATOR", "USER"], help="User role")
 
     args = parser.parse_args()
     success = create_or_update_admin(

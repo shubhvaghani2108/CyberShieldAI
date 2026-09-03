@@ -373,7 +373,7 @@ def init_db():
             (1, "admin", default_pass, "ADMIN", "admin@cybershield.ai", "Shubh Vaghani (SOC Admin)", "local"),
             (2, "23se02cb016", default_pass, "ADMIN", "23se02cb016@ppsu.ac.in", "Shubh Vaghani", "google"),
             (3, "defenderr0809", default_pass, "ANALYST", "defenderr0809@gmail.com", "Security Lead Defender", "google"),
-            (4, "shubhvaghani21", default_pass, "VIEWER", "shubhvaghani21@gmail.com", "Shubh Vaghani", "google")
+            (4, "shubhvaghani21", default_pass, "USER", "shubhvaghani21@gmail.com", "Shubh Vaghani", "google")
         ])
 
     conn.commit()
@@ -1408,7 +1408,7 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None):
         data["security_score"] = 100
 
     # Dashboard Stats
-    stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id)
+    stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
     assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
     recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip, user_id=user_id)
 

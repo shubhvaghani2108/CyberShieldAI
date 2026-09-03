@@ -191,7 +191,7 @@ def test_brand_new_user_gets_populated_baseline_scan(client):
     with client.session_transaction() as sess:
         sess["user_id"] = 999
         sess["username"] = "charlie"
-        sess["role"] = "VIEWER"
+        sess["role"] = "USER"
 
     resp = client.get("/url-scan-result")
     assert resp.status_code == 200

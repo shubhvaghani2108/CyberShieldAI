@@ -139,7 +139,7 @@
                 </div>
                 <div class="user-text-col">
                     <span class="user-display-name" style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ session.get('email') or session.get('username', 'User') }}">{{ session.get('email') or session.get('username', 'User') }}</span>
-                    <span class="user-role-tag">{{ 'USER' if session.get('role') in ['VIEWER', 'USER', None, ''] else session.get('role') }}</span>
+                    <span class="user-role-tag">{{ 'USER' if session.get('role') in ['USER', 'USER', None, ''] else session.get('role') }}</span>
                 </div>
             </a>
             <a href="{{ url_for('logout') }}" class="user-logout-link" title="Logout">
