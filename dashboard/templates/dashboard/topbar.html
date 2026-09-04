@@ -42,20 +42,16 @@
         <!-- IP scan: host discovery + port scan + vuln/CVE lookup + risk scoring -->
         <form id="newScanForm" class="scan-form" data-scan-form="ip" method="POST" action="{{ url_for('scan') }}">
             <div class="field">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <label for="scan-target" style="margin: 0;">Target IP address</label>
-                    {% if client_public_ip and client_public_ip not in ['127.0.0.1', '::1', 'None'] %}
-                    <button type="button" class="btn btn-ghost" style="font-size: 11.5px; padding: 2px 8px; height: auto; color: var(--accent-1); text-decoration: underline;" onclick="document.getElementById('scan-target').value='{{ client_public_ip }}'; checkPrivateIp(document.getElementById('scan-target'));">
-                        Scan My Public IP ({{ client_public_ip }})
-                    </button>
-                    {% endif %}
+                <label for="scan-target">Target IP address or Hostname</label>
+                <input id="scan-target" type="text" name="target" placeholder="e.g. 50.6.196.180 or scanme.nmap.org" required oninput="checkPrivateIp(this)">
+                <div style="font-size: 12px; color: var(--text-2); margin-top: 5px;">
+                    Try sample target: 
+                    <a href="#" style="color: var(--cyan, #22d3ee); text-decoration: underline; font-weight: 500;" onclick="document.getElementById('scan-target').value='50.6.196.180'; checkPrivateIp(document.getElementById('scan-target')); return false;">50.6.196.180</a>
+                    or 
+                    <a href="#" style="color: var(--cyan, #22d3ee); text-decoration: underline; font-weight: 500;" onclick="document.getElementById('scan-target').value='scanme.nmap.org'; checkPrivateIp(document.getElementById('scan-target')); return false;">scanme.nmap.org</a>
                 </div>
-                <input id="scan-target" type="text" name="target" placeholder="e.g. 50.6.196.180 or domain" required oninput="checkPrivateIp(this)">
                 <div id="privateIpWarning" style="display: none; margin-top: 6px; padding: 8px 12px; font-size: 12px; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; border-left: 3px solid #f59e0b; line-height: 1.4;">
-                    ⚠️ <strong>Private LAN IP detected:</strong> Render cloud servers cannot reach internal home/office Wi-Fi (192.168.x.x / 10.x.x.x).
-                    {% if client_public_ip and client_public_ip not in ['127.0.0.1', '::1', 'None'] %}
-                    <br><a href="#" style="color: #60a5fa; text-decoration: underline; font-weight: 600;" onclick="document.getElementById('scan-target').value='{{ client_public_ip }}'; checkPrivateIp(document.getElementById('scan-target')); return false;">Click here to scan your Public IP ({{ client_public_ip }}) instead.</a>
-                    {% endif %}
+                    ⚠️ <strong>Private LAN IP detected:</strong> Render cloud servers cannot reach internal home/office Wi-Fi (192.168.x.x / 10.x.x.x). Please scan a public IP or domain.
                 </div>
             </div>
             <div class="field">

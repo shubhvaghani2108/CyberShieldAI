@@ -108,22 +108,9 @@ def inject_template_helpers():
 
         return f"https://ui-avatars.com/api/?name={encoded_name}&background=0284c7&color=ffffff&bold=true&rounded=true&size=256"
 
-    client_ip = None
-    try:
-        from flask import request
-        if request:
-            xfwd = request.headers.get("X-Forwarded-For")
-            if xfwd:
-                client_ip = xfwd.split(",")[0].strip()
-            else:
-                client_ip = request.remote_addr
-    except Exception:
-        client_ip = None
-
     return dict(
         csrf_token=lambda: os.environ.get("CSRF_TOKEN", "cybershield-csrf-token"),
         get_user_avatar=get_user_avatar,
-        client_public_ip=client_ip,
     )
 
 # Security Headers Middleware
