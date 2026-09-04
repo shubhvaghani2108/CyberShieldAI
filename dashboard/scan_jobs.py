@@ -151,7 +151,8 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
             except ValueError:
                 pass
 
-            if is_private:
+            is_cloud = bool(os.environ.get("RENDER") or os.environ.get("IS_RENDER"))
+            if is_private and is_cloud:
                 _job_log(
                     job_id,
                     f"Notice: Target IP {target} is a private local network address (RFC 1918). "

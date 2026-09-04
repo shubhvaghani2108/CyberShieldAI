@@ -93,8 +93,17 @@
                 return;
             }
 
+            const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
             const isPrivate = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.)/.test(val);
-            if (warnPrivate) warnPrivate.style.display = isPrivate ? 'block' : 'none';
+
+            // Only show cloud unreachable warning if NOT running on localhost
+            if (warnPrivate) {
+                if (isPrivate && !isLocalhost) {
+                    warnPrivate.style.display = 'block';
+                } else {
+                    warnPrivate.style.display = 'none';
+                }
+            }
 
             // Check if user is typing domain or URL
             const hasDomainOrUrl = /[a-zA-Z]/.test(val) || val.includes('://');

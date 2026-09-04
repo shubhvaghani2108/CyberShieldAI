@@ -368,19 +368,24 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
         )
 
         for p in open_ports_list:
+            c_banner = (p.get("banner") or "").replace("\x00", "")
+            c_service = (p.get("service") or "").replace("\x00", "")
+            c_product = (p.get("product") or "").replace("\x00", "")
+            c_version = (p.get("version") or "").replace("\x00", "")
+            c_extra = (p.get("extra_info") or "").replace("\x00", "")
             cursor.execute(
                 """
                 INSERT INTO ports (scan_id, ip, port, state, service, banner, scan_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, target, p["port"], p["state"], p["service"], p["banner"], scan_time),
+                (scan_id, target, p["port"], p["state"], c_service, c_banner, scan_time),
             )
             cursor.execute(
                 """
                 INSERT INTO service_versions (scan_id, ip, port, service, product, version, extra_info, scan_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (scan_id, target, p["port"], p["service"], p["product"], p["version"], p["extra_info"], scan_time),
+                (scan_id, target, p["port"], c_service, c_product, c_version, c_extra, scan_time),
             )
 
         conn.commit()
@@ -557,12 +562,12 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
 
             total_ports = 0
             for port, p_info in open_ports_dict.items():
-                service = p_info.get("service") or COMMON_PORTS.get(port, "unknown")
-                product = p_info.get("product", "")
-                version = p_info.get("version", "")
-                extra_info = p_info.get("extra_info", "")
+                service = (p_info.get("service") or COMMON_PORTS.get(port, "unknown") or "").replace("\x00", "")
+                product = (p_info.get("product") or "").replace("\x00", "")
+                version = (p_info.get("version") or "").replace("\x00", "")
+                extra_info = (p_info.get("extra_info") or "").replace("\x00", "")
                 state = "open"
-                banner = banners_dict.get(port, "")
+                banner = (banners_dict.get(port) or "").replace("\x00", "")
 
                 cursor.execute(
                     """

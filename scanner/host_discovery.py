@@ -100,10 +100,12 @@ def check_host_alive(target, scan_id=None, user_id=None):
         except ValueError:
             pass
 
-        if is_private:
+        is_cloud = bool(os.environ.get("RENDER") or os.environ.get("IS_RENDER"))
+        if is_private and is_cloud:
             status = "Unreachable (Private LAN Target)"
             print(f"[!] Target {target} is an RFC 1918 private LAN address and is unreachable from the current scanner environment.")
         else:
+            status = "Offline"
             print(f"[!] Host {target} is NOT reachable via ICMP, TCP, or Nmap probes.")
 
     scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
