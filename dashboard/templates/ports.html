@@ -2,11 +2,9 @@
 {% block title %}Open Ports &amp; Services{% endblock %}
 
 {% block content %}
-<div class="panel-heading" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-    <h2>📡 Open Ports &amp; Service Banners</h2>
-    <span class="sub" style="font-size: 13.5px; color: #94a3b8;">
-        {{ rows|length }} port{{ 's' if rows|length != 1 else '' }} on <strong>{{ latest_ip or "latest scan target" }}</strong>
-    </span>
+<div class="panel-heading">
+    <h2>📡 Open Ports &amp; Services</h2>
+    <span class="sub">{{ rows|length }} open port{{ 's' if rows|length != 1 else '' }} on target <strong>{{ latest_ip or "latest scan" }}</strong></span>
 </div>
 
 {% if rows %}
@@ -14,83 +12,85 @@
     <table>
         <thead>
             <tr>
-                <th>PORT</th>
-                <th>PROTO</th>
-                <th>STATE</th>
-                <th>SERVICE</th>
-                <th>PRODUCT</th>
-                <th>VERSION</th>
-                <th>BANNER</th>
-                <th>RISK</th>
-                <th>RELATED FINDINGS</th>
-                <th>WHAT THIS MEANS</th>
+                <th>Target IP / Host</th>
+                <th>Port</th>
+                <th>Service</th>
+                <th>State</th>
+                <th>Product &amp; Version</th>
+                <th>Risk Severity</th>
+                <th>Security Findings &amp; Context</th>
+                <th>Detected At</th>
             </tr>
         </thead>
         <tbody>
         {% for row in rows %}
-        {% set ip_val = row['ip'] if row['ip'] is defined else row[0] %}
+        {% set ip_val = row['ip'] if row['ip'] is defined else (row[0] if row|length > 0 else (latest_ip or '—')) %}
         {% set port_val = row['port'] if row['port'] is defined else row[1] %}
         {% set proto_val = row['proto'] if row['proto'] is defined else 'TCP' %}
-        {% set state_val = row['state'] if row['state'] is defined else (row[2] if row|length > 2 else 'OPEN') %}
+        {% set state_val = row['state'] if row['state'] is defined else (row[2] if row|length > 2 else 'open') %}
         {% set service_val = row['service'] if row['service'] is defined else (row[3] if row|length > 3 else 'unknown') %}
         {% set product_val = row['product'] if row['product'] is defined else 'Not detected' %}
         {% set version_val = row['version'] if row['version'] is defined else 'Not detected' %}
         {% set banner_val = row['banner'] if row['banner'] is defined else (row[4] if row|length > 4 else 'Not detected') %}
-        {% set risk_val = row['risk'] if row['risk'] is defined else 'Informational' %}
+        {% set risk_val = row['risk'] if row['risk'] is defined else 'Low' %}
         {% set vuln_val = row['vuln_mapping'] if row['vuln_mapping'] is defined else 'None detected' %}
         {% set meaning_val = meanings[loop.index0] if (meanings and loop.index0 < meanings|length) else "Active network service endpoint" %}
+        {% set time_val = row['scan_time'] if row['scan_time'] is defined else '—' %}
         <tr>
             <td class="mono">
-                <strong style="color: var(--accent); font-size: 14px;">{{ port_val }}</strong>
+                <span style="color: #38bdf8; font-weight: 600;">
+                    {{ ip_val or latest_ip or "—" }}
+                </span>
             </td>
-            <td class="mono" style="font-size: 12px; color: var(--text-2);">
-                {{ proto_val|upper }}
-            </td>
-            <td>
-                {% if (state_val or 'open')|lower == 'open' %}
-                    <span class="badge badge-ok" style="font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                        <span style="font-size: 8px;">●</span> OPEN
-                    </span>
-                {% else %}
-                    <span class="badge badge-unknown">{{ state_val }}</span>
-                {% endif %}
+            <td class="mono">
+                <strong>{{ port_val }}</strong>
+                <span style="font-size: 11px; color: #64748b; font-weight: 500;">/ {{ proto_val|upper }}</span>
             </td>
             <td>
-                <span style="color: var(--text-0); font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 13px;">
-                    {{ (service_val or 'unknown')|lower }}
+                <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">
+                    {{ (service_val or 'unknown')|upper }}
                 </span>
             </td>
             <td>
+                {% if (state_val or 'open')|lower == 'open' %}
+                    <span class="badge badge-ok">Open</span>
+                {% else %}
+                    <span class="badge badge-dead">{{ state_val|capitalize }}</span>
+                {% endif %}
+            </td>
+            <td style="max-width: 220px; line-height: 1.5; font-size: 13px;">
                 {% if product_val and product_val != 'Not detected' %}
-                    <span style="color: var(--text-0); font-weight: 500;">{{ product_val }}</span>
+                    <strong style="color: var(--text-0);">{{ product_val }}</strong>
+                    {% if version_val and version_val != 'Not detected' %}
+                        <span class="mono" style="font-size: 12px; color: #38bdf8; margin-left: 4px;">v{{ version_val }}</span>
+                    {% endif %}
+                {% elif version_val and version_val != 'Not detected' %}
+                    <span class="mono" style="font-size: 12px; color: #38bdf8;">{{ version_val }}</span>
                 {% else %}
-                    <span style="color: var(--text-muted);">Not detected</span>
+                    <span style="color: #94a3b8;">Not detected</span>
                 {% endif %}
-            </td>
-            <td class="mono" style="font-size: 12px;">
-                {% if version_val and version_val != 'Not detected' %}
-                    <span style="color: var(--cyan); font-weight: 600;">{{ version_val }}</span>
-                {% else %}
-                    <span style="color: var(--text-muted);">Not detected</span>
-                {% endif %}
-            </td>
-            <td style="max-width: 260px; word-wrap: break-word; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text-1); line-height: 1.4;">
-                {{ banner_val if banner_val and banner_val != 'No banner' else 'Not detected' }}
             </td>
             <td>
-                {% set r_clean = (risk_val or 'low')|lower %}
-                <span class="badge badge-{{ r_clean }}" style="font-weight: 700; text-transform: capitalize;">{{ risk_val }}</span>
+                {% set lvl = (risk_val or 'low')|lower %}
+                <span class="badge badge-{{ lvl }}">{{ risk_val|capitalize }}</span>
             </td>
-            <td style="max-width: 240px; word-wrap: break-word; font-size: 12px; line-height: 1.4;">
+            <td style="max-width: 340px; line-height: 1.5; font-size: 13px;">
                 {% if vuln_val and vuln_val != 'None detected' %}
-                    <span style="color: var(--danger, #ef4444); font-weight: 500;">{{ vuln_val }}</span>
-                {% else %}
-                    <span style="color: var(--text-muted);">None detected</span>
+                    <div style="color: #f87171; font-weight: 500; margin-bottom: 3px;">
+                        {{ vuln_val }}
+                    </div>
+                {% endif %}
+                <div style="color: #94a3b8;">
+                    {{ meaning_val }}
+                </div>
+                {% if banner_val and banner_val != 'Not detected' and banner_val != 'No banner' %}
+                    <details style="margin-top: 6px; font-size: 11.5px;">
+                        <summary style="cursor: pointer; color: #38bdf8; font-weight: 500; outline: none;">View Banner / Fingerprint</summary>
+                        <pre class="mono" style="margin: 4px 0 0 0; padding: 6px 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 4px; font-size: 11px; line-height: 1.4; color: #94a3b8; max-height: 80px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">{{ banner_val }}</pre>
+                    </details>
                 {% endif %}
             </td>
-            <td style="max-width: 220px; word-wrap: break-word; color: var(--text-2); font-size: 12px; line-height: 1.4; font-style: italic;">
-                {{ meaning_val }}
-            </td>
+            <td class="mono" style="font-size: 12px; color: #64748b; white-space: nowrap;">{{ time_val }}</td>
         </tr>
         {% endfor %}
         </tbody>
@@ -98,11 +98,19 @@
 </div>
 {% else %}
 <div class="glass content-panel" style="padding: 40px; text-align: center;">
-    <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🛡️</div>
-    <h3 style="margin-bottom: 6px; color: var(--text-0);">No Open Ports Detected</h3>
-    <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 480px; margin: 0 auto;">
-        No active open ports were detected on {{ latest_ip or "the target host" }}. Run a new scan from the top navigation bar to profile network ports and services.
-    </p>
+    {% if has_scanned %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.85;">🛡️</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">0 Open Ports Detected</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            Scan completed for <strong>{{ latest_ip }}</strong>. No active open ports or network services were detected.
+        </p>
+    {% else %}
+        <div style="font-size: 36px; margin-bottom: 12px; opacity: 0.7;">🔍</div>
+        <h3 style="margin-bottom: 6px; color: var(--text-0);">No Scan Performed Yet</h3>
+        <p class="empty-note" style="font-size: 14px; color: var(--text-2); max-width: 500px; margin: 0 auto;">
+            No scan has been performed yet. Launch a new scan from the top navigation bar to profile network ports and services.
+        </p>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}
