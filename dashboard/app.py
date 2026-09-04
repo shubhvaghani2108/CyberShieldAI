@@ -51,8 +51,10 @@ from dashboard.pdf_generator import (
 
 # Route Handler & Auth Imports
 from dashboard.routes import register_routes
+from dashboard.agent_routes import register_agent_routes
 from dashboard.auth import setup_auth_middleware
 from database.user_helpers import init_users_table
+from database.agent_helpers import init_agent_tables
 
 from database.db_engine import register_db_teardown
 
@@ -67,6 +69,7 @@ register_db_teardown(app)
 try:
     init_db()
     init_users_table()
+    init_agent_tables()
 except Exception as e:
     print(f"[STARTUP] Notice: Initial database sync deferred ({e})")
 
@@ -75,6 +78,7 @@ setup_auth_middleware(app)
 
 # Register dashboard routes
 register_routes(app)
+register_agent_routes(app)
 
 import hashlib
 import urllib.parse

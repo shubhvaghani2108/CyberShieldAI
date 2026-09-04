@@ -118,6 +118,7 @@ PUBLIC_PATH_PREFIXES = (
     "/reset-password",
     "/setup",
     "/auth/google",
+    "/api/agent/",
 )
 
 

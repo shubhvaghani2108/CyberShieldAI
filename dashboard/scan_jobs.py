@@ -152,6 +152,20 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
                 pass
 
             if is_private:
+                from database.agent_helpers import list_agents_for_user, create_agent_job
+                user_agents = list_agents_for_user(user_id) if user_id else []
+                if user_agents:
+                    create_agent_job(job_id, scan_id, target, user_id)
+                    with SCAN_JOBS_LOCK:
+                        if job_id in SCAN_JOBS:
+                            SCAN_JOBS[job_id]["status"] = "waiting_for_agent"
+                    _job_log(
+                        job_id,
+                        f"Target IP {target} is a private local network address (RFC 1918). "
+                        "Job queued for your Local Scan Agent. Awaiting scan results from your network...",
+                    )
+                    return
+
                 _job_log(
                     job_id,
                     f"Notice: Target IP {target} is a private local network address (RFC 1918). "
@@ -199,6 +213,72 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
             scan_target(
                 target, ports=ports, progress_callback=lambda m: _job_log(job_id, m), scan_id=scan_id
             )
+
+        # 4) Vulnerability scan
+        _job_log(job_id, "Running vulnerability scan...")
+        scan_vulnerabilities(target, scan_id=scan_id)
+
+        # 5) CVE scan
+        _job_log(job_id, "Running CVE lookup...")
+        scan_cves(target, scan_id=scan_id)
+
+        # 6) Risk calculation
+        _job_log(job_id, "Calculating risk score...")
+        calculate_risk(target, scan_id=scan_id)
+
+        # -----------------------------
+        # Generate Security Alerts
+        # -----------------------------
+
+        _job_log(job_id, "Generating security alerts...")
+
+        risk = get_latest_risk(target, scan_id=scan_id) if "get_latest_risk" in locals() or "get_latest_risk" in globals() else None
+        ssl = get_latest_ssl(target)
+        ports_data = get_ports(target, scan_id=scan_id)
+        headers = get_security_headers(target)
+        from database.db_helpers import get_vulnerabilities, get_cves
+        vulns = get_vulnerabilities(target, scan_id=scan_id)
+        cves = get_cves(target, scan_id=scan_id)
+
+        generate_alerts(
+            target=target,
+            risk=risk,
+            ssl=ssl,
+            ports=ports_data,
+            headers=headers,
+            vulnerabilities=vulns,
+            cves=cves,
+            ip=target,
+        )
+
+        _job_log(job_id, "Security alerts generated.")
+
+        _job_log(job_id, "Scan complete.")
+        _job_done(job_id, result_ip=target, scan_id=scan_id)
+
+    except Exception as e:
+        _job_error(job_id, str(e))
+    finally:
+        SCAN_SEMAPHORE.release()
+
+
+def resume_ip_scan_after_agent(job_id, scan_id, target, user_id, open_ports):
+    """Resumes the scan pipeline after open port results are received from a local agent."""
+    acquired = SCAN_SEMAPHORE.acquire(blocking=True, timeout=180)
+    if not acquired:
+        _job_error(job_id, "Scanner is currently busy with other tasks. Please try again shortly.")
+        return
+
+    try:
+        from database.agent_helpers import save_agent_port_results, complete_agent_job
+        save_agent_port_results(scan_id, target, open_ports)
+        complete_agent_job(job_id)
+
+        with SCAN_JOBS_LOCK:
+            if job_id in SCAN_JOBS:
+                SCAN_JOBS[job_id]["status"] = "running"
+
+        _job_log(job_id, f"Local Agent returned {len(open_ports)} port(s). Resuming vulnerability analysis...")
 
         # 4) Vulnerability scan
         _job_log(job_id, "Running vulnerability scan...")
