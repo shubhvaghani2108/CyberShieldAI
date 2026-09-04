@@ -169,8 +169,8 @@ function initScanModal() {
   const forms = document.querySelectorAll("[data-scan-form]");
   const subtitle = document.getElementById("scanModalSub");
   const subtitles = {
-    ip: "Runs host discovery, port scan, vulnerability & CVE lookup, and risk scoring.",
-    url: "Resolves the domain, checks the protocol and technology stack, then runs the full port/vulnerability/CVE pipeline against the resolved IP.",
+    ip: "Scan an IP address for open ports, running services, and network vulnerabilities.",
+    url: "Scan a website URL for web threats, SSL/TLS certificates, DNS records, and vulnerabilities.",
   };
 
   tabs.forEach((tab) => {

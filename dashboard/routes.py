@@ -1646,26 +1646,27 @@ def register_routes(app):
 
     @app.route("/scan", methods=["POST"])
     def scan():
-        import re
+        import re, ipaddress
         target = request.form.get("target", "").strip()
         mode = request.form.get("mode", "quick").strip().lower()
         current_user_id = session.get("user_id")
 
         if not target:
-            return "No target IP provided"
+            flash("No target IP address provided.", "error")
+            return redirect(url_for("dashboard"))
 
-        # Check if the target is a URL or domain name instead of a pure IP
-        is_url = target.startswith("http://") or target.startswith("https://")
-        is_ip = bool(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", target))
+        # Strictly validate that target is a valid IPv4 address
+        is_valid_ip = False
+        try:
+            ip_obj = ipaddress.ip_address(target)
+            if ip_obj.version == 4:
+                is_valid_ip = True
+        except ValueError:
+            is_valid_ip = False
 
-        if is_url or (not is_ip and "." in target and not target.replace(".", "").isdigit()):
-            url_target = target if is_url else f"https://{target}"
-            job_id = _new_job(url_target, job_type="url", user_id=current_user_id)
-            thread = threading.Thread(
-                target=_run_url_scan_job, args=(job_id, url_target, current_user_id), daemon=True
-            )
-            thread.start()
-            return redirect(url_for("scanning_status_page", job_id=job_id))
+        if not is_valid_ip:
+            flash(f"'{target}' is not a valid IP address. The IP Scan section only scans IP addresses (e.g. 8.8.8.8). For website or domain scans, please use the URL Scan tab.", "error")
+            return redirect(url_for("dashboard"))
 
         ports = "1-65535" if mode == "full" else "top-1000"
         job_id = _new_job(target, job_type="ip", user_id=current_user_id)
@@ -1703,10 +1704,25 @@ def register_routes(app):
 
     @app.route("/scan-url", methods=["POST"])
     def scan_url_route():
+        import ipaddress
         url = request.form.get("url", "").strip()
         current_user_id = session.get("user_id")
 
         if not url:
+            flash("No target URL provided.", "error")
+            return redirect(url_for("dashboard"))
+
+        # Check if user entered an IP address instead of a website URL
+        clean_host = url.replace("http://", "").replace("https://", "").split("/")[0].split(":")[0].strip()
+        is_pure_ip = False
+        try:
+            ipaddress.ip_address(clean_host)
+            is_pure_ip = True
+        except ValueError:
+            is_pure_ip = False
+
+        if is_pure_ip:
+            flash(f"'{clean_host}' is an IP address. The URL Scan section only scans website URLs (e.g. https://example.com). For IP address port scanning, please use the IP Scan section.", "error")
             return redirect(url_for("dashboard"))
 
         if not url.startswith("http://") and not url.startswith("https://"):
