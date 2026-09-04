@@ -43,13 +43,7 @@
         <form id="newScanForm" class="scan-form" data-scan-form="ip" method="POST" action="{{ url_for('scan') }}">
             <div class="field">
                 <label for="scan-target">Target IP address or Hostname</label>
-                <input id="scan-target" type="text" name="target" placeholder="e.g. 50.6.196.180 or scanme.nmap.org" required oninput="checkPrivateIp(this)">
-                <div style="font-size: 12px; color: var(--text-2); margin-top: 5px;">
-                    Try sample target: 
-                    <a href="#" style="color: var(--cyan, #22d3ee); text-decoration: underline; font-weight: 500;" onclick="document.getElementById('scan-target').value='50.6.196.180'; checkPrivateIp(document.getElementById('scan-target')); return false;">50.6.196.180</a>
-                    or 
-                    <a href="#" style="color: var(--cyan, #22d3ee); text-decoration: underline; font-weight: 500;" onclick="document.getElementById('scan-target').value='scanme.nmap.org'; checkPrivateIp(document.getElementById('scan-target')); return false;">scanme.nmap.org</a>
-                </div>
+                <input id="scan-target" type="text" name="target" placeholder="e.g. 8.8.8.8 or example.com" required oninput="checkPrivateIp(this)">
                 <div id="privateIpWarning" style="display: none; margin-top: 6px; padding: 8px 12px; font-size: 12px; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; border-left: 3px solid #f59e0b; line-height: 1.4;">
                     ⚠️ <strong>Private LAN IP detected:</strong> Render cloud servers cannot reach internal home/office Wi-Fi (192.168.x.x / 10.x.x.x). Please scan a public IP or domain.
                 </div>
