@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -423,8 +422,6 @@
 
         if (state === 'running'){
             pill.innerHTML = '<span class="dot"></span> RUNNING';
-        } else if (state === 'waiting_for_agent'){
-            pill.innerHTML = '<span class="dot" style="background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.3);"></span> WAITING FOR LOCAL AGENT';
         } else if (state === 'done'){
             pill.innerHTML = '<i class="bi bi-check-circle-fill"></i> COMPLETE';
         } else if (state === 'error'){
@@ -460,13 +457,6 @@
             })
             .then(function(job){
                 renderLogs(job.logs);
-
-                if (job.status === 'waiting_for_agent'){
-                    setStatus('waiting_for_agent');
-                    pollCount = 0;
-                    setTimeout(poll, 2500);
-                    return;
-                }
 
                 if (job.status === 'running'){
                     setStatus('running');
