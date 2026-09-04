@@ -43,7 +43,7 @@
         <form id="newScanForm" class="scan-form" data-scan-form="ip" method="POST" action="{{ url_for('scan') }}">
             <div class="field">
                 <label for="scan-target">Target IP Address</label>
-                <input id="scan-target" type="text" name="target" placeholder="e.g. 165.232.176.225" required autocomplete="off" oninput="validateIpTarget(this)">
+                <input id="scan-target" type="text" name="target" placeholder="e.g. 8.8.8.8" required autocomplete="off" oninput="validateIpTarget(this)">
                 <div id="ipValidationError" style="display: none; margin-top: 6px; padding: 8px 12px; font-size: 12px; border-radius: 6px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border-left: 3px solid #ef4444; line-height: 1.4;">
                     ⚠️ <strong>Invalid IP Address:</strong> IP Scan only accepts valid IPv4 addresses (e.g. 8.8.8.8). For website or domain scanning, please switch to the <strong>URL Scan</strong> tab above.
                 </div>
