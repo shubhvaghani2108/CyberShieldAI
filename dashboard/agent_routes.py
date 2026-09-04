@@ -1,6 +1,6 @@
 import threading
-from flask import request, jsonify
-from dashboard.auth import login_required, get_current_user_id
+from flask import request, jsonify, session
+from dashboard.auth import login_required
 from database.db_engine import get_db_connection
 from database.agent_helpers import (
     register_agent,
@@ -22,7 +22,7 @@ def register_agent_routes(app):
     @login_required
     def agent_generate_token():
         """Creates and returns a new agent token for the logged-in user."""
-        user_id = get_current_user_id()
+        user_id = session.get("user_id")
         data = request.get_json(silent=True) or {}
         name = data.get("name") or request.form.get("name") or "Local Scan Agent"
         agent = register_agent(user_id, name=name.strip())
@@ -32,7 +32,7 @@ def register_agent_routes(app):
     @login_required
     def agent_list():
         """Lists all registered agents for the logged-in user."""
-        user_id = get_current_user_id()
+        user_id = session.get("user_id")
         agents = list_agents_for_user(user_id)
         return jsonify({"status": "success", "agents": agents})
 
