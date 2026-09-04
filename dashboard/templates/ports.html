@@ -12,10 +12,10 @@
     <table>
         <thead>
             <tr>
-                <th style="width: 110px;">Port</th>
+                <th style="width: 100px;">Port</th>
                 <th style="width: 100px;">State</th>
                 <th style="width: 120px;">Service</th>
-                <th style="width: 260px;">Banner</th>
+                <th style="min-width: 300px; max-width: 460px;">Banner</th>
                 <th>Explanation</th>
             </tr>
         </thead>
@@ -25,23 +25,20 @@
         {% set proto_val = row['proto'] if row['proto'] is defined else 'TCP' %}
         {% set state_val = row['state'] if row['state'] is defined else (row[2] if row|length > 2 else 'open') %}
         {% set service_val = row['service'] if row['service'] is defined else (row[3] if row|length > 3 else 'unknown') %}
-        {% set banner_val = row['banner'] if row['banner'] is defined else (row[4] if row|length > 4 else 'Not detected') %}
-        {% set product_val = row['product'] if row['product'] is defined else '' %}
-        {% set version_val = row['version'] if row['version'] is defined else '' %}
+        {% set banner_val = row['banner'] if row['banner'] is defined else (row[4] if row|length > 4 else '') %}
         {% set meaning_val = meanings[loop.index0] if (meanings and loop.index0 < meanings|length) else "Active network service endpoint" %}
 
-        {# Determine clean banner text #}
-        {% set display_banner = banner_val if (banner_val and banner_val != 'No banner' and banner_val != 'Not detected') else (product_val ~ (' ' ~ version_val if version_val else '') if product_val and product_val != 'Not detected' else 'Not detected') %}
+        {% set has_banner = banner_val and banner_val.strip() and banner_val.strip() not in ['No banner', 'Not detected', 'none', '-', 'Unknown'] %}
 
         <tr>
             <!-- Port -->
-            <td class="mono" style="white-space: nowrap; vertical-align: middle;">
+            <td class="mono" style="white-space: nowrap; vertical-align: top; padding-top: 14px;">
                 <strong style="color: var(--text-0); font-size: 13.5px;">{{ port_val }}</strong>
                 <span style="font-size: 11px; color: var(--text-2); font-weight: 500;">/ {{ proto_val|upper }}</span>
             </td>
 
             <!-- State -->
-            <td style="vertical-align: middle;">
+            <td style="vertical-align: top; padding-top: 14px;">
                 {% if (state_val or 'open')|lower == 'open' %}
                     <span class="badge badge-ok">Open</span>
                 {% else %}
@@ -50,25 +47,25 @@
             </td>
 
             <!-- Service -->
-            <td style="vertical-align: middle;">
+            <td style="vertical-align: top; padding-top: 14px;">
                 <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; font-weight: 600;">
                     {{ (service_val or 'unknown')|upper }}
                 </span>
             </td>
 
             <!-- Banner -->
-            <td class="mono" style="font-size: 12px; color: var(--text-1); vertical-align: middle; max-width: 260px;">
-                {% if display_banner and display_banner != 'Not detected' %}
-                    <span title="{{ display_banner }}" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all; line-height: 1.4;">
-                        {{ display_banner }}
-                    </span>
+            <td style="vertical-align: top; padding-top: 14px; min-width: 300px; max-width: 460px;">
+                {% if has_banner %}
+                    <div style="font-size: 12.5px; color: var(--text-0); line-height: 1.5; word-break: break-word; overflow-wrap: break-word;">
+                        {{ banner_val }}
+                    </div>
                 {% else %}
-                    <span style="color: var(--text-2); font-family: inherit; font-size: 12.5px;">Not detected</span>
+                    <span style="color: var(--text-2); font-size: 13px;">No banner</span>
                 {% endif %}
             </td>
 
             <!-- Banner Explanation -->
-            <td style="font-size: 13px; line-height: 1.5; color: var(--text-1); vertical-align: middle;">
+            <td style="vertical-align: top; padding-top: 14px; font-size: 13px; line-height: 1.5; color: var(--text-1);">
                 {{ meaning_val }}
             </td>
         </tr>

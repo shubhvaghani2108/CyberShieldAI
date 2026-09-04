@@ -1889,7 +1889,7 @@ def register_routes(app):
                 "product": product if product else "Not detected",
                 "version": version if version else "Not detected",
                 "extra_info": extra if extra else "Not detected",
-                "banner": banner if banner and banner != "No banner" else "Not detected",
+                "banner": banner if banner and banner.strip() and banner.strip() != "No banner" else "No banner",
                 "risk": risk,
                 "vuln_mapping": vuln_mapping,
                 "scan_time": r["scan_time"] or "—",
