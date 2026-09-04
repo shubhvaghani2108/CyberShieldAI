@@ -226,6 +226,46 @@
 
 </div>
 
+<!-- Local Scan Agent Management Card -->
+<div class="glass content-panel" style="margin-top: 24px; padding: 24px; border-radius: var(--radius-md, 12px); border: 1px solid var(--border);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 18px;">
+        <div>
+            <h3 style="font-size: 17px; font-weight: 700; margin: 0 0 6px 0; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 8px #22d3ee;"></span>
+                Local Scan Agent (Private LAN)
+            </h3>
+            <p style="margin: 0; font-size: 13.5px; color: var(--text-2); max-width: 680px; line-height: 1.5;">
+                Deploy a lightweight agent on your local Wi-Fi or office network to scan private targets (e.g. <code>192.168.x.x</code>, <code>10.x.x.x</code>) that cloud-hosted servers cannot reach.
+            </p>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="generateNewAgentToken()" id="btnGenAgent" style="font-size: 13px; padding: 9px 18px; font-weight: 600;">
+            + Generate Agent Token
+        </button>
+    </div>
+
+    <!-- Alert banner when a new token is generated -->
+    <div id="newAgentTokenBanner" style="display: none; margin-bottom: 18px; padding: 14px 18px; border-radius: 8px; background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.35);">
+        <strong style="color: var(--cyan, #22d3ee); font-size: 13.5px; display: block; margin-bottom: 6px;">New Agent Token Generated:</strong>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="newAgentTokenInput" readonly style="flex: 1; min-width: 260px; font-family: var(--mono); font-size: 13px; padding: 8px 12px; background: var(--void, #050b14); color: var(--cyan, #22d3ee); border: 1px solid var(--border); border-radius: 6px;">
+            <button type="button" class="btn btn-secondary" onclick="copyAgentToken()" id="btnCopyToken" style="font-size: 12.5px; padding: 8px 14px;">
+                Copy Token
+            </button>
+        </div>
+        <p style="margin: 10px 0 0 0; font-size: 12.5px; color: var(--text-2);">
+            To run your agent: <code style="color: var(--text-0);">python agent/cybershield_agent.py --token &lt;YOUR_TOKEN&gt; --api {{ request.host_url.rstrip('/') }}</code>
+        </p>
+    </div>
+
+    <!-- Active Agents Table -->
+    <div style="margin-top: 14px;">
+        <h4 style="font-size: 14px; font-weight: 600; color: var(--text-1); margin: 0 0 10px 0;">Registered Agents</h4>
+        <div id="agentsTableContainer">
+            <p style="font-size: 13px; color: var(--text-2); margin: 0;">Loading agents...</p>
+        </div>
+    </div>
+</div>
+
 <!-- Theme-Adaptive Input Styles -->
 <style>
 .theme-input {
@@ -282,6 +322,92 @@ function setPresetAvatar(url) {
     document.getElementById('avatarPreviewImg').src = url;
     document.getElementById('selected_avatar_url').value = url;
 }
+
+function loadAgentsList() {
+    fetch('/agent/list')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            var container = document.getElementById('agentsTableContainer');
+            if (!container) return;
+            var agents = (data && data.agents) ? data.agents : [];
+            if (agents.length === 0) {
+                container.innerHTML = '<p style="font-size: 13px; color: var(--text-2); margin: 0;">No active agents registered yet. Click <strong>+ Generate Agent Token</strong> above to set up your first local agent.</p>';
+                return;
+            }
+            var html = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">' +
+                '<thead><tr style="border-bottom: 1px solid var(--border); color: var(--text-2); text-align: left;">' +
+                '<th style="padding: 8px 10px;">Name</th>' +
+                '<th style="padding: 8px 10px;">Token</th>' +
+                '<th style="padding: 8px 10px;">Last Seen</th>' +
+                '<th style="padding: 8px 10px;">Created</th>' +
+                '</tr></thead><tbody>';
+            agents.forEach(function(a) {
+                var masked = a.token ? (a.token.substring(0, 12) + '...' + a.token.substring(a.token.length - 4)) : '-';
+                var lastSeen = a.last_seen ? a.last_seen : '<span style="color: var(--text-2);">Never</span>';
+                html += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
+                    '<td style="padding: 8px 10px; font-weight: 600; color: var(--text-0);">' + (a.name || 'Local Agent') + '</td>' +
+                    '<td style="padding: 8px 10px; font-family: var(--mono); color: var(--cyan, #22d3ee);">' + masked + '</td>' +
+                    '<td style="padding: 8px 10px;">' + lastSeen + '</td>' +
+                    '<td style="padding: 8px 10px; color: var(--text-2);">' + (a.created_at || '-') + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        })
+        .catch(function(err) {
+            console.error('Failed to load agents list:', err);
+        });
+}
+
+function generateNewAgentToken() {
+    var btn = document.getElementById('btnGenAgent');
+    if (btn) btn.disabled = true;
+    var agentName = prompt('Enter a descriptive name for this agent (e.g. Home Laptop, Office PC):', 'Local Scan Agent');
+    if (agentName === null) {
+        if (btn) btn.disabled = false;
+        return;
+    }
+    fetch('/agent/generate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: agentName || 'Local Scan Agent' })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+        if (btn) btn.disabled = false;
+        if (data && data.status === 'success' && data.agent) {
+            document.getElementById('newAgentTokenInput').value = data.agent.token;
+            document.getElementById('newAgentTokenBanner').style.display = 'block';
+            loadAgentsList();
+        } else {
+            alert('Failed to generate token: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(function(err) {
+        if (btn) btn.disabled = false;
+        alert('Network error while generating token.');
+        console.error(err);
+    });
+}
+
+function copyAgentToken() {
+    var input = document.getElementById('newAgentTokenInput');
+    if (!input) return;
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(function() {
+        var btn = document.getElementById('btnCopyToken');
+        if (btn) {
+            var oldText = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = oldText; }, 2000);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadAgentsList();
+});
 </script>
 
 {% endblock %}
