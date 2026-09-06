@@ -26,8 +26,12 @@ def get_dns_records(domain):
 
 
     resolver = dns.resolver.Resolver()
-    resolver.timeout = 2.0
-    resolver.lifetime = 3.0
+    try:
+        resolver.nameservers = ['8.8.8.8', '1.1.1.1', '8.8.4.4'] + resolver.nameservers
+    except Exception:
+        resolver.nameservers = ['8.8.8.8', '1.1.1.1']
+    resolver.timeout = 3.0
+    resolver.lifetime = 4.0
 
     for record in record_types:
         try:

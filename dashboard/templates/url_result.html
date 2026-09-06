@@ -615,6 +615,11 @@
         <tr><th>ISP</th><td>{{ geoip_data.get("isp", "Unknown") }}</td></tr>
         <tr><th>ASN</th><td>{{ geoip_data.get("asn", "Unknown") }}</td></tr>
     </table>
+    {% if geoip_data.get("isp") and ('akamai' in geoip_data.get("isp")|lower or 'cloudflare' in geoip_data.get("isp")|lower or 'fastly' in geoip_data.get("isp")|lower or 'amazon' in geoip_data.get("isp")|lower or 'edge' in geoip_data.get("isp")|lower) %}
+    <p style="margin-top:10px; font-size:12.5px; color:var(--text-2); line-height:1.4;">
+        ℹ️ <b>Global Anycast CDN:</b> This target operates through a distributed Content Delivery Network. The IP address and geographic location reflect the nearest edge node serving traffic to the scanner's network location (e.g., India edge node when scanned from a local machine, US/EU edge node when scanned from cloud hosting).
+    </p>
+    {% endif %}
     {% endif %}
 </div>
 

@@ -80,6 +80,25 @@ def detect_os(target_ip, scan_id=None):
             elif line.startswith("OS details:"):
                 os_details = line.replace("OS details:", "").strip()
 
+        if os_name in ("Unknown", "", "None"):
+            try:
+                from scanner.port_scanner import deduce_os_from_services_and_system
+                conn_tmp = get_db_connection()
+                c_tmp = conn_tmp.cursor()
+                if scan_id:
+                    c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ? AND scan_id = ?", (target_ip, scan_id))
+                else:
+                    c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ?", (target_ip,))
+                ports_recs = [dict(r) for r in c_tmp.fetchall()]
+                conn_tmp.close()
+                deduced = deduce_os_from_services_and_system(ports_recs, target_ip)
+                if deduced.get("os_name") != "Unknown":
+                    os_name = deduced["os_name"]
+                    device_type = deduced["device_type"]
+                    os_details = deduced["os_details"]
+            except Exception as ex:
+                print("[OS Deduction Fallback Note]", ex)
+
         print("Device Type :", device_type)
         print("OS Name     :", os_name)
         print("OS Details  :", os_details)

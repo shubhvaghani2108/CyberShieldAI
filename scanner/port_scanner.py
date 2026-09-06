@@ -249,6 +249,189 @@ def _probe_single_socket(target_ip, port, timeout=1.0, hostname=None):
     return None
 
 
+def deduce_os_from_services_and_system(open_ports_info, target_ip, hostname=None):
+    """
+    Intelligently identifies Operating System, Device Type, and Platform Details
+    using local system inspection (for self-scans), Windows/Linux/Mac port signatures,
+    active network banners, and cloud CDN edge profiles.
+    """
+    import platform
+
+    ports_list = []
+    if isinstance(open_ports_info, dict):
+        for p, d in open_ports_info.items():
+            item = dict(d)
+            item["port"] = int(p)
+            ports_list.append(item)
+    elif isinstance(open_ports_info, list):
+        ports_list = list(open_ports_info)
+
+    open_port_numbers = {p.get("port") for p in ports_list}
+
+    # 1. Localhost / Self-Scan Check
+    is_self = False
+    clean_ip = str(target_ip).strip()
+    if clean_ip in ("127.0.0.1", "localhost", "::1", "0.0.0.0"):
+        is_self = True
+    else:
+        try:
+            local_host_ips = set(socket.gethostbyname_ex(socket.gethostname())[2])
+            local_host_ips.add(socket.gethostbyname(socket.gethostname()))
+            if clean_ip in local_host_ips:
+                is_self = True
+        except Exception:
+            pass
+
+    if is_self:
+        sys_name = platform.system()
+        rel = platform.release()
+        ver = platform.version()
+        if sys_name == "Windows":
+            win_ver = "Windows 11" if "11" in rel or (rel == "10" and int(ver.split(".")[2]) >= 22000 if ver.count(".") >= 2 and ver.split(".")[2].isdigit() else False) else f"Windows {rel}"
+            return {
+                "os_name": f"Microsoft Windows ({win_ver})",
+                "device_type": "Personal Computer / Workstation",
+                "os_details": f"Local Host Verified: {win_ver} (Build {ver})",
+            }
+        elif sys_name == "Linux":
+            return {
+                "os_name": f"Linux ({platform.platform()})",
+                "device_type": "Linux Workstation / Server",
+                "os_details": f"Local Host Verified: Linux Kernel {rel}",
+            }
+        elif sys_name == "Darwin":
+            return {
+                "os_name": f"Apple macOS ({rel})",
+                "device_type": "Mac Workstation",
+                "os_details": f"Local Host Verified: macOS {rel}",
+            }
+
+    # 2. Analyze banners and service products
+    all_banners_text = " ".join(
+        f"{p.get('service', '')} {p.get('product', '')} {p.get('banner', '')} {p.get('extra_info', '')}"
+        for p in ports_list
+    ).lower()
+
+    # Windows Signature Check
+    windows_ports = {135, 139, 445, 3389, 5357, 5985, 5986}
+    matched_win_ports = open_port_numbers.intersection(windows_ports)
+
+    has_win_banner = any(
+        w in all_banners_text
+        for w in [
+            "microsoft", "windows", "microsoft-ds", "microsoft-httpapi", "netbios", "msrpc", "iis", "win32", "win64"
+        ]
+    )
+
+    if matched_win_ports or has_win_banner:
+        port_hints = []
+        if 445 in matched_win_ports:
+            port_hints.append("SMB (445)")
+        if 135 in matched_win_ports:
+            port_hints.append("MSRPC (135)")
+        if 139 in matched_win_ports:
+            port_hints.append("NetBIOS (139)")
+        if 3389 in matched_win_ports:
+            port_hints.append("RDP (3389)")
+
+        details = f"Fingerprinted via Windows services: {', '.join(port_hints)}" if port_hints else "Fingerprinted via Microsoft service banner"
+
+        if "iis" in all_banners_text:
+            return {
+                "os_name": "Microsoft Windows Server",
+                "device_type": "Windows Server Host",
+                "os_details": details + " (IIS active)",
+            }
+        return {
+            "os_name": "Microsoft Windows (Windows 10 / 11 / Server)",
+            "device_type": "Windows Workstation / Host",
+            "os_details": details,
+        }
+
+    # Specific Linux Distros
+    if "ubuntu" in all_banners_text:
+        return {
+            "os_name": "Ubuntu Linux",
+            "device_type": "Linux Server",
+            "os_details": "Fingerprinted via Ubuntu OpenSSH/web service banner",
+        }
+    if "debian" in all_banners_text:
+        return {
+            "os_name": "Debian Linux",
+            "device_type": "Linux Server",
+            "os_details": "Fingerprinted via Debian package signatures",
+        }
+    if any(k in all_banners_text for k in ["centos", "rhel", "red hat", "redhat", "fedora"]):
+        return {
+            "os_name": "Red Hat Enterprise Linux / CentOS",
+            "device_type": "Linux Enterprise Server",
+            "os_details": "Fingerprinted via Red Hat / CentOS enterprise banners",
+        }
+    if "alpine" in all_banners_text:
+        return {
+            "os_name": "Alpine Linux",
+            "device_type": "Container / Micro-OS",
+            "os_details": "Fingerprinted via Alpine Linux lightweight daemon",
+        }
+    if "freebsd" in all_banners_text or "openbsd" in all_banners_text:
+        return {
+            "os_name": "BSD Unix",
+            "device_type": "Unix Server",
+            "os_details": "Fingerprinted via BSD kernel banner",
+        }
+
+    # Cloud CDN Edge nodes (Akamai, Cloudflare, AWS CloudFront)
+    if "akamai" in all_banners_text or (hostname and "edgekey.net" in str(hostname)):
+        return {
+            "os_name": "Linux (Akamai Edge OS / GHost)",
+            "device_type": "Cloud CDN Edge Node",
+            "os_details": "Enterprise Anycast CDN Node running hardened Linux kernel",
+        }
+    if "cloudflare" in all_banners_text:
+        return {
+            "os_name": "Linux (Cloudflare Edge OS)",
+            "device_type": "Cloud CDN Edge Node",
+            "os_details": "Cloudflare Global Edge Proxy on Linux",
+        }
+    if "cloudfront" in all_banners_text:
+        return {
+            "os_name": "Linux (Amazon CloudFront Edge)",
+            "device_type": "Cloud CDN Edge Node",
+            "os_details": "AWS CloudFront Edge Server on Linux",
+        }
+
+    # General Linux / Unix (OpenSSH, Nginx, Apache, Node, Express, Python)
+    if 22 in open_port_numbers or any(k in all_banners_text for k in ["openssh", "nginx", "apache", "express", "k8s"]):
+        evidence = "OpenSSH (Port 22)" if 22 in open_port_numbers else "web application stack"
+        return {
+            "os_name": "Linux / Unix Server",
+            "device_type": "Cloud Server / Web Host",
+            "os_details": f"Fingerprinted via standard {evidence}",
+        }
+
+    # Network Appliances / Routers (ports 53, 80, 8080 with lighttpd, rom-pager, mikrotik)
+    if any(k in all_banners_text for k in ["mikrotik", "cisco", "dd-wrt", "openwrt", "zyxel", "rompager"]):
+        return {
+            "os_name": "Embedded Linux / Network OS",
+            "device_type": "Router / Network Gateway",
+            "os_details": "Embedded Network Appliance firmware",
+        }
+
+    # Fallback if ports are open
+    if ports_list:
+        return {
+            "os_name": "TCP/IP Network Host",
+            "device_type": "Network Device",
+            "os_details": f"Active network host with {len(ports_list)} responsive port(s)",
+        }
+
+    return {
+        "os_name": "Unknown",
+        "device_type": "Unknown",
+        "os_details": "OS could not be determined",
+    }
+
+
 def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_id=None, hostname=None):
     """
     High-performance pure-Python multithreaded socket scanner.
@@ -308,43 +491,11 @@ def _scan_target_sockets(target, ports="top-1000", progress_callback=None, scan_
     open_ports_list.sort(key=lambda x: x["port"])
     report(f"Scan complete: {len(open_ports_list)} open port(s) detected on {target}")
 
-    # Determine OS heuristics based on services and banners
-    os_name = "Unknown"
-    device_type = "Cloud Server / Web Host"
-    os_details = "Standard TCP/IP network stack active"
-
-    for p_info in open_ports_list:
-        banner = p_info.get("banner", "").lower()
-        if "microsoft" in banner or "iis" in banner or "windows" in banner:
-            os_name = "Windows Server"
-            device_type = "Windows Server Host"
-            os_details = f"Fingerprinted via Microsoft IIS on port {p_info['port']}"
-            break
-        elif "ubuntu" in banner:
-            os_name = "Ubuntu Linux"
-            device_type = "Linux Cloud Server"
-            os_details = f"Fingerprinted via Ubuntu banner on port {p_info['port']}"
-            break
-        elif "debian" in banner:
-            os_name = "Debian Linux"
-            device_type = "Linux Cloud Server"
-            os_details = f"Fingerprinted via Debian banner on port {p_info['port']}"
-            break
-        elif "centos" in banner or "red hat" in banner or "rhel" in banner:
-            os_name = "Red Hat / CentOS Linux"
-            device_type = "Linux Enterprise Server"
-            os_details = f"Fingerprinted via RHEL banner on port {p_info['port']}"
-            break
-        elif "nginx" in banner or "apache" in banner or "litespeed" in banner or "openssh" in banner:
-            os_name = "Linux / Unix Server"
-            device_type = "Cloud Server / Web Host"
-            os_details = f"Fingerprinted via web service banner on port {p_info['port']}"
-            break
-
-    if os_name == "Unknown" and open_ports_list:
-        os_name = "Linux / Unix Server"
-        device_type = "Cloud Server / Web Host"
-        os_details = "Standard TCP/IP network stack"
+    # Determine OS heuristics using multi-layer signature detector
+    deduced = deduce_os_from_services_and_system(open_ports_list, target, hostname=hostname)
+    os_name = deduced["os_name"]
+    device_type = deduced["device_type"]
+    os_details = deduced["os_details"]
 
     # Save to Database
     conn = get_db_connection()
@@ -526,9 +677,6 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
         except Exception as e:
             report(f"Detailed inspection note: {e}")
 
-        if not os_info_list:
-            os_info_list.append((scan_id, target, "Unknown", "General Purpose / Server", "Heuristic network profile", scan_time))
-
         # Grab banners in memory before touching DB
         banners_dict = {}
         for port, p_info in open_ports_dict.items():
@@ -536,8 +684,16 @@ def scan_target(target, ports="top-1000", progress_callback=None, scan_id=None, 
             service = p_info.get("service") or COMMON_PORTS.get(port, "unknown")
             product = p_info.get("product", "")
             version = p_info.get("version", "")
-            banners_dict[port] = grab_banner(target, port, hostname=hostname)
+            b_val = grab_banner(target, port, hostname=hostname)
+            banners_dict[port] = b_val
+            p_info["banner"] = b_val
             report(f"Port {port}/{proto} OPEN | service={service} product={product} version={version}")
+
+        # If Nmap OS detection yielded Unknown or empty, apply intelligent heuristic deduction
+        if not os_info_list or all(rec[2] in ("Unknown", None, "", "None") for rec in os_info_list):
+            os_info_list = []
+            deduced = deduce_os_from_services_and_system(open_ports_dict, target, hostname=hostname)
+            os_info_list.append((scan_id, target, deduced["os_name"], deduced["device_type"], deduced["os_details"], scan_time))
 
         # Quick DB commit phase — hold connection for milliseconds only
         conn = get_db_connection()

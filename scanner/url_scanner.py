@@ -28,13 +28,15 @@ def check_protocol(test_url):
     """
 
     headers = {
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
     }
 
     try:
         response = requests.get(
             test_url,
-            timeout=5,
+            timeout=8,
             allow_redirects=True,
             headers=headers
         )
@@ -155,16 +157,6 @@ def scan_url(user_input):
 
     # =====================================================
     # 3) Risk scoring
-    #
-    # IMPORTANT: this deliberately scores URL STRUCTURE, not URL
-    # CONTENT/WORDING. A keyword blacklist (login/verify/account/
-    # bank/secure/...) inherently flags almost every real website,
-    # because virtually every real site — a bank, a shop, an email
-    # provider, a SaaS app — legitimately has a login page, an
-    # "account" page, a "verify your email" page, etc. That produced
-    # false positives on ANY normal website, not just banks. These
-    # rules instead look for how phishing/malicious URLs are actually
-    # built, which generalizes to any site regardless of topic.
     # =====================================================
     score = 0
     remarks = []
