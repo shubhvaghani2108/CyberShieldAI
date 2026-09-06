@@ -167,6 +167,8 @@
 
         .csa-shell{
             max-width: 800px;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 auto;
             padding: 3rem 1.5rem 4rem;
             position: relative;
@@ -185,16 +187,19 @@
         h1{
             font-family: var(--mono);
             font-weight: 800;
-            font-size: clamp(1.4rem, 3vw, 1.9rem);
+            font-size: clamp(1.2rem, 3vw, 1.9rem);
             margin: .3rem 0 .4rem;
-            display: flex;
-            align-items: center;
-            gap: .6rem;
+            display: block;
+            line-height: 1.35;
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
 
         .csa-target{
             font-family: var(--mono);
             color: var(--cyan);
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
 
         .csa-panel{
@@ -204,15 +209,18 @@
             margin-top: 1.75rem;
             overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .csa-status-row{
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 1rem;
+            gap: .8rem;
             padding: 1.1rem 1.4rem;
             border-bottom: 1px solid var(--line);
+            flex-wrap: wrap;
         }
         .csa-status{
             font-family: var(--mono);
@@ -224,6 +232,15 @@
             display: inline-flex;
             align-items: center;
             gap: .5rem;
+            flex-shrink: 0;
+        }
+        #jobId{
+            font-family: var(--mono);
+            font-size: .72rem;
+            color: var(--text-low);
+            overflow-wrap: anywhere;
+            word-break: break-all;
+            max-width: 100%;
         }
         .csa-status.running{
             color: var(--amber);
@@ -277,23 +294,31 @@
         .csa-console{
             font-family: var(--mono);
             font-size: .84rem;
-            line-height: 1.9;
-            padding: 1.2rem 1.4rem;
-            max-height: 360px;
+            line-height: 1.7;
+            padding: 1.1rem 1.3rem;
+            max-height: 380px;
             overflow-y: auto;
             color: var(--text-mid);
             background: var(--panel);
         }
         .csa-console .line{
             display: flex;
+            align-items: flex-start;
             gap: .6rem;
             border-bottom: 1px dashed var(--line);
-            padding: .3rem 0;
+            padding: .45rem 0;
             color: var(--text-mid);
         }
         .csa-console .line:last-child{ border-bottom: none; color: var(--text-hi); }
-        .csa-console .n{ color: var(--text-low); flex-shrink: 0; }
-        .csa-console .msg::before{ content: "\203A"; color: var(--cyan); margin-right: .5rem; }
+        .csa-console .n{ color: var(--text-low); flex-shrink: 0; font-weight: 600; line-height: 1.5; }
+        .csa-console .msg{
+            flex: 1;
+            min-width: 0;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .csa-console .msg::before{ content: "\203A "; color: var(--cyan); margin-right: .35rem; }
         .csa-console .empty{ color: var(--text-low); }
 
         .csa-error-box{
@@ -345,6 +370,41 @@
             color: var(--text-low);
             font-size: .82rem;
         }
+
+        @media (max-width: 640px){
+            .csa-shell{
+                padding: 1.5rem 1rem 3rem;
+            }
+            .csa-nav-inner{
+                padding: .75rem 1rem;
+            }
+            h1{
+                font-size: 1.2rem;
+            }
+            .csa-status-row{
+                padding: .8rem .95rem;
+                gap: .4rem;
+            }
+            .csa-console{
+                padding: .85rem .95rem;
+                font-size: .78rem;
+            }
+            .csa-actions{
+                padding: .9rem 1rem 1.1rem;
+            }
+        }
+        @media (max-width: 380px){
+            .csa-shell{
+                padding: 1.2rem .75rem 2.5rem;
+            }
+            h1{
+                font-size: 1.1rem;
+            }
+            .csa-console{
+                padding: .75rem .8rem;
+                font-size: .74rem;
+            }
+        }
     </style>
 </head>
 
@@ -370,7 +430,7 @@
                  onerror="this.onerror=null; this.src='https://icons.duckduckgo.com/ip3/{{ target_domain }}.ico';">
         </div>
         {% endif %}
-        <div>
+        <div style="flex:1; min-width:0; max-width:100%;">
             <span class="eyebrow" style="margin-bottom:2px; display:block;">{{ 'Website scan' if job.type == 'url' else 'Network scan' }} in progress</span>
             <h1 style="margin:0;"><i class="bi bi-radar" style="color:var(--cyan);"></i> Scanning <span class="csa-target">{{ job.target }}</span></h1>
         </div>

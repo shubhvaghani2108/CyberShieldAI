@@ -839,15 +839,44 @@ html[data-theme="light"] .theme-toggle .thumb {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:34px; height:34px;
-  border-radius:var(--radius-sm);
+  width:38px;
+  height:38px;
+  border-radius:var(--radius-sm, 8px);
+  border:1px solid var(--border-strong) !important;
+  background:var(--overlay-2) !important;
+  color:var(--text-0) !important;
+  cursor:pointer;
   flex-shrink:0;
+  padding:0;
+  box-shadow:var(--shadow-soft);
+  transition:all .15s ease;
+}
+.sidebar-toggle:hover, .sidebar-toggle:active{
+  background:var(--overlay-3) !important;
+  border-color:var(--accent) !important;
+  color:var(--accent) !important;
+}
+.sidebar-toggle svg{
+  width:22px;
+  height:22px;
+  display:block;
 }
 
 /* Ensure long text, URLs, and code snippets wrap safely */
 .mono, .info-table td, .remark-list li, .feed-title, .feed-meta {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Dedicated responsive table wrapper scrollbar styling */
+.table-wrap::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar{
+  height:6px;
+}
+.table-wrap::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb{
+  background:var(--border-strong);
+  border-radius:4px;
 }
 
 /* --- Tablet / Medium Devices (<= 980px) --- */
@@ -880,21 +909,42 @@ html[data-theme="light"] .theme-toggle .thumb {
     padding:0 16px;
     gap:10px;
   }
+  .topbar .page-title{
+    flex:1;
+    min-width:0;
+  }
   .topbar .page-title h1{
     font-size:15px;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
-    max-width:240px;
+    margin:0;
   }
   .topbar .page-title span{
     display:none;
   }
   .topbar-actions{
     gap:8px;
+    flex-shrink:0;
   }
   .chart-container{
     height:210px;
+  }
+  /* Ensure all tables scroll horizontally inside their container on mobile */
+  .table-wrap, .table-responsive{
+    width:100%;
+    max-width:100%;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    -webkit-overflow-scrolling:touch !important;
+    display:block !important;
+  }
+  .table-wrap table, .table-responsive table{
+    width:100%;
+    min-width:680px;
+  }
+  .table-wrap table.table-wide, .table-responsive table.table-wide{
+    min-width:760px;
   }
 }
 
@@ -910,20 +960,46 @@ html[data-theme="light"] .theme-toggle .thumb {
   }
   .topbar .page-title h1{
     font-size:14px;
-    max-width:160px;
   }
 
-  /* Cards stack cleanly to 1 column on mobile */
+  /* Cards stack cleanly to 1 column on mobile without excessive vertical height */
   .cards{
-    grid-template-columns:1fr;
-    gap:12px;
+    grid-template-columns:1fr !important;
+    gap:10px !important;
+    height:auto !important;
+    min-height:0 !important;
   }
   .card{
-    padding:16px 18px;
-    width:100%;
+    padding:12px 16px !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:0 !important;
+  }
+  .card .card-top{
+    margin-bottom:2px;
+  }
+  .card .icon{
+    width:28px;
+    height:28px;
+    border-radius:6px;
+  }
+  .card .icon svg{
+    width:15px;
+    height:15px;
   }
   .card h2{
-    font-size:24px;
+    font-size:22px !important;
+    margin:6px 0 2px !important;
+    line-height:1.15;
+  }
+  .card p{
+    font-size:12px;
+    margin:0;
+  }
+  .card .trend{
+    margin-top:4px !important;
+    font-size:10.5px;
+    line-height:1.3;
   }
 
   /* Unified stat grid 1 column */
@@ -1023,7 +1099,14 @@ html[data-theme="light"] .theme-toggle .thumb {
   }
   .topbar .page-title h1{
     font-size:13.5px;
-    max-width:130px;
+  }
+  .sidebar-toggle{
+    width:36px;
+    height:36px;
+  }
+  .sidebar-toggle svg{
+    width:20px;
+    height:20px;
   }
   .theme-toggle{
     padding:5px 7px;
@@ -1041,10 +1124,6 @@ html[data-theme="light"] .theme-toggle .thumb {
   .topbar .btn-primary[data-open-scan-modal] svg{
     width:13px;
     height:13px;
-  }
-  .sidebar-toggle{
-    width:32px;
-    height:32px;
   }
   .sidebar{
     width:min(275px, 86vw);
@@ -1090,7 +1169,14 @@ html[data-theme="light"] .theme-toggle .thumb {
   }
   .topbar .page-title h1{
     font-size:12px;
-    max-width:95px;
+  }
+  .sidebar-toggle{
+    width:34px;
+    height:34px;
+  }
+  .sidebar-toggle svg{
+    width:18px;
+    height:18px;
   }
   .topbar .btn-primary[data-open-scan-modal]{
     padding:5px 8px;
@@ -1108,10 +1194,10 @@ html[data-theme="light"] .theme-toggle .thumb {
     transform:translateX(13px);
   }
   .card{
-    padding:12px 14px;
+    padding:10px 12px !important;
   }
   .card h2{
-    font-size:22px;
+    font-size:20px !important;
   }
   .chart-container{
     height:175px;
