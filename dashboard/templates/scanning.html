@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanning... | CyberShieldAI</title>
+    {% set target_domain = job.target.replace('https://','').replace('http://','').split('/')[0].split(':')[0] if (job and job.target) else '' %}
+    <title>Scanning {% if target_domain %}{{ target_domain }}{% else %}{{ job.target if job else 'Target' }}{% endif %} | CyberShieldAI</title>
+
+    {% if job and job.type == 'url' and target_domain %}
+    <link rel="icon" type="image/png" href="https://www.google.com/s2/favicons?domain={{ target_domain }}&sz=64">
+    {% else %}
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='csg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%2300e5ff'/%3E%3Cstop offset='100%25' stop-color='%230070f3'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23csg)' d='M16 2 L5 6 v9 c0 7.5 4.7 14.5 11 16 c6.3-1.5 11-8.5 11-16 V6 L16 2 z'/%3E%3Cpath fill='%23ffffff' d='M16 8 L10 11 v4 c0 4.5 2.5 8.5 6 9.8 c3.5-1.3 6-5.3 6-9.8 v-4 L16 8 z' opacity='0.25'/%3E%3Cpath fill='%23ffffff' d='M15 11 h2 v6 h-2 z M15 19 h2 v2 h-2 z'/%3E%3C/svg%3E">
+    {% endif %}
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -353,8 +360,21 @@
 </nav>
 
 <div class="csa-shell">
-    <span class="eyebrow">{{ 'Website scan' if job.type == 'url' else 'Network scan' }} in progress</span>
-    <h1><i class="bi bi-radar"></i> Scanning <span class="csa-target">{{ job.target }}</span></h1>
+    {% set target_domain = job.target.replace('https://','').replace('http://','').split('/')[0].split(':')[0] if (job and job.target) else '' %}
+    <div style="display:flex; align-items:center; gap:16px; margin: 8px 0 14px; flex-wrap:wrap;">
+        {% if job.type == 'url' and target_domain %}
+        <div style="width:52px; height:52px; border-radius:12px; background:var(--panel-alt); border:1px solid var(--line-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.35); overflow:hidden;">
+            <img src="https://www.google.com/s2/favicons?domain={{ target_domain }}&sz=128" 
+                 alt="{{ target_domain }}" 
+                 style="width:36px; height:36px; object-fit:contain; border-radius:6px;"
+                 onerror="this.onerror=null; this.src='https://icons.duckduckgo.com/ip3/{{ target_domain }}.ico';">
+        </div>
+        {% endif %}
+        <div>
+            <span class="eyebrow" style="margin-bottom:2px; display:block;">{{ 'Website scan' if job.type == 'url' else 'Network scan' }} in progress</span>
+            <h1 style="margin:0;"><i class="bi bi-radar" style="color:var(--cyan);"></i> Scanning <span class="csa-target">{{ job.target }}</span></h1>
+        </div>
+    </div>
     <p style="color:var(--text-mid); margin:0;">
         This page updates automatically. You'll be redirected to the results as soon as the scan finishes.
     </p>
