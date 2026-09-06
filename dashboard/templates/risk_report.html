@@ -40,12 +40,24 @@
 .remediation-card.high-card { border-left: 4px solid #f97316; }
 .remediation-card.medium-card { border-left: 4px solid #eab308; }
 .remediation-card.low-card { border-left: 4px solid #38bdf8; }
+
+@media (max-width: 640px) {
+    .risk-status-container {
+        padding: 16px 14px !important;
+    }
+    .risk-status-title {
+        font-size: 22px !important;
+    }
+    .remediation-card {
+        padding: 14px 14px;
+    }
+}
 </style>{% if target_ip %}
 
 <!-- ========================================================
      1. RISK STATUS & OVERVIEW CARD
      ======================================================== -->
-<div class="glass" style="padding:22px 24px; border-radius:var(--radius-md); margin-bottom:18px; border:1px solid var(--border); border-top:3px solid {% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+<div class="glass risk-status-container" style="padding:22px 24px; border-radius:var(--radius-md); margin-bottom:18px; border:1px solid var(--border); border-top:3px solid {% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:center;">
 
         
@@ -53,7 +65,7 @@
         <div>
             <div style="font-size:11px; font-weight:800; color:var(--text-2); text-transform:uppercase; letter-spacing:1px;">Security Risk Status</div>
             <div style="display:flex; align-items:baseline; gap:12px; margin-top:4px;">
-                <div style="font-size:32px; font-weight:900; color:{% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
+                <div class="risk-status-title" style="font-size:32px; font-weight:900; color:{% if risk_level|lower == 'critical' %}#ef4444{% elif risk_level|lower == 'high' %}#f97316{% elif risk_level|lower == 'medium' %}#eab308{% else %}#22c55e{% endif %};">
                     {% if risk_level|lower == 'critical' %}🚨 CRITICAL RISK
                     {% elif risk_level|lower == 'high' %}⚠️ HIGH RISK
                     {% elif risk_level|lower == 'medium' %}⚡ MEDIUM RISK

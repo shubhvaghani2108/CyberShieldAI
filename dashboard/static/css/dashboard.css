@@ -55,20 +55,28 @@
   --neon-pink:#ec4899;
 }
 
-*{ box-sizing:border-box; }
-
-html,body{
-  margin:0;
-  padding:0;
-  min-height:100%;
-  background:var(--bg-0);
-  color:var(--text-0);
-  font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
-  -webkit-font-smoothing:antialiased;
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-a{ color:inherit; text-decoration:none; }
-ul{ list-style:none; margin:0; padding:0; }
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: 'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, svg, canvas, video {
+  max-width: 100%;
+}
+
+a { color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+ul { list-style: none; margin: 0; padding: 0; }
 
 /* particles element kept in the DOM for backwards compatibility but no
    longer rendered — a flat surface reads as more professional than an
@@ -81,6 +89,9 @@ ul{ list-style:none; margin:0; padding:0; }
   z-index:1;
   display:flex;
   min-height:100vh;
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
 }
 
 /* ---------- sidebar (slide-in panel, closed by default at every
@@ -277,6 +288,9 @@ ul{ list-style:none; margin:0; padding:0; }
   min-width:0;
   display:flex;
   flex-direction:column;
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
 }
 
 /* ---------- topbar ---------- */
@@ -544,7 +558,13 @@ ul{ list-style:none; margin:0; padding:0; }
 }
 
 /* ---------- tables ---------- */
-.table-wrap{ overflow-x:auto; }
+.table-wrap, .table-responsive{
+  width:100%;
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  display:block;
+}
 table{
   width:100%;
   border-collapse:collapse;
@@ -809,23 +829,297 @@ html[data-theme="light"] .theme-toggle .thumb {
   background: var(--accent-2);
 }
 
-/* ---------- mobile / responsive ---------- */
+/* =========================================================
+   RESPONSIVE & MOBILE BREAKPOINTS
+   Target Viewports: 320px, 360px, 375px, 390px, 400px, 414px, 430px, 480px, 768px.
+   Desktop view (>= 981px) remains 100% identical.
+   ========================================================= */
+
 .sidebar-toggle{
   display:inline-flex;
   align-items:center;
   justify-content:center;
   width:34px; height:34px;
   border-radius:var(--radius-sm);
+  flex-shrink:0;
 }
+
+/* Ensure long text, URLs, and code snippets wrap safely */
+.mono, .info-table td, .remark-list li, .feed-title, .feed-meta {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* --- Tablet / Medium Devices (<= 980px) --- */
 @media (max-width: 980px){
-  .cards{ grid-template-columns:repeat(2,1fr); }
-  .chart-grid, .split-grid{ grid-template-columns:1fr; }
+  .cards{
+    grid-template-columns:repeat(2, 1fr);
+    gap:12px;
+  }
+  .chart-grid,
+  .split-grid{
+    grid-template-columns:1fr;
+    gap:14px;
+  }
+  .sidebar{
+    width:min(285px, 85vw);
+    max-width:85vw;
+  }
+  .profile-layout-grid{
+    grid-template-columns:1fr !important;
+    gap:18px !important;
+  }
 }
-@media (max-width: 560px){
-  .cards{ grid-template-columns:1fr; }
-  .container{ padding:16px; }
-  .topbar{ padding:0 14px; }
-  .sidebar{ width:82vw; }
+
+/* --- Small Tablet / Large Mobile (<= 768px) --- */
+@media (max-width: 768px){
+  .container{
+    padding:20px 16px 50px;
+  }
+  .topbar{
+    padding:0 16px;
+    gap:10px;
+  }
+  .topbar .page-title h1{
+    font-size:15px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:240px;
+  }
+  .topbar .page-title span{
+    display:none;
+  }
+  .topbar-actions{
+    gap:8px;
+  }
+  .chart-container{
+    height:210px;
+  }
+}
+
+/* --- Mobile Viewports (<= 640px: 640px, 480px, 430px, 414px, 400px, 390px, 375px, 360px, 320px) --- */
+@media (max-width: 640px){
+  .container{
+    padding:16px 12px 42px;
+  }
+  .topbar{
+    padding:0 12px;
+    gap:8px;
+    height:58px;
+  }
+  .topbar .page-title h1{
+    font-size:14px;
+    max-width:160px;
+  }
+
+  /* Cards stack cleanly to 1 column on mobile */
+  .cards{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  .card{
+    padding:16px 18px;
+    width:100%;
+  }
+  .card h2{
+    font-size:24px;
+  }
+
+  /* Unified stat grid 1 column */
+  .stat-grid{
+    grid-template-columns:1fr !important;
+    gap:12px;
+  }
+
+  /* Info-table (Target Overview, Host Details, etc.) full-width block layout */
+  .info-table,
+  .info-table tbody,
+  .info-table tr,
+  .info-table th,
+  .info-table td{
+    display:block;
+    width:100%;
+    box-sizing:border-box;
+  }
+  .info-table tr{
+    padding:8px 0;
+    border-bottom:1px solid var(--hairline);
+  }
+  .info-table th{
+    width:100% !important;
+    padding:4px 0 2px 0 !important;
+    border-bottom:none;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.6px;
+    color:var(--text-2);
+  }
+  .info-table td{
+    padding:2px 0 6px 0 !important;
+    border-bottom:none;
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
+  .info-table tr:last-child{
+    border-bottom:none;
+  }
+
+  /* Panel headings and export buttons wrap into neat mobile rows */
+  .panel-heading{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+    margin:22px 0 10px;
+  }
+  .panel-heading > div:last-child{
+    width:100%;
+    margin-left:0 !important;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .panel-heading > div:last-child .btn{
+    flex:1;
+    min-width:110px;
+    justify-content:center;
+  }
+
+  /* Risk report grids override */
+  div[style*="minmax(280px"],
+  div[style*="minmax(320px"]{
+    grid-template-columns:1fr !important;
+    gap:14px !important;
+  }
+
+  /* Modal responsiveness */
+  .modal{
+    width:100%;
+    max-width:calc(100vw - 20px);
+    padding:18px 16px;
+  }
+  .modal h3{
+    font-size:15px;
+  }
+  .scan-tabs{
+    margin:12px 0 14px;
+    gap:4px;
+  }
+  .scan-tab{
+    padding:7px 8px;
+    font-size:12px;
+  }
+  .modal-actions{
+    margin-top:14px;
+    gap:8px;
+  }
+}
+
+/* --- Compact Mobile Devices (<= 480px: 430px, 414px, 400px, 390px, 375px) --- */
+@media (max-width: 480px){
+  .topbar{
+    padding:0 10px;
+    gap:6px;
+  }
+  .topbar .page-title h1{
+    font-size:13.5px;
+    max-width:130px;
+  }
+  .theme-toggle{
+    padding:5px 7px;
+    gap:4px;
+  }
+  .theme-toggle .theme-toggle-label{
+    display:none;
+  }
+  .topbar .btn-primary[data-open-scan-modal]{
+    padding:6px 10px;
+    font-size:12px;
+    gap:4px;
+    white-space:nowrap;
+  }
+  .topbar .btn-primary[data-open-scan-modal] svg{
+    width:13px;
+    height:13px;
+  }
+  .sidebar-toggle{
+    width:32px;
+    height:32px;
+  }
+  .sidebar{
+    width:min(275px, 86vw);
+  }
+  .content-panel{
+    padding:14px 14px;
+  }
+  .chart-card{
+    padding:14px 14px;
+  }
+  .chart-container{
+    height:195px;
+  }
+  .footer{
+    padding:16px 12px;
+    font-size:11px;
+    line-height:1.5;
+    word-break:break-word;
+  }
+  .btn{
+    padding:8px 12px;
+    font-size:12.5px;
+  }
+  .toast-stack{
+    bottom:12px;
+    right:12px;
+    left:12px;
+  }
+  .toast{
+    font-size:12px;
+    padding:10px 14px;
+  }
+}
+
+/* --- Ultra-Narrow Mobile Devices (<= 360px: 360px, 320px) --- */
+@media (max-width: 360px){
+  .container{
+    padding:12px 8px 36px;
+  }
+  .topbar{
+    padding:0 8px;
+    gap:4px;
+  }
+  .topbar .page-title h1{
+    font-size:12px;
+    max-width:95px;
+  }
+  .topbar .btn-primary[data-open-scan-modal]{
+    padding:5px 8px;
+    font-size:11px;
+  }
+  .theme-toggle .track{
+    width:28px;
+    height:15px;
+  }
+  .theme-toggle .thumb{
+    width:11px;
+    height:11px;
+  }
+  html[data-theme="light"] .theme-toggle .thumb{
+    transform:translateX(13px);
+  }
+  .card{
+    padding:12px 14px;
+  }
+  .card h2{
+    font-size:22px;
+  }
+  .chart-container{
+    height:175px;
+  }
+  .modal{
+    padding:14px 10px;
+    max-width:calc(100vw - 12px);
+  }
 }
 
 /* ---------- desktop: sidebar is a permanently pinned navigation panel,
