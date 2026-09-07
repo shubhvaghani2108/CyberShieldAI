@@ -27,7 +27,15 @@ def _resolve_db_path():
 DB_PATH = _resolve_db_path()
 
 
+_INIT_DB_DONE = False
+
+
 def init_db():
+    global _INIT_DB_DONE
+    if _INIT_DB_DONE:
+        return
+    _INIT_DB_DONE = True
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -1143,10 +1151,7 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
 
 def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
     """Gathers everything about the specified or latest IP/host scan into one dict."""
-    if include_dashboard_data:
-        data = get_dashboard_data(user_id=user_id)
-    else:
-        data = {}
+    data = {}
     conn = get_db_connection()
     latest_ip = target_ip or get_latest_ip(user_id=user_id)
 
@@ -1432,6 +1437,15 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         data["security_score"] = 100
 
     if include_dashboard_data:
+        data["ports"] = len(ports)
+        data["vulns"] = len(vulnerabilities)
+        data["cves"] = len(cves)
+        data["risk_score"] = risk["total_score"] if risk else 0
+        data["risk_level"] = risk["risk_level"] if risk else "Low"
+        data["host_ip"] = host["target_ip"] if host else (latest_ip or "-")
+        data["host_status"] = host["status"] if host else "No Scan Yet"
+        data["host_scan_time"] = host["scan_time"] if host else "-"
+
         # Dashboard Stats
         stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
         assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)

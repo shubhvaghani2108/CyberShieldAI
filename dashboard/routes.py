@@ -22,6 +22,7 @@ from dashboard.pdf_generator import (
     _build_url_scan_pdf,
     _determine_latest_scan_type,
 )
+from dashboard.dashboard_cache import dashboard_cache
 from dashboard.scan_jobs import (
     SCAN_JOBS,
     SCAN_JOBS_LOCK,
@@ -931,60 +932,54 @@ def register_routes(app):
     def dashboard():
         current_user_id = session.get("user_id")
 
-        data = get_ip_scan_context(user_id=current_user_id)
+        cached_ctx = dashboard_cache.get("dashboard_view", user_id=current_user_id)
+        if cached_ctx is None:
+            data = get_ip_scan_context(user_id=current_user_id)
+            url_ctx = get_url_scan_dashboard_context(user_id=current_user_id)
+            recent_alerts = get_recent_alerts(user_id=current_user_id)
+            alert_stats = get_alert_statistics(user_id=current_user_id)
 
-        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id)
-
-        # ===============================
-        # ALERTS
-        # ===============================
-
-        recent_alerts = get_recent_alerts(user_id=current_user_id)
-
-        alert_stats = get_alert_statistics(user_id=current_user_id)
+            cached_ctx = {
+                "stats": data["stats"],
+                "assets": data["assets"],
+                "recent_activity": data["recent_activity"],
+                "latest_ip": data["latest_ip"],
+                "host": data["host"],
+                "ports_data": data["ports_data"],
+                "services": data["services"],
+                "vulnerabilities_data": data["vulnerabilities_data"],
+                "cves_data": data["cves_data"],
+                "recommendations": data["recommendations"],
+                "os_info": data["os_info"],
+                "risk": data["risk"],
+                "chart_data": data["chart_data"],
+                "recent_alerts": recent_alerts,
+                "alert_stats": alert_stats,
+                "url_ctx": url_ctx,
+            }
+            dashboard_cache.set("dashboard_view", cached_ctx, user_id=current_user_id, ttl=30)
 
         return render_template(
-
             "dashboard/dashboard.html",
-
             active_page="dashboard",
-
             page_title="Security Operations Dashboard",
-
             page_subtitle="Live network posture and vulnerability overview",
-
-            stats=data["stats"],
-
-            assets=data["assets"],
-
-            recent_activity=data["recent_activity"],
-
-            latest_ip=data["latest_ip"],
-
-            host=data["host"],
-
-            ports_data=data["ports_data"],
-
-            services=data["services"],
-
-            vulnerabilities_data=data["vulnerabilities_data"],
-
-            cves_data=data["cves_data"],
-
-            recommendations=data["recommendations"],
-
-            os_info=data["os_info"],
-
-            risk=data["risk"],
-
-            chart_data=data["chart_data"],
-
-            recent_alerts=recent_alerts,
-
-            alert_stats=alert_stats,
-
-            **url_ctx
-
+            stats=cached_ctx["stats"],
+            assets=cached_ctx["assets"],
+            recent_activity=cached_ctx["recent_activity"],
+            latest_ip=cached_ctx["latest_ip"],
+            host=cached_ctx["host"],
+            ports_data=cached_ctx["ports_data"],
+            services=cached_ctx["services"],
+            vulnerabilities_data=cached_ctx["vulnerabilities_data"],
+            cves_data=cached_ctx["cves_data"],
+            recommendations=cached_ctx["recommendations"],
+            os_info=cached_ctx["os_info"],
+            risk=cached_ctx["risk"],
+            chart_data=cached_ctx["chart_data"],
+            recent_alerts=cached_ctx["recent_alerts"],
+            alert_stats=cached_ctx["alert_stats"],
+            **cached_ctx["url_ctx"]
         )
 
     @app.route("/ip-scan-result")
@@ -993,8 +988,14 @@ def register_routes(app):
         req_ip = target_ip or request.args.get("ip") or request.args.get("target")
         req_scan_id = request.args.get("scan_id")
         current_user_id = session.get("user_id")
-        data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
 
+        cache_extra = f"{req_ip}:{req_scan_id}"
+        cached_data = dashboard_cache.get("ip_scan_result", user_id=current_user_id, extra=cache_extra)
+        if cached_data is None:
+            cached_data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
+            dashboard_cache.set("ip_scan_result", cached_data, user_id=current_user_id, extra=cache_extra, ttl=30)
+
+        data = cached_data
         return render_template(
             "ip_result.html",
             active_page="ip_scan_result",
@@ -1018,6 +1019,11 @@ def register_routes(app):
         req_scan_id = scan_id or request.args.get("scan_id")
         target_id = request.args.get("id", type=int)
         current_user_id = session.get("user_id")
+
+        cache_extra = f"{req_scan_id}:{target_id}"
+        cached_view = dashboard_cache.get("url_scan_result_view", user_id=current_user_id, extra=cache_extra)
+        if cached_view is not None:
+            return cached_view
 
         conn = get_db_connection()
         latest_url_scan = None
@@ -1598,7 +1604,7 @@ def register_routes(app):
         print("vulnerabilities =", vulnerabilities)
         print("cves =", cves)
 
-        return render_template(
+        rendered_html = render_template(
             "url_result.html",
             active_page="url_scan_result",
             page_title="URL Scan Result",
@@ -1636,6 +1642,29 @@ def register_routes(app):
             virustotal=virustotal,
             cves=cves,
         )
+
+        dashboard_cache.set(
+            "url_scan_result_view",
+            rendered_html,
+            user_id=current_user_id,
+            extra=f"{current_scan_id}:{url_result_id}",
+            ttl=30,
+        )
+        dashboard_cache.set(
+            "url_scan_result_view",
+            rendered_html,
+            user_id=current_user_id,
+            extra=f"{current_scan_id}:None",
+            ttl=30,
+        )
+        dashboard_cache.set(
+            "url_scan_result_view",
+            rendered_html,
+            user_id=current_user_id,
+            extra="None:None",
+            ttl=30,
+        )
+        return rendered_html
 
 
 
@@ -1741,6 +1770,23 @@ def register_routes(app):
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+
+        cache_extra = f"{scope}:{target}:{req_scan_id}"
+        cached_view = dashboard_cache.get("ports_view", user_id=current_user_id, extra=cache_extra)
+        if cached_view is not None:
+            return render_template(
+                "ports.html",
+                active_page="ports",
+                page_title="Open Ports",
+                page_subtitle=cached_view["page_subtitle"],
+                rows=cached_view["rows"],
+                meanings=cached_view["meanings"],
+                latest_ip=cached_view["latest_ip"],
+                scope=cached_view["scope"],
+                current_target=cached_view["current_target"],
+                has_scanned=cached_view["has_scanned"],
+            )
+
         conn = get_db_connection()
 
         scan_id = req_scan_id if req_scan_id else None
@@ -1825,57 +1871,93 @@ def register_routes(app):
         else:
             port_rows = []
 
-        # Enrich ports with service_versions, vulnerabilities, and cves
+        # Bulk pre-fetch service_versions, vulnerabilities, and cves in 3 bulk queries instead of 3*N
+        sv_map = {}
+        v_map = {}
+        cve_map = {}
+
+        if scope == "all" and current_user_id is not None:
+            sv_rows = conn.execute(
+                """
+                SELECT ip, port, product, version, extra_info FROM service_versions
+                WHERE scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                   OR scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                ORDER BY id ASC
+                """,
+                (current_user_id, current_user_id),
+            ).fetchall()
+            v_rows = conn.execute(
+                """
+                SELECT ip, port, risk, description FROM vulnerabilities
+                WHERE scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                   OR scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                ORDER BY id ASC
+                """,
+                (current_user_id, current_user_id),
+            ).fetchall()
+            cve_rows = conn.execute(
+                """
+                SELECT ip, port, cve_id, severity FROM cves
+                WHERE scan_id IN (SELECT scan_id FROM host_status WHERE user_id = ?)
+                   OR scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ?)
+                ORDER BY id ASC
+                """,
+                (current_user_id, current_user_id),
+            ).fetchall()
+        elif scan_id:
+            sv_rows = conn.execute(
+                "SELECT ip, port, product, version, extra_info FROM service_versions WHERE scan_id = ? ORDER BY id ASC",
+                (scan_id,),
+            ).fetchall()
+            v_rows = conn.execute(
+                "SELECT ip, port, risk, description FROM vulnerabilities WHERE scan_id = ? ORDER BY id ASC",
+                (scan_id,),
+            ).fetchall()
+            cve_rows = conn.execute(
+                "SELECT ip, port, cve_id, severity FROM cves WHERE scan_id = ? ORDER BY id ASC",
+                (scan_id,),
+            ).fetchall()
+        elif active_target:
+            sv_rows = conn.execute(
+                "SELECT ip, port, product, version, extra_info FROM service_versions WHERE ip = ? ORDER BY id ASC",
+                (active_target,),
+            ).fetchall()
+            v_rows = conn.execute(
+                "SELECT ip, port, risk, description FROM vulnerabilities WHERE ip = ? ORDER BY id ASC",
+                (active_target,),
+            ).fetchall()
+            cve_rows = conn.execute(
+                "SELECT ip, port, cve_id, severity FROM cves WHERE ip = ? ORDER BY id ASC",
+                (active_target,),
+            ).fetchall()
+        else:
+            sv_rows, v_rows, cve_rows = [], [], []
+
+        for r in sv_rows:
+            sv_map[(r["ip"], r["port"])] = r
+            sv_map[r["port"]] = r
+        for r in v_rows:
+            v_map[(r["ip"], r["port"])] = r
+            v_map[r["port"]] = r
+        for r in cve_rows:
+            cve_map[(r["ip"], r["port"])] = r
+            cve_map[r["port"]] = r
+
+        # Enrich ports in memory with O(1) dictionary lookups
         enriched_rows = []
         for r in port_rows:
             p_num = r["port"]
-            p_scan_id = r["scan_id"] if "scan_id" in r.keys() and r["scan_id"] else scan_id
             p_ip = r["ip"]
 
-            # Service versions lookup
-            sv_row = None
-            if p_scan_id:
-                sv_row = conn.execute(
-                    "SELECT product, version, extra_info FROM service_versions WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_scan_id, p_num),
-                ).fetchone()
-            if not sv_row:
-                sv_row = conn.execute(
-                    "SELECT product, version, extra_info FROM service_versions WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_ip, p_num),
-                ).fetchone()
-
+            sv_row = sv_map.get((p_ip, p_num)) or sv_map.get(p_num)
             product = sv_row["product"] if sv_row and sv_row["product"] else ""
             version = sv_row["version"] if sv_row and sv_row["version"] else ""
             extra = sv_row["extra_info"] if sv_row and sv_row["extra_info"] else ""
             service = r["service"] or "unknown"
             banner = r["banner"] or "No banner"
 
-            # Vulnerability lookup
-            v_row = None
-            if p_scan_id:
-                v_row = conn.execute(
-                    "SELECT risk, description FROM vulnerabilities WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_scan_id, p_num),
-                ).fetchone()
-            if not v_row:
-                v_row = conn.execute(
-                    "SELECT risk, description FROM vulnerabilities WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_ip, p_num),
-                ).fetchone()
-
-            # CVE lookup
-            c_row = None
-            if p_scan_id:
-                c_row = conn.execute(
-                    "SELECT cve_id, severity FROM cves WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_scan_id, p_num),
-                ).fetchone()
-            if not c_row:
-                c_row = conn.execute(
-                    "SELECT cve_id, severity FROM cves WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                    (p_ip, p_num),
-                ).fetchone()
+            v_row = v_map.get((p_ip, p_num)) or v_map.get(p_num)
+            c_row = cve_map.get((p_ip, p_num)) or cve_map.get(p_num)
 
             # Risk calculation
             if v_row and v_row["risk"]:
@@ -1913,18 +1995,31 @@ def register_routes(app):
 
         conn.close()
         meanings = [interpret_banner(r["service"], r["banner"]) for r in enriched_rows]
+        page_sub = "Open ports and service banners for " + ("all scanned assets" if scope == "all" else (f"target {target or latest_ip}"))
+        curr_target = target or (latest_ip if scope != "all" else "all")
+        has_scanned = bool(latest_ip or target)
+
+        dashboard_cache.set("ports_view", {
+            "page_subtitle": page_sub,
+            "rows": enriched_rows,
+            "meanings": meanings,
+            "latest_ip": latest_ip,
+            "scope": scope,
+            "current_target": curr_target,
+            "has_scanned": has_scanned,
+        }, user_id=current_user_id, extra=cache_extra, ttl=30)
 
         return render_template(
             "ports.html",
             active_page="ports",
             page_title="Open Ports",
-            page_subtitle="Open ports and service banners for " + ("all scanned assets" if scope == "all" else (f"target {target or latest_ip}")),
+            page_subtitle=page_sub,
             rows=enriched_rows,
             meanings=meanings,
             latest_ip=latest_ip,
             scope=scope,
-            current_target=target or (latest_ip if scope != "all" else "all"),
-            has_scanned=bool(latest_ip or target),
+            current_target=curr_target,
+            has_scanned=has_scanned,
         )
 
     @app.route("/vulnerabilities")
@@ -1933,6 +2028,22 @@ def register_routes(app):
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+
+        cache_extra = f"{scope}:{target}:{req_scan_id}"
+        cached_view = dashboard_cache.get("vulns_view", user_id=current_user_id, extra=cache_extra)
+        if cached_view is not None:
+            return render_template(
+                "vulnerabilities.html",
+                active_page="vulnerabilities",
+                page_title="Vulnerabilities",
+                page_subtitle=cached_view["page_subtitle"],
+                rows=cached_view["rows"],
+                latest_ip=cached_view["latest_ip"],
+                current_target=cached_view["current_target"],
+                scan_id=cached_view["scan_id"],
+                has_scanned=cached_view["has_scanned"],
+            )
+
         conn = get_db_connection()
 
         scan_id = req_scan_id if req_scan_id else None
@@ -2039,16 +2150,28 @@ def register_routes(app):
             rows = []
 
         conn.close()
+        page_sub = f"Active findings for target {active_target}" if active_target else "Active vulnerability findings"
+        has_scanned = bool(active_target)
+
+        dashboard_cache.set("vulns_view", {
+            "page_subtitle": page_sub,
+            "rows": rows,
+            "latest_ip": active_target,
+            "current_target": active_target,
+            "scan_id": scan_id,
+            "has_scanned": has_scanned,
+        }, user_id=current_user_id, extra=cache_extra, ttl=30)
+
         return render_template(
             "vulnerabilities.html",
             active_page="vulnerabilities",
             page_title="Vulnerabilities",
-            page_subtitle=f"Active findings for target {active_target}" if active_target else "Active vulnerability findings",
+            page_subtitle=page_sub,
             rows=rows,
             latest_ip=active_target,
             current_target=active_target,
             scan_id=scan_id,
-            has_scanned=bool(active_target),
+            has_scanned=has_scanned,
         )
 
     @app.route("/cves")
@@ -2057,6 +2180,22 @@ def register_routes(app):
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+
+        cache_extra = f"{scope}:{target}:{req_scan_id}"
+        cached_view = dashboard_cache.get("cves_view", user_id=current_user_id, extra=cache_extra)
+        if cached_view is not None:
+            return render_template(
+                "cves.html",
+                active_page="cves",
+                page_title="CVE Database",
+                page_subtitle=cached_view["page_subtitle"],
+                rows=cached_view["rows"],
+                latest_ip=cached_view["latest_ip"],
+                scope=cached_view["scope"],
+                current_target=cached_view["current_target"],
+                has_scanned=cached_view["has_scanned"],
+            )
+
         conn = get_db_connection()
 
         scan_id = req_scan_id if req_scan_id else None
@@ -2176,16 +2315,29 @@ def register_routes(app):
             rows.append(r_dict)
 
         conn.close()
+        page_sub = "Matched CVEs and CWE mapping for " + ("all scanned assets catalog" if scope == "all" else (f"target {target or latest_ip}"))
+        curr_target = target or (latest_ip if scope != "all" else "all")
+        has_scanned = bool(latest_ip or target)
+
+        dashboard_cache.set("cves_view", {
+            "page_subtitle": page_sub,
+            "rows": rows,
+            "latest_ip": latest_ip,
+            "scope": scope,
+            "current_target": curr_target,
+            "has_scanned": has_scanned,
+        }, user_id=current_user_id, extra=cache_extra, ttl=30)
+
         return render_template(
             "cves.html",
             active_page="cves",
             page_title="CVE Database",
-            page_subtitle="Matched CVEs and CWE mapping for " + ("all scanned assets catalog" if scope == "all" else (f"target {target or latest_ip}")),
+            page_subtitle=page_sub,
             rows=rows,
             latest_ip=latest_ip,
             scope=scope,
-            current_target=target or (latest_ip if scope != "all" else "all"),
-            has_scanned=bool(latest_ip or target),
+            current_target=curr_target,
+            has_scanned=has_scanned,
         )
 
     @app.route("/history")
@@ -2256,6 +2408,33 @@ def register_routes(app):
         req_scan_id = request.args.get("scan_id", "").strip()
         requested_target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+
+        cache_extra = f"{requested_target}:{req_scan_id}"
+        cached_view = dashboard_cache.get("risk_report", user_id=current_user_id, extra=cache_extra)
+        if cached_view is not None:
+            return render_template(
+                "risk_report.html",
+                active_page="risk_report",
+                page_title="Executive Risk Report",
+                page_subtitle="Comprehensive threat profile, posture rating, and prioritized remediation matrix",
+                rows=cached_view["rows"],
+                target_ip=cached_view["target_ip"],
+                latest_ip=cached_view["latest_ip"],
+                available_targets=cached_view["available_targets"],
+                host_meta=cached_view["host_meta"],
+                posture=cached_view["posture"],
+                vuln_rows=cached_view["vuln_rows"],
+                port_rows=cached_view["port_rows"],
+                remediation_items=cached_view["remediation_items"],
+                summary_text=cached_view["summary_text"],
+                top_driver=cached_view["top_driver"],
+                critical_count=cached_view["critical_count"],
+                high_count=cached_view["high_count"],
+                medium_count=cached_view["medium_count"],
+                low_count=cached_view["low_count"],
+                total_score=cached_view["total_score"],
+                risk_level=cached_view["risk_level"],
+            )
 
         conn = get_db_connection()
 
@@ -2469,20 +2648,24 @@ def register_routes(app):
                 (target_ip,),
             ).fetchall()
 
-        # 7. Actionable Remediation Steps
+        # 7. Actionable Remediation Steps (Bulk CVE match instead of loop queries)
         remediation_items = []
+        cve_map = {}
+        if target_ip:
+            if scan_id:
+                cve_rows_bulk = conn.execute("SELECT port, cve_id FROM cves WHERE scan_id = ? ORDER BY id ASC", (scan_id,)).fetchall()
+            else:
+                cve_rows_bulk = conn.execute("SELECT port, cve_id FROM cves WHERE ip = ? ORDER BY id ASC", (target_ip,)).fetchall()
+            for cr in cve_rows_bulk:
+                if cr["cve_id"]:
+                    cve_map[cr["port"]] = cr["cve_id"]
+
         for v in vuln_rows:
             port_num = v["port"]
             srv_name = v["service"] or f"Port {port_num}"
             risk_val = v["risk"] or "Medium"
 
-            # Match CVE ID if available
-            cve_match = conn.execute(
-                "SELECT cve_id FROM cves WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                (target_ip, port_num),
-            ).fetchone()
-            matched_cve = cve_match["cve_id"] if cve_match and cve_match["cve_id"] else f"CVE-SEC-{port_num}"
-
+            matched_cve = cve_map.get(port_num) or f"CVE-SEC-{port_num}"
             desc_text = v["description"] if ("description" in v.keys() and v["description"]) else f"Potential exposure point on exposed {srv_name} listening service on port {port_num}."
             rem_text = v["remediation"] if ("remediation" in v.keys() and v["remediation"]) else f"Harden {srv_name} daemon configuration, enforce TLS encryption, and restrict public access via firewall security groups."
 
@@ -2549,6 +2732,28 @@ def register_routes(app):
             )
 
         conn.close()
+        tot_score = rows[0]["total_score"] if rows else 0
+
+        dashboard_cache.set("risk_report", {
+            "rows": rows,
+            "target_ip": target_ip,
+            "latest_ip": latest_ip,
+            "available_targets": available_targets,
+            "host_meta": host_meta,
+            "posture": posture,
+            "vuln_rows": vuln_rows,
+            "port_rows": port_rows,
+            "remediation_items": remediation_items,
+            "summary_text": summary_text,
+            "top_driver": top_driver,
+            "critical_count": critical_count,
+            "high_count": high_count,
+            "medium_count": medium_count,
+            "low_count": low_count,
+            "total_score": tot_score,
+            "risk_level": risk_level,
+        }, user_id=current_user_id, extra=cache_extra, ttl=30)
+
         return render_template(
             "risk_report.html",
             active_page="risk_report",
@@ -2569,7 +2774,7 @@ def register_routes(app):
             high_count=high_count,
             medium_count=medium_count,
             low_count=low_count,
-            total_score=rows[0]["total_score"] if rows else 0,
+            total_score=tot_score,
             risk_level=risk_level,
         )
 

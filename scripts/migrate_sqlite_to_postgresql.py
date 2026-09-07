@@ -471,6 +471,14 @@ TABLE_INDEXES = [
     'CREATE INDEX IF NOT EXISTS idx_tech_url_scan ON "technology_detection"("url", "scan_id");',
     'CREATE INDEX IF NOT EXISTS idx_url_intel_url_scan ON "url_intelligence"("url", "scan_id");',
     'CREATE INDEX IF NOT EXISTS idx_vt_url_scan ON "virustotal_results"("url", "scan_id");',
+    'CREATE INDEX IF NOT EXISTS idx_serv_scan_port ON "service_versions"("scan_id", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_serv_ip_port ON "service_versions"("ip", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_ports_scan_port ON "ports"("scan_id", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_ports_ip_port ON "ports"("ip", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_vulns_scan_port ON "vulnerabilities"("scan_id", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_vulns_ip_port ON "vulnerabilities"("ip", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_cves_scan_port ON "cves"("scan_id", "port");',
+    'CREATE INDEX IF NOT EXISTS idx_cves_ip_port ON "cves"("ip", "port");',
 ]
 
 

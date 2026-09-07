@@ -113,7 +113,9 @@ def inject_template_helpers():
         get_user_avatar=get_user_avatar,
     )
 
-# Security Headers Middleware
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
+
+# Security Headers & Browser Asset Caching Middleware
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -125,6 +127,8 @@ def set_security_headers(response):
         "https://api.dicebear.com https://lh3.googleusercontent.com https://accounts.google.com data: blob:; "
         "img-src 'self' data: https: blob:;"
     )
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
     return response
 
 
