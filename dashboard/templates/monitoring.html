@@ -57,21 +57,21 @@
 {% endwith %}
 
 <!-- Top Add Target Form -->
-<div class="glass content-panel" style="padding: 22px 26px; margin-bottom: 24px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--panel-solid);">
-    <div style="margin-bottom: 16px;">
-        <h3 style="margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; color: var(--accent);"><path d="M12 5v14M5 12h14"/></svg>
+<div class="glass content-panel" style="padding: 14px 18px; margin-bottom: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--panel-solid);">
+    <div style="margin-bottom: 10px;">
+        <h3 style="margin: 0 0 2px; font-size: 14px; font-weight: 700; color: var(--text-0); display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; color: var(--accent);"><path d="M12 5v14M5 12h14"/></svg>
             Add New Target for Automated Monitoring
         </h3>
-        <p style="margin: 0; font-size: 12.5px; color: var(--text-2);">
+        <p style="margin: 0; font-size: 12px; color: var(--text-2);">
             Specify a target host or URL and configure the automated APScheduler scan interval (1h, 6h, 12h, or 24h).
         </p>
     </div>
 
     <form id="addMonitoringForm" action="{{ url_for('monitoring_add') }}" method="POST" onsubmit="return validateMonitoringForm(event);">
-        <div style="display: grid; grid-template-columns: 2fr 1.2fr auto; gap: 16px; align-items: flex-end;">
+        <div style="display: grid; grid-template-columns: 2fr 1.2fr auto; gap: 10px; align-items: flex-end;">
             <div class="field" style="margin-bottom: 0;">
-                <label for="targetUrlIp" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
+                <label for="targetUrlIp" style="display: block; font-size: 11.5px; font-weight: 600; color: var(--text-1); margin-bottom: 4px;">
                     Target URL/IP <span style="color: var(--crit);">*</span>
                 </label>
                 <input 
@@ -81,20 +81,20 @@
                     placeholder="e.g. 192.168.1.1 or https://example.com" 
                     required 
                     autocomplete="off"
-                    style="width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 13px; font-family: var(--font-mono, monospace);"
+                    style="width: 100%; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--overlay-1); color: var(--text-0); font-size: 12.5px; font-family: var(--font-mono, monospace);"
                 >
-                <div id="targetError" style="display: none; color: var(--crit); font-size: 11.5px; margin-top: 5px; font-weight: 500;"></div>
+                <div id="targetError" style="display: none; color: var(--crit); font-size: 11.5px; margin-top: 4px; font-weight: 500;"></div>
             </div>
 
             <div class="field" style="margin-bottom: 0;">
-                <label for="frequencySelect" style="display: block; font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 6px;">
+                <label for="frequencySelect" style="display: block; font-size: 11.5px; font-weight: 600; color: var(--text-1); margin-bottom: 4px;">
                     Frequency <span style="color: var(--crit);">*</span>
                 </label>
                 <select 
                     id="frequencySelect" 
                     name="frequency" 
                     required
-                    style="width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--panel-solid); color: var(--text-0); font-size: 13px;"
+                    style="width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--panel-solid); color: var(--text-0); font-size: 12.5px;"
                 >
                     <option value="1">1 Hour</option>
                     <option value="6">6 Hours</option>
@@ -104,8 +104,8 @@
             </div>
 
             <div style="margin-bottom: 0;">
-                <button type="submit" id="submitBtn" class="btn btn-primary" style="height: 42px; padding: 0 22px; white-space: nowrap; font-weight: 700;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;"><path d="M12 5v14M5 12h14"/></svg>
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="height: 38px; padding: 0 18px; white-space: nowrap; font-weight: 700; font-size: 12.5px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 15px; height: 15px;"><path d="M12 5v14M5 12h14"/></svg>
                     Add Target
                 </button>
             </div>
@@ -114,7 +114,7 @@
 </div>
 
 <!-- Top Analytics Stat Cards Section -->
-<div class="cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 24px;">
+<div class="cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 14px;">
 
     <!-- Total Monitored Targets Card -->
     <div class="card">
@@ -187,7 +187,7 @@
 </div>
 
 {% if targets and targets|length > 0 %}
-<div class="glass table-wrap" style="margin-bottom: 28px;">
+<div class="glass table-wrap table-responsive" style="margin-bottom: 14px;">
     <table>
         <thead>
             <tr>
@@ -287,7 +287,7 @@
 </div>
 
 {% if alerts and alerts|length > 0 %}
-<div class="glass table-wrap" style="margin-bottom: 28px;">
+<div class="glass table-wrap table-responsive" style="margin-bottom: 14px;">
     <table>
         <thead>
             <tr>
