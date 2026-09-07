@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initCharts();
   initThemeToggle();
   initUtcToLocalTimestamps();
+  initResultTabNavigation();
 });
 
 /* ---------------- theme toggle (dark / light / system) ---------------- */
@@ -485,4 +486,91 @@ function initUtcToLocalTimestamps() {
     setInterval(() => convertScope(document), 10000);
   }
 }
+
+/* ---------------- result tabs navigation ---------------- */
+function initResultTabNavigation() {
+  const tabsWrapper = document.querySelector(".result-section-tabs");
+  if (!tabsWrapper) return;
+
+  const tabButtons = document.querySelectorAll(".result-tab-btn[data-tab]");
+  const tabPanels = document.querySelectorAll(".result-view-panel");
+
+  function activateTab(tabId, pushHash = true) {
+    if (!tabId) tabId = "overview";
+    // Strip # or tab- prefix if passed
+    const cleanId = tabId.replace(/^#/, "").replace(/^tab-/, "");
+    
+    let targetPanel = document.getElementById("panel-" + cleanId);
+    let targetBtn = document.querySelector(`.result-tab-btn[data-tab="${cleanId}"]`);
+
+    // Fallback to overview if not found
+    if (!targetPanel) {
+      targetPanel = document.getElementById("panel-overview");
+      targetBtn = document.querySelector(`.result-tab-btn[data-tab="overview"]`);
+    }
+
+    if (!targetPanel) return;
+
+    // Deactivate all panels & buttons
+    tabPanels.forEach((p) => p.classList.remove("active"));
+    tabButtons.forEach((b) => b.classList.remove("active"));
+
+    // Activate target
+    targetPanel.classList.add("active");
+    if (targetBtn) {
+      targetBtn.classList.add("active");
+      // Scroll tab button into view in horizontally scrolling tab bar
+      targetBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+    }
+
+    if (pushHash) {
+      if (cleanId === "overview") {
+        if (window.location.hash) {
+          history.replaceState(null, null, window.location.pathname + window.location.search);
+        }
+      } else {
+        history.replaceState(null, null, "#tab-" + cleanId);
+      }
+    }
+  }
+
+  // Bind click handlers to tab buttons
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const tabId = btn.getAttribute("data-tab");
+      activateTab(tabId, true);
+    });
+  });
+
+  // Bind click handlers to all [data-switch-tab] elements anywhere on page (e.g. cards, buttons)
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-switch-tab]");
+    if (trigger) {
+      e.preventDefault();
+      const tabId = trigger.getAttribute("data-switch-tab");
+      activateTab(tabId, true);
+      // Smoothly scroll to the tab navigation bar if needed
+      const navBar = document.querySelector(".result-section-tabs-wrapper");
+      if (navBar) {
+        navBar.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  });
+
+  // Check URL hash on page load
+  const hash = window.location.hash;
+  if (hash) {
+    activateTab(hash, false);
+  } else {
+    activateTab("overview", false);
+  }
+
+  // Handle browser back/forward buttons
+  window.addEventListener("hashchange", () => {
+    const newHash = window.location.hash;
+    activateTab(newHash || "overview", false);
+  });
+}
+
 
