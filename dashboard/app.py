@@ -113,9 +113,7 @@ def inject_template_helpers():
         get_user_avatar=get_user_avatar,
     )
 
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
-
-# Security Headers & Browser Asset Caching Middleware
+# Security Headers Middleware
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"

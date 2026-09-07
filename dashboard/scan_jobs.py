@@ -55,21 +55,18 @@ def _job_log(job_id, message):
 
 
 def _job_done(job_id, result_ip=None, scan_id=None):
-    user_id = None
     with SCAN_JOBS_LOCK:
         if job_id in SCAN_JOBS:
             SCAN_JOBS[job_id]["status"] = "done"
             SCAN_JOBS[job_id]["result_ip"] = result_ip
             if scan_id:
                 SCAN_JOBS[job_id]["scan_id"] = scan_id
-            user_id = SCAN_JOBS[job_id].get("user_id")
-
-    # Invalidate cached dashboard views for this user so fresh results display immediately
-    try:
-        from dashboard.dashboard_cache import dashboard_cache
-        dashboard_cache.invalidate(user_id)
-    except Exception:
-        pass
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                uid = SCAN_JOBS[job_id].get("user_id")
+                dashboard_cache.invalidate(uid)
+            except Exception:
+                pass
 
 
 MAX_CONCURRENT_SCANS = 2
