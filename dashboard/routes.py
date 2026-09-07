@@ -29,7 +29,6 @@ from dashboard.scan_jobs import (
     _run_ip_scan_job,
     _run_url_scan_job,
 )
-from dashboard.dashboard_cache import dashboard_cache
 from database.db_helpers import (
     get_db_connection,
     get_ip_scan_context,
@@ -932,39 +931,61 @@ def register_routes(app):
     def dashboard():
         current_user_id = session.get("user_id")
 
-        cached_render = dashboard_cache.get("dashboard_render", user_id=current_user_id)
-        if cached_render is not None:
-            return cached_render
-
         data = get_ip_scan_context(user_id=current_user_id)
+
         url_ctx = get_url_scan_dashboard_context(user_id=current_user_id)
+
+        # ===============================
+        # ALERTS
+        # ===============================
+
         recent_alerts = get_recent_alerts(user_id=current_user_id)
+
         alert_stats = get_alert_statistics(user_id=current_user_id)
 
-        rendered = render_template(
+        return render_template(
+
             "dashboard/dashboard.html",
+
             active_page="dashboard",
+
             page_title="Security Operations Dashboard",
+
             page_subtitle="Live network posture and vulnerability overview",
+
             stats=data["stats"],
+
             assets=data["assets"],
+
             recent_activity=data["recent_activity"],
+
             latest_ip=data["latest_ip"],
+
             host=data["host"],
+
             ports_data=data["ports_data"],
+
             services=data["services"],
+
             vulnerabilities_data=data["vulnerabilities_data"],
+
             cves_data=data["cves_data"],
+
             recommendations=data["recommendations"],
+
             os_info=data["os_info"],
+
             risk=data["risk"],
+
             chart_data=data["chart_data"],
+
             recent_alerts=recent_alerts,
+
             alert_stats=alert_stats,
+
             **url_ctx
+
         )
-        dashboard_cache.set("dashboard_render", rendered, user_id=current_user_id, ttl=30.0)
-        return rendered
 
     @app.route("/ip-scan-result")
     @app.route("/ip-scan-result/<target_ip>")
@@ -1804,31 +1825,6 @@ def register_routes(app):
         else:
             port_rows = []
 
-        # Bulk query service_versions, vulnerabilities, and cves to avoid N+1 queries
-        sv_map = {}
-        v_map = {}
-        c_map = {}
-        if scan_id:
-            try:
-                for row in conn.execute("SELECT port, product, version, extra_info FROM service_versions WHERE scan_id = ?", (scan_id,)).fetchall():
-                    sv_map[row["port"]] = row
-                for row in conn.execute("SELECT port, risk, description FROM vulnerabilities WHERE scan_id = ?", (scan_id,)).fetchall():
-                    v_map[row["port"]] = row
-                for row in conn.execute("SELECT port, cve_id, severity FROM cves WHERE scan_id = ?", (scan_id,)).fetchall():
-                    c_map[row["port"]] = row
-            except Exception:
-                pass
-        elif active_target:
-            try:
-                for row in conn.execute("SELECT port, product, version, extra_info FROM service_versions WHERE ip = ?", (active_target,)).fetchall():
-                    sv_map[row["port"]] = row
-                for row in conn.execute("SELECT port, risk, description FROM vulnerabilities WHERE ip = ?", (active_target,)).fetchall():
-                    v_map[row["port"]] = row
-                for row in conn.execute("SELECT port, cve_id, severity FROM cves WHERE ip = ?", (active_target,)).fetchall():
-                    c_map[row["port"]] = row
-            except Exception:
-                pass
-
         # Enrich ports with service_versions, vulnerabilities, and cves
         enriched_rows = []
         for r in port_rows:
@@ -1836,8 +1832,19 @@ def register_routes(app):
             p_scan_id = r["scan_id"] if "scan_id" in r.keys() and r["scan_id"] else scan_id
             p_ip = r["ip"]
 
-            # Fast dictionary lookup
-            sv_row = sv_map.get(p_num)
+            # Service versions lookup
+            sv_row = None
+            if p_scan_id:
+                sv_row = conn.execute(
+                    "SELECT product, version, extra_info FROM service_versions WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_scan_id, p_num),
+                ).fetchone()
+            if not sv_row:
+                sv_row = conn.execute(
+                    "SELECT product, version, extra_info FROM service_versions WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_ip, p_num),
+                ).fetchone()
+
             product = sv_row["product"] if sv_row and sv_row["product"] else ""
             version = sv_row["version"] if sv_row and sv_row["version"] else ""
             extra = sv_row["extra_info"] if sv_row and sv_row["extra_info"] else ""
@@ -1845,10 +1852,30 @@ def register_routes(app):
             banner = r["banner"] or "No banner"
 
             # Vulnerability lookup
-            v_row = v_map.get(p_num)
+            v_row = None
+            if p_scan_id:
+                v_row = conn.execute(
+                    "SELECT risk, description FROM vulnerabilities WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_scan_id, p_num),
+                ).fetchone()
+            if not v_row:
+                v_row = conn.execute(
+                    "SELECT risk, description FROM vulnerabilities WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_ip, p_num),
+                ).fetchone()
 
             # CVE lookup
-            c_row = c_map.get(p_num)
+            c_row = None
+            if p_scan_id:
+                c_row = conn.execute(
+                    "SELECT cve_id, severity FROM cves WHERE scan_id = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_scan_id, p_num),
+                ).fetchone()
+            if not c_row:
+                c_row = conn.execute(
+                    "SELECT cve_id, severity FROM cves WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                    (p_ip, p_num),
+                ).fetchone()
 
             # Risk calculation
             if v_row and v_row["risk"]:
@@ -1887,7 +1914,7 @@ def register_routes(app):
         conn.close()
         meanings = [interpret_banner(r["service"], r["banner"]) for r in enriched_rows]
 
-        rendered = render_template(
+        return render_template(
             "ports.html",
             active_page="ports",
             page_title="Open Ports",
@@ -1899,7 +1926,6 @@ def register_routes(app):
             current_target=target or (latest_ip if scope != "all" else "all"),
             has_scanned=bool(latest_ip or target),
         )
-        return rendered
 
     @app.route("/vulnerabilities")
     def view_vulnerabilities():
@@ -2444,27 +2470,18 @@ def register_routes(app):
             ).fetchall()
 
         # 7. Actionable Remediation Steps
-        cve_map = {}
-        if scan_id:
-            try:
-                for c in conn.execute("SELECT port, cve_id FROM cves WHERE scan_id = ?", (scan_id,)).fetchall():
-                    cve_map[c["port"]] = c["cve_id"]
-            except Exception:
-                pass
-        elif target_ip:
-            try:
-                for c in conn.execute("SELECT port, cve_id FROM cves WHERE ip = ?", (target_ip,)).fetchall():
-                    cve_map[c["port"]] = c["cve_id"]
-            except Exception:
-                pass
-
         remediation_items = []
         for v in vuln_rows:
             port_num = v["port"]
             srv_name = v["service"] or f"Port {port_num}"
             risk_val = v["risk"] or "Medium"
 
-            matched_cve = cve_map.get(port_num) or f"CVE-SEC-{port_num}"
+            # Match CVE ID if available
+            cve_match = conn.execute(
+                "SELECT cve_id FROM cves WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
+                (target_ip, port_num),
+            ).fetchone()
+            matched_cve = cve_match["cve_id"] if cve_match and cve_match["cve_id"] else f"CVE-SEC-{port_num}"
 
             desc_text = v["description"] if ("description" in v.keys() and v["description"]) else f"Potential exposure point on exposed {srv_name} listening service on port {port_num}."
             rem_text = v["remediation"] if ("remediation" in v.keys() and v["remediation"]) else f"Harden {srv_name} daemon configuration, enforce TLS encryption, and restrict public access via firewall security groups."

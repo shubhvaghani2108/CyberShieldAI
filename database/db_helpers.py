@@ -27,14 +27,7 @@ def _resolve_db_path():
 DB_PATH = _resolve_db_path()
 
 
-_INIT_DB_DONE = False
-
 def init_db():
-    global _INIT_DB_DONE
-    if _INIT_DB_DONE:
-        return
-    _INIT_DB_DONE = True
-
     conn = get_db_connection()
     cursor = conn.cursor()
 

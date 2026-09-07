@@ -61,12 +61,6 @@ def _job_done(job_id, result_ip=None, scan_id=None):
             SCAN_JOBS[job_id]["result_ip"] = result_ip
             if scan_id:
                 SCAN_JOBS[job_id]["scan_id"] = scan_id
-            try:
-                from dashboard.dashboard_cache import dashboard_cache
-                uid = SCAN_JOBS[job_id].get("user_id")
-                dashboard_cache.invalidate(uid)
-            except Exception:
-                pass
 
 
 MAX_CONCURRENT_SCANS = 2

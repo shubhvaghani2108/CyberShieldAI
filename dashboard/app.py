@@ -125,8 +125,6 @@ def set_security_headers(response):
         "https://api.dicebear.com https://lh3.googleusercontent.com https://accounts.google.com data: blob:; "
         "img-src 'self' data: https: blob:;"
     )
-    if request.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
     return response
 
 
