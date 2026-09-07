@@ -2225,6 +2225,28 @@ def register_routes(app):
             rows=rows,
         )
 
+    @app.route("/history/delete/<int:item_id>", methods=["POST", "GET"])
+    def delete_ip_history_item(item_id):
+        current_user_id = session.get("user_id")
+        if not current_user_id:
+            flash("Please log in to manage your scan history.", "error")
+            return redirect(url_for("login"))
+
+        conn = get_db_connection()
+        try:
+            conn.execute("DELETE FROM scan_history WHERE id = ? AND user_id = ?", (item_id, current_user_id))
+            conn.execute("DELETE FROM host_status WHERE id = ? AND user_id = ?", (item_id, current_user_id))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error deleting IP scan history record #{item_id}: {e}")
+        finally:
+            conn.close()
+
+        if request.is_json:
+            return jsonify({"status": "success", "message": "Scan history deleted."})
+        flash("Scan history record deleted successfully.", "success")
+        return redirect(url_for("history"))
+
     @app.route("/url-history")
     def url_history():
         conn = get_db_connection()
@@ -2250,6 +2272,27 @@ def register_routes(app):
             page_subtitle="Every URL scan that has been run",
             rows=rows,
         )
+
+    @app.route("/url-history/delete/<int:item_id>", methods=["POST", "GET"])
+    def delete_url_history_item(item_id):
+        current_user_id = session.get("user_id")
+        if not current_user_id:
+            flash("Please log in to manage your scan history.", "error")
+            return redirect(url_for("login"))
+
+        conn = get_db_connection()
+        try:
+            conn.execute("DELETE FROM url_scan_results WHERE id = ? AND user_id = ?", (item_id, current_user_id))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error deleting URL scan history record #{item_id}: {e}")
+        finally:
+            conn.close()
+
+        if request.is_json:
+            return jsonify({"status": "success", "message": "URL scan history deleted."})
+        flash("URL scan history record deleted successfully.", "success")
+        return redirect(url_for("url_history"))
 
     @app.route("/risk-report")
     def risk_report():

@@ -2,26 +2,29 @@
 {% block title %}IP Scan History{% endblock %}
 
 {% block content %}
-<div class="panel-heading">
+<div class="panel-heading" style="margin-bottom: 12px;">
     <h2>🕘 IP Scan History</h2>
-    <span class="sub">{{ rows|length }} scan{{ 's' if rows|length != 1 else '' }} recorded</span>
+    <span class="sub" id="historySubCount">{{ rows|length }} scan{{ 's' if rows|length != 1 else '' }} recorded</span>
 </div>
 
 {% if rows and rows|length > 0 %}
-<div class="glass table-wrap table-responsive">
-    <table class="table-wide">
+
+<!-- Desktop Table View -->
+<div class="glass table-wrap table-responsive history-table-desktop">
+    <table class="table-wide" style="width:100%;">
         <thead>
             <tr>
                 <th style="width: 70px;">ID</th>
                 <th>Target IP</th>
-                <th style="width: 140px;">Status</th>
-                <th style="width: 220px;">Scan Time</th>
+                <th style="width: 130px;">Status</th>
+                <th style="width: 200px;">Scan Time</th>
+                <th style="width: 140px; text-align: right;">Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="historyTableBody">
         {% for row in rows %}
-        <tr>
-            <td class="mono" style="font-weight:600; color:var(--accent); vertical-align: middle;">#{{ loop.index }}</td>
+        <tr id="history-row-{{ row[0] }}">
+            <td class="mono history-seq-num" style="font-weight:700; color:var(--accent); vertical-align: middle;">#{{ loop.index }}</td>
             <td class="mono" style="vertical-align: middle;">
                 <a href="{{ url_for('ip_scan_result_page') }}?ip={{ row[1] }}" style="color:var(--accent); font-weight:600; text-decoration:none;">
                     {{ row[1] }}
@@ -35,14 +38,177 @@
                 {% endif %}
             </td>
             <td class="mono utc-to-local" data-utc="{{ row[3] }}" style="vertical-align: middle; font-size: 12px; color: var(--text-1); white-space: nowrap;">{{ row[3] }}</td>
+            <td style="vertical-align: middle; text-align: right; white-space: nowrap;">
+                <a href="{{ url_for('ip_scan_result_page') }}?ip={{ row[1] }}" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 11px; text-decoration:none; margin-right:4px;">
+                    View
+                </a>
+                <button type="button" class="btn btn-danger-soft btn-sm" onclick="confirmDeleteHistory('{{ row[0] }}', '{{ row[1] }}', 'ip')" style="padding: 4px 8px; font-size: 11px; cursor:pointer;">
+                    Delete
+                </button>
+            </td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
 </div>
+
+<!-- Mobile Card View (<= 768px) -->
+<div class="history-cards-mobile" id="historyCardsMobile">
+    {% for row in rows %}
+    <div class="glass history-card-item" id="history-card-{{ row[0] }}" style="padding: 12px 14px; margin-bottom: 10px; border-radius: 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+            <span class="mono history-seq-num" style="font-size:12px; font-weight:800; color:var(--accent); background:var(--overlay-2); padding:2px 8px; border-radius:4px;">
+                #{{ loop.index }}
+            </span>
+            <span>
+                {% if 'Alive' in row[2] or row[2] == 'Online' or row[2] == 'Up' %}
+                    <span class="badge badge-alive" style="font-size:10.5px;">{{ row[2] }}</span>
+                {% else %}
+                    <span class="badge badge-dead" style="font-size:10.5px;">{{ row[2] }}</span>
+                {% endif %}
+            </span>
+        </div>
+
+        <div style="margin-bottom: 6px;">
+            <span style="font-size:10.5px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; display:block;">Target IP</span>
+            <a href="{{ url_for('ip_scan_result_page') }}?ip={{ row[1] }}" class="mono" style="font-size:14px; font-weight:700; color:var(--text-0); text-decoration:none; word-break:break-all;">
+                {{ row[1] }}
+            </a>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <span style="font-size:10.5px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; display:block;">Scan Time</span>
+            <span class="mono utc-to-local" data-utc="{{ row[3] }}" style="font-size:12px; color:var(--text-1); word-break:break-all;">{{ row[3] }}</span>
+        </div>
+
+        <div style="display:flex; gap:8px; border-top:1px solid var(--border); padding-top:8px;">
+            <a href="{{ url_for('ip_scan_result_page') }}?ip={{ row[1] }}" class="btn btn-secondary btn-sm" style="flex:1; text-align:center; padding:6px 10px; font-size:12px; text-decoration:none;">
+                🔍 View
+            </a>
+            <button type="button" class="btn btn-danger-soft btn-sm" onclick="confirmDeleteHistory('{{ row[0] }}', '{{ row[1] }}', 'ip')" style="flex:1; text-align:center; padding:6px 10px; font-size:12px; cursor:pointer;">
+                🗑️ Delete
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 {% else %}
 <div class="glass content-panel">
     <p class="empty-note">No IP scan history available.</p>
 </div>
 {% endif %}
+
+<!-- Universal Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteConfirmModal" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal" style="max-width: 400px; padding: 20px; border-radius: 12px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <span style="font-size:22px;">⚠️</span>
+            <h3 style="margin:0; font-size:16px; color:var(--text-0);">Confirm Deletion</h3>
+        </div>
+        <p style="font-size:13px; color:var(--text-1); line-height:1.5; margin-bottom:16px;">
+            Are you sure you want to delete this scan history?
+            <br>
+            <span id="deleteTargetLabel" class="mono" style="font-size:12px; color:var(--crit); font-weight:700; margin-top:4px; display:block;"></span>
+        </p>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <button type="button" class="btn btn-ghost" onclick="closeDeleteModal()" style="padding:6px 14px; font-size:12.5px;">Cancel</button>
+            <form id="deleteConfirmForm" method="POST" action="" style="margin:0;" onsubmit="handleDeleteSubmit(event)">
+                <button type="submit" class="btn btn-danger" id="deleteConfirmBtn" style="padding:6px 14px; font-size:12.5px; background:var(--crit); color:#ffffff; border:none;">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentDeleteId = null;
+let currentDeleteType = 'ip';
+
+function confirmDeleteHistory(id, target, type) {
+    currentDeleteId = id;
+    currentDeleteType = type;
+    const modal = document.getElementById('deleteConfirmModal');
+    const label = document.getElementById('deleteTargetLabel');
+    const form = document.getElementById('deleteConfirmForm');
+    
+    if (label) label.textContent = 'Target: ' + target;
+    if (form) {
+        form.action = (type === 'ip') ? '/history/delete/' + id : '/url-history/delete/' + id;
+    }
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteConfirmModal');
+    if (modal) modal.style.display = 'none';
+    currentDeleteId = null;
+}
+
+async function handleDeleteSubmit(e) {
+    e.preventDefault();
+    if (!currentDeleteId) return;
+    
+    const url = (currentDeleteType === 'ip') ? '/history/delete/' + currentDeleteId : '/url-history/delete/' + currentDeleteId;
+    const btn = document.getElementById('deleteConfirmBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        if (res.ok) {
+            // Remove row from table
+            const row = document.getElementById('history-row-' + currentDeleteId);
+            if (row) row.remove();
+
+            // Remove card from mobile list
+            const card = document.getElementById('history-card-' + currentDeleteId);
+            if (card) card.remove();
+
+            // Auto-renumber all remaining history items sequentially (#1, #2, #3...)
+            renumberHistoryRows();
+
+            closeDeleteModal();
+        } else {
+            // Fallback to standard form submission
+            e.target.submit();
+        }
+    } catch (err) {
+        // Fallback to standard form submission
+        e.target.submit();
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function renumberHistoryRows() {
+    const tableRows = document.querySelectorAll('#historyTableBody tr');
+    tableRows.forEach((r, idx) => {
+        const seq = r.querySelector('.history-seq-num');
+        if (seq) seq.textContent = '#' + (idx + 1);
+    });
+
+    const mobileCards = document.querySelectorAll('#historyCardsMobile .history-card-item');
+    mobileCards.forEach((c, idx) => {
+        const seq = c.querySelector('.history-seq-num');
+        if (seq) seq.textContent = '#' + (idx + 1);
+    });
+
+    const sub = document.getElementById('historySubCount');
+    const remaining = tableRows.length || mobileCards.length;
+    if (sub) {
+        sub.textContent = remaining + ' scan' + (remaining !== 1 ? 's' : '') + ' recorded';
+    }
+
+    if (remaining === 0) {
+        location.reload();
+    }
+}
+</script>
 {% endblock %}

@@ -500,8 +500,27 @@ function initResultTabNavigation() {
     // Strip # or tab- prefix if passed
     const cleanId = tabId.replace(/^#/, "").replace(/^tab-/, "");
     
-    let targetPanel = document.getElementById("panel-" + cleanId);
+    // Check for section accordion first (Requirement 11)
+    const targetSec = document.getElementById("sec-" + cleanId);
     let targetBtn = document.querySelector(`.result-tab-btn[data-tab="${cleanId}"]`);
+
+    if (targetSec) {
+      if (targetSec.tagName && targetSec.tagName.toLowerCase() === "details") {
+        targetSec.open = true;
+      }
+      targetSec.scrollIntoView({ behavior: "smooth", block: "start" });
+      tabButtons.forEach((b) => b.classList.remove("active"));
+      if (targetBtn) {
+        targetBtn.classList.add("active");
+        targetBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+      }
+      return;
+    }
+
+    let targetPanel = document.getElementById("panel-" + cleanId);
+    if (!targetBtn) {
+      targetBtn = document.querySelector(`.result-tab-btn[data-tab="${cleanId}"]`);
+    }
 
     // Fallback to overview if not found
     if (!targetPanel) {
@@ -550,11 +569,6 @@ function initResultTabNavigation() {
       e.preventDefault();
       const tabId = trigger.getAttribute("data-switch-tab");
       activateTab(tabId, true);
-      // Smoothly scroll to the tab navigation bar if needed
-      const navBar = document.querySelector(".result-section-tabs-wrapper");
-      if (navBar) {
-        navBar.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
     }
   });
 
@@ -572,5 +586,17 @@ function initResultTabNavigation() {
     activateTab(newHash || "overview", false);
   });
 }
+
+// Global helper to toggle all section accordions at once
+window.toggleAllAccordions = function() {
+  const accordions = document.querySelectorAll(".section-accordion");
+  if (!accordions.length) return;
+  const anyClosed = Array.from(accordions).some(a => !a.open);
+  accordions.forEach(a => a.open = anyClosed);
+  const btn = document.getElementById("toggleAllBtn");
+  if (btn) {
+    btn.textContent = anyClosed ? "↕ Collapse All" : "↕ Expand All";
+  }
+};
 
 
