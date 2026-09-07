@@ -35,37 +35,59 @@
 </div>
 {% endif %}
 
-<div class="glass content-panel">
-    <span class="eyebrow">Target Overview</span>
-    <table class="info-table">
-        <tr><th>IP Address</th><td class="mono">{{ latest_ip }}</td></tr>
-        <tr><th>Status</th><td>{{ host.status if host else "Unknown" }}</td></tr>
-        <tr><th>Last Scan</th><td class="mono">{{ host.scan_time if host and host.scan_time else (os_info.scan_time if os_info and os_info.scan_time else "-") }}</td></tr>
-        <tr>
-            <th>Operating System</th>
-            <td>
+<div class="glass content-panel" style="padding:14px 18px;">
+    <span class="eyebrow" style="margin-bottom:10px; display:block;">Target Overview</span>
+    <div class="compact-info-grid">
+        <div class="compact-info-item">
+            <span class="compact-info-label">IP Address</span>
+            <span class="compact-info-val mono"><strong>{{ latest_ip }}</strong></span>
+        </div>
+        <div class="compact-info-item">
+            <span class="compact-info-label">Status</span>
+            <span class="compact-info-val">
+                {% if host and ('Alive' in host.status or host.status == 'Online' or host.status == 'Up') %}
+                    <span class="badge badge-alive">{{ host.status }}</span>
+                {% elif host and ('Dead' in host.status or 'Unreachable' in host.status) %}
+                    <span class="badge badge-dead">{{ host.status }}</span>
+                {% else %}
+                    <span class="badge badge-unknown">{{ host.status if host else "Unknown" }}</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="compact-info-item">
+            <span class="compact-info-label">Last Scan</span>
+            <span class="compact-info-val mono">{{ host.scan_time if host and host.scan_time else (os_info.scan_time if os_info and os_info.scan_time else "-") }}</span>
+        </div>
+        {% if risk %}
+        <div class="compact-info-item">
+            <span class="compact-info-label">Risk Assessment</span>
+            <span class="compact-info-val">
+                <span class="risk-pill {{ risk.risk_level|lower }}">{{ risk.risk_level|upper }}</span>
+                <span class="mono" style="font-weight:700; margin-left:6px; color:var(--text-1);">Score: {{ risk.total_score }}</span>
+            </span>
+        </div>
+        {% endif %}
+        <div class="compact-info-item">
+            <span class="compact-info-label">Operating System</span>
+            <span class="compact-info-val">
                 {% if os_info and os_info.os_name and os_info.os_name not in ['Unknown', 'Not Scanned', 'None', '-'] %}
-                    <b style="color: var(--text-0);">{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color: var(--text-2); font-size: 12.5px;">({{ os_info.device_type }})</span>{% endif %}
+                    <b style="color: var(--text-0);">{{ os_info.os_name }}</b>{% if os_info.device_type and os_info.device_type != 'Unknown' %} <span style="color: var(--text-2); font-size: 12px;">({{ os_info.device_type }})</span>{% endif %}
                 {% else %}
                     <span style="color: var(--text-muted);">Not Identified</span>
                 {% endif %}
-            </td>
-        </tr>
-        <tr>
-            <th>Platform Details</th>
-            <td>
+            </span>
+        </div>
+        <div class="compact-info-item">
+            <span class="compact-info-label">Platform Details</span>
+            <span class="compact-info-val" style="font-size:12.5px;">
                 {% if os_info and os_info.os_details and os_info.os_details not in ['Unknown', 'OS could not be determined', 'None', '-', 'Heuristic socket fingerprint', 'Standard TCP/IP stack active'] %}
                     {{ os_info.os_details }}
                 {% else %}
                     <span style="color: var(--text-muted);">Standard TCP/IP Network Host Profile</span>
                 {% endif %}
-            </td>
-        </tr>
-        {% if risk %}
-        <tr><th>Risk Level</th><td><span class="risk-pill {{ risk.risk_level|lower }}">{{ risk.risk_level|upper }}</span></td></tr>
-        <tr><th>Total Score</th><td class="mono">{{ risk.total_score }}</td></tr>
-        {% endif %}
-    </table>
+            </span>
+        </div>
+    </div>
 </div>
 
 
@@ -99,7 +121,7 @@
 
 <div class="panel-heading"><h2>Service Versions ({{ services|length }})</h2></div>
 {% if services %}
-<div class="glass table-wrap">
+<div class="glass table-wrap table-responsive">
     <table>
         <thead><tr><th>Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
         <tbody>
@@ -120,7 +142,7 @@
 
 <div class="panel-heading"><h2>Vulnerabilities &amp; Threats ({{ vulnerabilities_data|length }})</h2></div>
 {% if vulnerabilities_data %}
-<div class="glass table-wrap">
+<div class="glass table-wrap table-responsive">
     <table>
         <thead>
             <tr>
@@ -184,7 +206,7 @@
 
 <div class="panel-heading"><h2>CVE Findings &amp; CWE Weakness Mapping ({{ cves_data|length }})</h2></div>
 {% if cves_data %}
-<div class="glass table-wrap">
+<div class="glass table-wrap table-responsive">
     <table>
         <thead>
             <tr>

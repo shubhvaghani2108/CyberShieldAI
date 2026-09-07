@@ -4,12 +4,12 @@
 {% block content %}
 
 <!-- RESULT DASHBOARD SHORTCUTS -->
-<div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
-    <a href="{{ url_for('ip_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none;">
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+    <a href="{{ url_for('ip_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none; padding:8px 14px; font-size:13px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
         IP Scan Result Dashboard
     </a>
-    <a href="{{ url_for('url_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none;">
+    <a href="{{ url_for('url_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none; padding:8px 14px; font-size:13px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
         URL Scan Result Dashboard
     </a>
@@ -25,15 +25,10 @@
 
 {% include 'dashboard/asset_table.html' %}
 
-<div class="panel-heading">
-    <h2>&nbsp;</h2>
-</div>
 {% include 'dashboard/recent_activity.html' %}
 {% include 'dashboard/vulnerabilities.html' %}
 
 {% include 'dashboard/recommendations.html' %}
-
-
 
 <!-- LATEST URL SCAN SUMMARY -->
 <div class="panel-heading" id="latest-url-scan">
@@ -44,29 +39,35 @@
 </div>
 
 {% if url_scan %}
-<div class="glass content-panel">
-    <span class="eyebrow">Target Overview</span>
-    <table class="info-table">
-        <tr><th>URL</th><td>{{ url_scan.url }}</td></tr>
-        <tr><th>Domain</th><td>{{ url_scan.domain or "-" }}</td></tr>
-        <tr><th>Resolved IP</th><td class="mono">{{ url_scan.ip or "Unknown" }}</td></tr>
-        <tr><th>Protocol</th><td>{{ url_scan.protocol|upper if url_scan.protocol else "-" }}</td></tr>
-        <tr><th>Scan Time</th><td class="mono">{{ url_scan.scan_time }}</td></tr>
-        <tr><th>Risk</th><td>
-            <span class="risk-pill {{ (url_scan.risk or 'low')|lower }}">{{ url_scan.risk }} &middot; {{ url_scan.score }}/100</span>
-        </td></tr>
-    </table>
-
-    {% if url_remarks %}
-    <span class="eyebrow" style="margin-top:16px;">Findings / Remarks</span>
-    <ul class="remark-list">
-        {% for r in url_remarks %}<li>{{ r }}</li>{% endfor %}
-    </ul>
-    {% endif %}
-
-    <div class="link-row">
-        <a href="{{ url_for('url_scan_result_page') }}"><i class="bi bi-arrow-right-circle"></i> Full URL scan report (SSL/TLS, technology stack, WHOIS/GeoIP)</a>
-        <a href="{{ url_for('url_history') }}"><i class="bi bi-clock-history"></i> URL scan history</a>
+<div class="glass content-panel" style="padding:14px 18px;">
+    <div class="two-col-grid" style="align-items:start; gap:16px;">
+        <div>
+            <span class="eyebrow" style="margin-bottom:8px; display:block;">Target Overview</span>
+            <table class="info-table">
+                <tr><th>URL</th><td>{{ url_scan.url }}</td></tr>
+                <tr><th>Domain</th><td>{{ url_scan.domain or "-" }}</td></tr>
+                <tr><th>Resolved IP</th><td class="mono">{{ url_scan.ip or "Unknown" }}</td></tr>
+                <tr><th>Protocol</th><td>{{ url_scan.protocol|upper if url_scan.protocol else "-" }}</td></tr>
+                <tr><th>Scan Time</th><td class="mono">{{ url_scan.scan_time }}</td></tr>
+                <tr><th>Risk</th><td>
+                    <span class="risk-pill {{ (url_scan.risk or 'low')|lower }}">{{ url_scan.risk }} &middot; {{ url_scan.score }}/100</span>
+                </td></tr>
+            </table>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+            <div>
+                {% if url_remarks %}
+                <span class="eyebrow" style="margin-bottom:8px; display:block;">Findings / Remarks</span>
+                <ul class="remark-list" style="margin-bottom:12px;">
+                    {% for r in url_remarks %}<li>{{ r }}</li>{% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            <div class="link-row" style="margin-top:auto; padding-top:10px;">
+                <a href="{{ url_for('url_scan_result_page') }}"><i class="bi bi-arrow-right-circle"></i> Full URL scan report (SSL/TLS, technology stack, WHOIS/GeoIP)</a>
+                <a href="{{ url_for('url_history') }}"><i class="bi bi-clock-history"></i> URL scan history</a>
+            </div>
+        </div>
     </div>
 </div>
 {% else %}
