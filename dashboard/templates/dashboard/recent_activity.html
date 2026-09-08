@@ -6,11 +6,10 @@
             </svg>
             <span>Recent Activity</span>
         </div>
-        <a href="{{ url_for('history') }}" class="overview-card-link">View All &rarr;</a>
     </div>
     <div class="overview-card-body" style="padding: 10px 16px;">
         <div class="activity-feed-list">
-            {% for item in recent_activity %}
+            {% for item in recent_activity[:1] %}
                 <div class="activity-feed-item">
                     <div class="activity-feed-dot {{ 'crit' if item.status == 'Dead' or item.status == 'Down' else 'ok' }}"></div>
                     <div class="activity-feed-body">

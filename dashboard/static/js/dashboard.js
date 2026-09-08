@@ -365,13 +365,20 @@ function initCharts() {
       options: {
         maintainAspectRatio: false,
         responsive: true,
+        layout: {
+          padding: { top: 10, bottom: 6, left: 4, right: 10 },
+        },
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false } },
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 10 }, padding: 4 },
+          },
           y: {
             beginAtZero: true,
             suggestedMax: hasData ? undefined : 2,
-            ticks: { precision: 0, stepSize: 1 },
+            grace: "8%",
+            ticks: { precision: 0, stepSize: 1, font: { size: 10 } },
             grid: { color: colors.gridColor },
           },
         },
@@ -397,8 +404,8 @@ function initCharts() {
             backgroundColor: "rgba(192,132,252,0.12)",
             fill: true,
             tension: 0.35,
-            pointRadius: 4.5,
-            pointHoverRadius: 7,
+            pointRadius: 4,
+            pointHoverRadius: 6.5,
             pointHitRadius: 10,
             pointBackgroundColor: "#c084fc",
             pointBorderColor: "#ffffff",
@@ -409,6 +416,9 @@ function initCharts() {
       options: {
         maintainAspectRatio: false,
         responsive: true,
+        layout: {
+          padding: { top: 12, bottom: 6, left: 4, right: 12 },
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -420,13 +430,25 @@ function initCharts() {
           },
         },
         scales: {
-          x: { grid: { display: false } },
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxRotation: 30,
+              minRotation: 0,
+              font: { size: 9.5 },
+              autoSkip: true,
+              maxTicksLimit: 6,
+              padding: 4,
+            },
+          },
           y: {
             min: 0,
-            max: 100,
+            suggestedMax: 105,
+            grace: "6%",
             grid: { color: colors.gridColor },
             ticks: {
               stepSize: 20,
+              font: { size: 9.5 },
               callback: function (value) {
                 return value;
               },

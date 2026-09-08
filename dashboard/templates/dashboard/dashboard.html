@@ -80,16 +80,6 @@
                     </span>
                 </div>
             </div>
-            <div class="url-card-actions">
-                <a href="{{ url_for('url_scan_result_page') }}" class="url-action-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    Full Report
-                </a>
-                <a href="{{ url_for('download_full_report_pdf') }}?type=url" class="url-action-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Export
-                </a>
-            </div>
             {% else %}
             <div style="padding: 24px 8px; text-align: center; color: var(--text-2); font-size: 12.5px;">
                 No URL scanned yet.<br>Click <strong>URL Scan</strong> above to evaluate a website.

@@ -8,7 +8,7 @@
     <div class="overview-card-body" style="padding: 14px 16px;">
         <div class="rec-actions-list">
             {% if recommendations and recommendations|length > 0 %}
-                {% for rec in recommendations %}
+                {% for rec in recommendations[:3] %}
                     <div class="rec-action-item">
                         <span class="rec-bullet-dot {{ 'blue' if loop.index0 % 2 == 0 else 'purple' }}"></span>
                         <span class="rec-action-text">{{ rec }}</span>
