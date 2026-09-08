@@ -490,30 +490,55 @@ function initUtcToLocalTimestamps() {
 /* ---------------- result tabs navigation ---------------- */
 function initResultTabNavigation() {
   const tabsWrapper = document.querySelector(".result-section-tabs");
-  if (!tabsWrapper) return;
-
+  const accordions = document.querySelectorAll(".section-accordion");
   const tabButtons = document.querySelectorAll(".result-tab-btn[data-tab]");
   const tabPanels = document.querySelectorAll(".result-view-panel");
+
+  if (!tabsWrapper && !accordions.length) return;
 
   function activateTab(tabId, pushHash = true) {
     if (!tabId) tabId = "overview";
     // Strip # or tab- prefix if passed
     const cleanId = tabId.replace(/^#/, "").replace(/^tab-/, "");
     
-    // Check for section accordion first (Requirement 11)
+    // Check for section accordion first (Exclusive Accordion behavior)
     const targetSec = document.getElementById("sec-" + cleanId);
     let targetBtn = document.querySelector(`.result-tab-btn[data-tab="${cleanId}"]`);
 
     if (targetSec) {
-      if (targetSec.tagName && targetSec.tagName.toLowerCase() === "details") {
-        targetSec.open = true;
-      }
-      targetSec.scrollIntoView({ behavior: "smooth", block: "start" });
+      // 1. Close ALL other accordions so only this particular section is open
+      accordions.forEach((sec) => {
+        if (sec !== targetSec) {
+          sec.open = false;
+        }
+      });
+
+      // 2. Open ONLY this particular section
+      targetSec.open = true;
+
+      // 3. Update tab buttons state & horizontal scroll in tabs bar (NO vertical page scrolling)
       tabButtons.forEach((b) => b.classList.remove("active"));
       if (targetBtn) {
         targetBtn.classList.add("active");
         targetBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
       }
+
+      // 4. Update URL hash without scrolling
+      if (pushHash) {
+        if (cleanId === "overview") {
+          if (window.location.hash) {
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          }
+        } else {
+          history.replaceState(null, null, "#tab-" + cleanId);
+        }
+      }
+
+      const toggleBtn = document.getElementById("toggleAllBtn");
+      if (toggleBtn) {
+        toggleBtn.textContent = "↕ Expand All";
+      }
+
       return;
     }
 
@@ -538,7 +563,6 @@ function initResultTabNavigation() {
     targetPanel.classList.add("active");
     if (targetBtn) {
       targetBtn.classList.add("active");
-      // Scroll tab button into view in horizontally scrolling tab bar
       targetBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
     }
 
@@ -553,12 +577,55 @@ function initResultTabNavigation() {
     }
   }
 
-  // Bind click handlers to tab buttons
+  // Bind click handlers to tab buttons (Switches section in place without vertical page scroll)
   tabButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       const tabId = btn.getAttribute("data-tab");
       activateTab(tabId, true);
+    });
+  });
+
+  // Bind click handlers to all accordion summary cards (Exclusive Accordion: only one opens)
+  accordions.forEach((acc) => {
+    const summary = acc.querySelector("summary");
+    if (!summary) return;
+
+    summary.addEventListener("click", (e) => {
+      // If card is currently closed, opening it should close all other cards
+      const willOpen = !acc.open;
+      if (willOpen) {
+        accordions.forEach((other) => {
+          if (other !== acc) {
+            other.open = false;
+          }
+        });
+
+        // Sync corresponding tab button
+        const secId = acc.id ? acc.id.replace(/^sec-/, "") : "";
+        if (secId) {
+          tabButtons.forEach((b) => {
+            if (b.getAttribute("data-tab") === secId) {
+              b.classList.add("active");
+              b.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+            } else {
+              b.classList.remove("active");
+            }
+          });
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(
+              null,
+              null,
+              secId === "overview" ? window.location.pathname + window.location.search : "#tab-" + secId
+            );
+          }
+        }
+
+        const toggleBtn = document.getElementById("toggleAllBtn");
+        if (toggleBtn) {
+          toggleBtn.textContent = "↕ Expand All";
+        }
+      }
     });
   });
 
@@ -598,5 +665,6 @@ window.toggleAllAccordions = function() {
     btn.textContent = anyClosed ? "↕ Collapse All" : "↕ Expand All";
   }
 };
+
 
 
