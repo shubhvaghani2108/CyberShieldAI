@@ -52,7 +52,7 @@
             <span>🛡️</span> VirusTotal
         </button>
         <button type="button" class="result-tab-btn" data-tab="ports">
-            <span>🔓</span> Ports <span class="tab-count">{{ ports|length if ports else 0 }}</span>
+            <span>🔓</span> Ports <span class="tab-count">{{ (services|length) if (services and services|length > 0) else (ports|length if ports else 0) }}</span>
         </button>
         <button type="button" class="result-tab-btn" data-tab="os-server">
             <span>🖥️</span> OS &amp; Server
@@ -172,7 +172,7 @@
                 {% endif %}
             </div>
             <div class="result-metric-pill" data-switch-tab="ports" style="cursor:pointer;">
-                <span>🔓 Open Ports:</span> <b>{{ ports|length if ports else 0 }}</b>
+                <span>🔓 Open Ports:</span> <b>{{ (services|length) if (services and services|length > 0) else (ports|length if ports else 0) }}</b>
             </div>
             <div class="result-metric-pill" data-switch-tab="technologies" style="cursor:pointer;">
                 <span>🌐 Tech Stack:</span> <b>{{ classified_technology|length if classified_technology else 0 }} Categories</b>
@@ -285,7 +285,8 @@
 <!-- ==========================================
      3. OPEN PORTS & SERVICES (ACCORDION)
      ========================================== -->
-<details class="section-accordion" id="sec-ports" {% if ports and ports|length > 0 %}open{% endif %}>
+{% set active_items = services if (services and services|length > 0) else (ports if ports else []) %}
+<details class="section-accordion" id="sec-ports" {% if active_items|length > 0 %}open{% endif %}>
     <summary>
         <div class="section-summary-left">
             <span class="section-accordion-chevron">▼</span>
@@ -293,39 +294,35 @@
                 <span>🔓</span> Open Ports &amp; Services
             </h3>
         </div>
-        <span class="badge {% if ports and ports|length > 0 %}badge-alive{% else %}badge-unknown{% endif %}">{{ ports|length if ports else 0 }} Open</span>
+        <span class="badge {% if active_items|length > 0 %}badge-alive{% else %}badge-unknown{% endif %}">{{ active_items|length }} Open</span>
     </summary>
     <div class="section-accordion-body">
-        <div class="glass table-wrap table-responsive" style="margin-bottom:12px;">
-            <table>
-                <thead><tr><th style="width:120px;">Port</th><th>Service</th></tr></thead>
-                <tbody>
-                {% for port in ports %}
-                <tr><td class="mono"><strong>{{ port.port }}</strong></td><td>{{ port.service }}</td></tr>
-                {% else %}
-                <tr class="empty-row"><td colspan="2">No open ports recorded.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        {% if services %}
-        <div style="font-size:12.5px; font-weight:700; color:var(--text-0); margin:12px 0 6px;">Active Service Versions ({{ services|length }})</div>
+        {% if active_items and active_items|length > 0 %}
+        <div style="font-size:13px; font-weight:700; color:var(--text-0); margin-bottom:10px;">Active Service Versions ({{ active_items|length }})</div>
         <div class="glass table-wrap table-responsive">
             <table>
-                <thead><tr><th>Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th style="width:120px;">PORT</th>
+                        <th>SERVICE</th>
+                        <th>PRODUCT</th>
+                        <th>VERSION</th>
+                    </tr>
+                </thead>
                 <tbody>
-                {% for s in services %}
+                {% for s in active_items %}
                 <tr>
                     <td class="mono"><strong>{{ s.port }}</strong></td>
-                    <td>{{ s.service }}</td>
-                    <td>{{ s.product }}</td>
-                    <td class="mono">{{ s.version }}</td>
+                    <td>{{ s.service or "-" }}</td>
+                    <td>{{ s.product or (s.service|upper if s.service else "-") }}</td>
+                    <td class="mono">{{ s.version or "" }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <p class="empty-note" style="margin:0; font-size:13px; color:var(--text-2);">No open ports or active service versions recorded.</p>
         {% endif %}
     </div>
 </details>
