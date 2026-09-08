@@ -1524,6 +1524,11 @@ html[data-theme="light"] .result-section-tabs-wrapper {
   background: rgba(246, 247, 251, 0.92);
 }
 
+/* True Tab View: By default only show overview until JS initializes, hide all other sections */
+.result-section-tabs-wrapper ~ .section-accordion:not(#sec-overview) {
+  display: none;
+}
+
 .result-section-tabs {
   display: flex;
   align-items: center;

@@ -501,29 +501,33 @@ function initResultTabNavigation() {
     // Strip # or tab- prefix if passed
     const cleanId = tabId.replace(/^#/, "").replace(/^tab-/, "");
     
-    // Check for section accordion first (Exclusive Accordion behavior)
+    // Check for section accordion first (True Tab View: ONLY the selected section is visible)
     const targetSec = document.getElementById("sec-" + cleanId);
     let targetBtn = document.querySelector(`.result-tab-btn[data-tab="${cleanId}"]`);
 
     if (targetSec) {
-      // 1. Close ALL other accordions so only this particular section is open
+      // 1. Hide ALL other sections completely (display: none), and show ONLY the selected section
       accordions.forEach((sec) => {
-        if (sec !== targetSec) {
-          sec.open = false;
+        if (sec === targetSec) {
+          sec.style.display = "block";
+          sec.open = true;
+        } else if (cleanId === "ai" && sec.id === "sec-ai-recommendations") {
+          // Special case: show both AI sections together
+          sec.style.display = "block";
+          sec.open = true;
+        } else {
+          sec.style.display = "none";
         }
       });
 
-      // 2. Open ONLY this particular section
-      targetSec.open = true;
-
-      // 3. Update tab buttons state & horizontal scroll in tabs bar (NO vertical page scrolling)
+      // 2. Highlight the active tab button & horizontally scroll in tab bar
       tabButtons.forEach((b) => b.classList.remove("active"));
       if (targetBtn) {
         targetBtn.classList.add("active");
         targetBtn.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
       }
 
-      // 4. Update URL hash without scrolling
+      // 3. Update URL hash without page scrolling
       if (pushHash) {
         if (cleanId === "overview") {
           if (window.location.hash) {
@@ -536,7 +540,7 @@ function initResultTabNavigation() {
 
       const toggleBtn = document.getElementById("toggleAllBtn");
       if (toggleBtn) {
-        toggleBtn.textContent = "↕ Expand All";
+        toggleBtn.textContent = "👁 View All Sections";
       }
 
       return;
@@ -559,7 +563,7 @@ function initResultTabNavigation() {
     tabPanels.forEach((p) => p.classList.remove("active"));
     tabButtons.forEach((b) => b.classList.remove("active"));
 
-    // Activate target
+    // Activate target panel
     targetPanel.classList.add("active");
     if (targetBtn) {
       targetBtn.classList.add("active");
@@ -577,6 +581,9 @@ function initResultTabNavigation() {
     }
   }
 
+  // Expose globally
+  window.activateResultTab = activateTab;
+
   // Bind click handlers to tab buttons (Switches section in place without vertical page scroll)
   tabButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -586,50 +593,7 @@ function initResultTabNavigation() {
     });
   });
 
-  // Bind click handlers to all accordion summary cards (Exclusive Accordion: only one opens)
-  accordions.forEach((acc) => {
-    const summary = acc.querySelector("summary");
-    if (!summary) return;
-
-    summary.addEventListener("click", (e) => {
-      // If card is currently closed, opening it should close all other cards
-      const willOpen = !acc.open;
-      if (willOpen) {
-        accordions.forEach((other) => {
-          if (other !== acc) {
-            other.open = false;
-          }
-        });
-
-        // Sync corresponding tab button
-        const secId = acc.id ? acc.id.replace(/^sec-/, "") : "";
-        if (secId) {
-          tabButtons.forEach((b) => {
-            if (b.getAttribute("data-tab") === secId) {
-              b.classList.add("active");
-              b.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
-            } else {
-              b.classList.remove("active");
-            }
-          });
-          if (window.history && window.history.replaceState) {
-            window.history.replaceState(
-              null,
-              null,
-              secId === "overview" ? window.location.pathname + window.location.search : "#tab-" + secId
-            );
-          }
-        }
-
-        const toggleBtn = document.getElementById("toggleAllBtn");
-        if (toggleBtn) {
-          toggleBtn.textContent = "↕ Expand All";
-        }
-      }
-    });
-  });
-
-  // Bind click handlers to all [data-switch-tab] elements anywhere on page (e.g. cards, buttons)
+  // Bind click handlers to all [data-switch-tab] elements anywhere on page (e.g. metric pills)
   document.addEventListener("click", (e) => {
     const trigger = e.target.closest("[data-switch-tab]");
     if (trigger) {
@@ -654,15 +618,30 @@ function initResultTabNavigation() {
   });
 }
 
-// Global helper to toggle all section accordions at once
+// Global helper to toggle all section accordions at once (View All Sections vs Single Tab)
 window.toggleAllAccordions = function() {
   const accordions = document.querySelectorAll(".section-accordion");
   if (!accordions.length) return;
-  const anyClosed = Array.from(accordions).some(a => !a.open);
-  accordions.forEach(a => a.open = anyClosed);
   const btn = document.getElementById("toggleAllBtn");
-  if (btn) {
-    btn.textContent = anyClosed ? "↕ Collapse All" : "↕ Expand All";
+  const anyHidden = Array.from(accordions).some(a => a.style.display === "none");
+
+  if (anyHidden) {
+    // Show all sections
+    accordions.forEach(a => {
+      a.style.display = "block";
+      a.open = true;
+    });
+    if (btn) btn.textContent = "📑 Single Section View";
+    const tabButtons = document.querySelectorAll(".result-tab-btn[data-tab]");
+    tabButtons.forEach(b => b.classList.remove("active"));
+  } else {
+    // Return to active tab or overview
+    const activeBtn = document.querySelector(".result-tab-btn.active") || document.querySelector('.result-tab-btn[data-tab="overview"]');
+    const tabId = activeBtn ? activeBtn.getAttribute("data-tab") : "overview";
+    if (window.activateResultTab) {
+      window.activateResultTab(tabId, true);
+    }
+    if (btn) btn.textContent = "👁 View All Sections";
   }
 };
 
