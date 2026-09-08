@@ -467,6 +467,28 @@ def migrate_db_add_scan_id():
             except Exception:
                 pass
 
+        # Synchronize url_scan_results risk scores with risk_summary where available
+        try:
+            cursor.execute("""
+                UPDATE url_scan_results
+                SET score = (
+                    SELECT total_score FROM risk_summary 
+                    WHERE risk_summary.scan_id = url_scan_results.scan_id 
+                    ORDER BY id DESC LIMIT 1
+                ),
+                risk = (
+                    SELECT risk_level FROM risk_summary 
+                    WHERE risk_summary.scan_id = url_scan_results.scan_id 
+                    ORDER BY id DESC LIMIT 1
+                )
+                WHERE scan_id IS NOT NULL 
+                AND EXISTS (
+                    SELECT 1 FROM risk_summary WHERE risk_summary.scan_id = url_scan_results.scan_id
+                )
+            """)
+        except Exception:
+            pass
+
         conn.commit()
         conn.close()
         _SCAN_ID_MIGRATION_DONE = True
@@ -828,8 +850,33 @@ def get_url_scan_dashboard_context(user_id=None):
             "url_intel": None,
         }
 
+    url_scan = dict(url_scan)
+    scan_id = url_scan.get("scan_id")
+    resolved_ip = url_scan.get("ip")
+
+    # Harmonize URL scan score with risk_summary if available
+    try:
+        conn = get_db_connection()
+        risk_row = None
+        if scan_id:
+            risk_row = conn.execute(
+                "SELECT total_score, risk_level FROM risk_summary WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                (scan_id,)
+            ).fetchone()
+        if not risk_row and resolved_ip and resolved_ip != "Unknown":
+            risk_row = conn.execute(
+                "SELECT total_score, risk_level FROM risk_summary WHERE ip = ? ORDER BY id DESC LIMIT 1",
+                (resolved_ip,)
+            ).fetchone()
+        if risk_row:
+            url_scan["score"] = risk_row["total_score"]
+            url_scan["risk"] = risk_row["risk_level"]
+        conn.close()
+    except Exception:
+        pass
+
     remarks = []
-    if url_scan["remarks"]:
+    if url_scan.get("remarks"):
         remarks = [r.strip() for r in str(url_scan["remarks"]).split("|") if r.strip()]
 
     url_ssl = get_latest_ssl(url_scan["domain"]) if url_scan["domain"] else None

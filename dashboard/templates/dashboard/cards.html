@@ -61,14 +61,15 @@
             <div class="metric-top">
                 <span class="metric-title">Risk Score</span>
                 {% set rscore = stats.avg_risk|default(0)|int %}
-                {% if rscore <= 30 %}
-                    <span class="metric-badge low">🟢 Low</span>
-                {% elif rscore <= 69 %}
-                    <span class="metric-badge medium">🟡 Medium</span>
-                {% elif rscore <= 89 %}
-                    <span class="metric-badge high">🟠 High</span>
-                {% else %}
+                {% set rlevel = (stats.risk_level or ('Critical' if rscore >= 25 else ('High' if rscore >= 15 else ('Medium' if rscore >= 5 else 'Low'))))|lower %}
+                {% if rlevel == 'critical' %}
                     <span class="metric-badge critical">🔴 Critical</span>
+                {% elif rlevel == 'high' %}
+                    <span class="metric-badge high">🟠 High</span>
+                {% elif rlevel == 'medium' %}
+                    <span class="metric-badge medium">🟡 Medium</span>
+                {% else %}
+                    <span class="metric-badge low">🟢 Low</span>
                 {% endif %}
             </div>
             <div class="metric-value">{{ stats.avg_risk|default(0) }}</div>

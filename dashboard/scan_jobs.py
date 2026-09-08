@@ -428,7 +428,27 @@ def _run_url_scan_job(job_id, url, user_id=None):
             scan_cves(ip, scan_id=scan_id)
 
             _job_log(job_id, "Calculating risk score...")
-            calculate_risk(ip, scan_id=scan_id)
+            risk_calc_res = calculate_risk(ip, scan_id=scan_id)
+            if risk_calc_res and isinstance(risk_calc_res, dict):
+                calc_score = risk_calc_res.get("total_score", 0)
+                calc_risk = risk_calc_res.get("risk_level", "Low")
+                conn_up = get_db_connection()
+                try:
+                    conn_up.execute(
+                        """
+                        UPDATE url_scan_results 
+                        SET score = ?, risk = ?, risk_level = ? 
+                        WHERE scan_id = ?
+                        """,
+                        (calc_score, calc_risk, calc_risk, scan_id),
+                    )
+                    conn_up.commit()
+                except Exception as up_err:
+                    print(f"[URL_SCAN] Error updating url_scan_results risk: {up_err}")
+                finally:
+                    conn_up.close()
+                result["score"] = calc_score
+                result["risk"] = calc_risk
 
         _job_log(job_id, "Running AI Security Assistant posture evaluation...")
         try:

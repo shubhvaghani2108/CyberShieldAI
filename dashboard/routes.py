@@ -1556,6 +1556,14 @@ def register_routes(app):
         protocol = result.get("protocol") if result else "HTTPS"
         score = result.get("score") if result and result.get("score") is not None else 0
         risk = result.get("risk") if result and result.get("risk") else "Low"
+        if risk_summary and isinstance(risk_summary, dict) and "total_score" in risk_summary and risk_summary["total_score"] is not None:
+            score = risk_summary["total_score"]
+            risk = risk_summary.get("risk_level") or risk
+            if result:
+                result = dict(result)
+                result["score"] = score
+                result["risk"] = risk
+                result["risk_level"] = risk
         scan_time = result.get("scan_time") if result else None
         https_status = result.get("https_status") if result else (True if protocol and protocol.upper() == "HTTPS" else False)
         suspicious_score = result.get("suspicious_score") if result else 0

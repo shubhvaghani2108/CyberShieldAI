@@ -56,6 +56,7 @@ def calculate_risk(target_ip, scan_id=None):
             medium_count * 4 +
             low_count * 1
         )
+        total_score = min(100, max(0, total_score))
 
         if total_score >= 25:
             risk_level = "Critical"

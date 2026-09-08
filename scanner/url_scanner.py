@@ -6,12 +6,12 @@ from urllib.parse import urlparse
 
 def score_to_risk_level(score):
     """Shared score->label mapping so any code that adjusts the score
-    later (e.g. a domain-age check) stays consistent with scan_url()."""
-    if score >= 40:
+    later (e.g. a domain-age check) stays consistent with scan_url() and calculate_risk()."""
+    if score >= 25:
         return "Critical"
-    elif score >= 25:
+    elif score >= 15:
         return "High"
-    elif score >= 10:
+    elif score >= 5:
         return "Medium"
     return "Low"
 
