@@ -411,22 +411,12 @@ def _run_url_scan_job(job_id, url, user_id=None):
             finally:
                 conn.close()
 
-            _job_log(job_id, f"Scanning open ports for IP {ip}...")
-            scan_target(
-                ip,
-                ports="top-1000",
-                progress_callback=lambda m: _job_log(job_id, m),
-                scan_id=scan_id,
-                hostname=result.get("domain"),
-            )
-
-            _job_log(job_id, "Running vulnerability scan...")
+            # For URL/Website scans, port scanning is omitted as website security
+            # focuses on application layer, protocols, SSL/TLS, headers, and AI posture.
+            # Running top-1000 port scan against public web servers takes 2-3 minutes.
+            _job_log(job_id, "Assessing vulnerability and risk profile...")
             scan_vulnerabilities(ip, scan_id=scan_id)
-
-            _job_log(job_id, "Running CVE lookup...")
             scan_cves(ip, scan_id=scan_id)
-
-            _job_log(job_id, "Calculating risk score...")
             calculate_risk(ip, scan_id=scan_id)
 
         _job_log(job_id, "Running AI Security Assistant posture evaluation...")

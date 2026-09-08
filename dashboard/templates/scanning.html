@@ -422,14 +422,6 @@
 <div class="csa-shell">
     {% set target_domain = job.target.replace('https://','').replace('http://','').split('/')[0].split(':')[0] if (job and job.target) else '' %}
     <div style="display:flex; align-items:center; gap:16px; margin: 8px 0 14px; flex-wrap:wrap;">
-        {% if job.type == 'url' and target_domain %}
-        <div style="width:52px; height:52px; border-radius:12px; background:var(--panel-alt); border:1px solid var(--line-bright); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.35); overflow:hidden;">
-            <img src="https://www.google.com/s2/favicons?domain={{ target_domain }}&sz=128" 
-                 alt="{{ target_domain }}" 
-                 style="width:36px; height:36px; object-fit:contain; border-radius:6px;"
-                 onerror="this.onerror=null; this.src='https://icons.duckduckgo.com/ip3/{{ target_domain }}.ico';">
-        </div>
-        {% endif %}
         <div style="flex:1; min-width:0; max-width:100%;">
             <span class="eyebrow" style="margin-bottom:2px; display:block;">{{ 'Website scan' if job.type == 'url' else 'Network scan' }} in progress</span>
             <h1 style="margin:0;"><i class="bi bi-radar" style="color:var(--cyan);"></i> Scanning <span class="csa-target">{{ job.target }}</span></h1>
@@ -461,8 +453,12 @@
     </div>
 
     <p class="csa-hint">
+        {% if job.type == 'url' %}
+        Website scans inspect application protocols, SSL/TLS certificates, domain intelligence, technology fingerprints, and AI security posture.
+        {% else %}
         Quick Scan checks the 1000 most common ports (usually under a minute).
         Full Scan checks all 65,535 ports and can take several minutes depending on the target.
+        {% endif %}
     </p>
 </div>
 
