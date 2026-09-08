@@ -1059,7 +1059,23 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
 
     # Fetch recent IP scan risk summaries
     try:
-        if latest_ip:
+        if user_id is not None:
+            # Query risk summaries ONLY for scans initiated by this user
+            ip_rows = conn.execute(
+                """
+                SELECT rs.ip AS target, rs.total_score AS score, rs.scan_time
+                FROM risk_summary rs
+                WHERE rs.total_score IS NOT NULL
+                  AND (
+                    rs.scan_id IN (SELECT scan_id FROM scan_history WHERE user_id = ? AND scan_id IS NOT NULL)
+                    OR (rs.scan_id IS NULL AND rs.ip IN (SELECT target_ip FROM scan_history WHERE user_id = ?))
+                  )
+                ORDER BY rs.id DESC
+                LIMIT ?
+                """,
+                (user_id, user_id, limit),
+            ).fetchall()
+        elif latest_ip:
             ip_rows = conn.execute(
                 """
                 SELECT ip AS target, total_score AS score, scan_time
@@ -1071,16 +1087,8 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
                 (latest_ip, limit),
             ).fetchall()
         else:
-            ip_rows = conn.execute(
-                """
-                SELECT ip AS target, total_score AS score, scan_time
-                FROM risk_summary
-                WHERE total_score IS NOT NULL
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+            ip_rows = []
+
         for r in ip_rows:
             combined.append({
                 "target": r["target"],
@@ -1103,17 +1111,20 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
                 """,
                 (user_id, limit),
             ).fetchall()
-        else:
+        elif latest_ip:
             url_rows = conn.execute(
                 """
                 SELECT domain AS target, score, scan_time
                 FROM url_scan_results
-                WHERE score IS NOT NULL
+                WHERE ip = ? AND score IS NOT NULL
                 ORDER BY id DESC
                 LIMIT ?
                 """,
-                (limit,),
+                (latest_ip, limit),
             ).fetchall()
+        else:
+            url_rows = []
+
         for r in url_rows:
             combined.append({
                 "target": r["target"],
