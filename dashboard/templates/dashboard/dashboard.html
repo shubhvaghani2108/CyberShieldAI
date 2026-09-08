@@ -3,21 +3,6 @@
 
 {% block content %}
 
-<!-- 1. TOP QUICK ACTION BUTTONS (IP Scan & URL Scan) -->
-<div class="overview-action-bar">
-    <button type="button" class="btn-action-hero btn-action-ip" onclick="openScanModalWithTab('ip')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-hero-icon">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
-        </svg>
-        <span>IP Scan</span>
-    </button>
-    <button type="button" class="btn-action-hero btn-action-url" onclick="openScanModalWithTab('url')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-hero-icon">
-            <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
-        </svg>
-        <span>URL Scan</span>
-    </button>
-</div>
 
 <!-- 2. METRICS STAT CARDS ROW (4 CARDS) -->
 {% include 'dashboard/cards.html' %}
