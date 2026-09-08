@@ -2562,23 +2562,27 @@ html[data-theme="light"] .result-overview-card:hover {
     gap: 8px;
   }
   .metric-card {
-    padding: 10px 12px;
-    gap: 10px;
+    padding: 8px 10px;
+    gap: 8px;
+    min-height: 64px;
   }
   .metric-icon-box {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
   }
   .metric-icon-box svg {
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
+  }
+  .metric-title {
+    font-size: 11px;
   }
   .metric-value {
-    font-size: 20px;
+    font-size: 18px;
   }
   .metric-sub {
-    font-size: 10px;
+    font-size: 9.5px;
   }
   .footer {
     flex-direction: column;
@@ -2589,6 +2593,37 @@ html[data-theme="light"] .result-overview-card:hover {
 
 @media (max-width: 480px) {
   .overview-metrics-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px;
+  }
+  .metric-card {
+    padding: 8px 8px;
+    gap: 6px;
+    min-height: 58px;
+  }
+  .metric-icon-box {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 7px;
+  }
+  .metric-icon-box svg {
+    width: 14px;
+    height: 14px;
+  }
+  .metric-title {
+    font-size: 10px;
+  }
+  .metric-value {
+    font-size: 16px;
+    margin: 1px 0;
+  }
+  .metric-sub {
+    font-size: 8.5px;
+  }
+  .metric-badge {
+    padding: 1px 5px;
+    font-size: 9px;
   }
 }
+
