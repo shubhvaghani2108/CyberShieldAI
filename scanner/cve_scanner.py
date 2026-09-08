@@ -527,6 +527,12 @@ CVSS: {entry['cvss_score']}
 Description: {entry['description']}
 """)
 
+            cvss_val = None
+            try:
+                cvss_val = float(entry["cvss_score"])
+            except (ValueError, TypeError):
+                cvss_val = None
+
             cursor.execute("""
                 INSERT INTO cves
                 (scan_id, ip, port, service, cve_id, severity, description,
@@ -536,7 +542,7 @@ Description: {entry['description']}
             """, (
                 scan_id, ip, port, service,
                 entry["cve_id"], entry["severity"], entry["description"],
-                entry["cvss_score"], entry["cvss_vector"],
+                cvss_val, entry["cvss_vector"],
                 entry["cwe_id"], entry["cwe_name"], entry.get("references", ""),
                 entry["published_date"], entry["exploit_available"],
                 scan_time,

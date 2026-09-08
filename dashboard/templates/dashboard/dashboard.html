@@ -4,24 +4,30 @@
 {% block content %}
 
 <!-- RESULT DASHBOARD SHORTCUTS -->
-<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-    <a href="{{ url_for('ip_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none; padding:6px 12px; font-size:12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-        IP Scan Result
+<div class="dashboard-shortcuts-bar" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+    <a href="{{ url_for('ip_scan_result_page') }}" class="btn btn-primary shortcut-btn" style="text-decoration:none; padding:7px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink:0;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        <span>IP Scan Result</span>
     </a>
-    <a href="{{ url_for('url_scan_result_page') }}" class="btn btn-primary" style="text-decoration:none; padding:6px 12px; font-size:12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-        URL Scan Result
-    </a>
-    <a href="{{ url_for('history') }}" class="btn btn-secondary hide-mobile" style="text-decoration:none; padding:6px 12px; font-size:12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-        View History
-    </a>
-    <a href="{% if url_scan %}{{ url_for('url_scan_result_page') }}{% else %}{{ url_for('ip_scan_result_page') }}{% endif %}" class="btn btn-secondary hide-mobile" style="text-decoration:none; padding:6px 12px; font-size:12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-        View Full Scan
+    <a href="{{ url_for('url_scan_result_page') }}" class="btn btn-primary shortcut-btn" style="text-decoration:none; padding:7px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink:0;"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+        <span>URL Scan Result</span>
     </a>
 </div>
+<style>
+@media (max-width: 640px) {
+    .dashboard-shortcuts-bar {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+    .dashboard-shortcuts-bar .shortcut-btn {
+        justify-content: center !important;
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+    }
+}
+</style>
 
 {% include 'dashboard/cards.html' %}
 
