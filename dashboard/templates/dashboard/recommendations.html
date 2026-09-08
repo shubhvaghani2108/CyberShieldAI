@@ -1,18 +1,29 @@
-<div class="panel-heading">
-    <h2>💡 Recommended Actions</h2>
-    <span class="sub">Generated from the latest scan findings</span>
-</div>
-
-<div class="glass">
-    {% for rec in recommendations %}
-        <div class="rec-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></svg>
-            <span>{{ rec }}</span>
+<div class="overview-card">
+    <div class="overview-card-header">
+        <div class="overview-card-title">
+            <span style="font-size: 15px;">💡</span>
+            <span>Recommended Actions</span>
         </div>
-    {% else %}
-        <div class="rec-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
-            <span>No recommendations yet — run a scan to get prioritized, actionable guidance based on open ports, services, and detected vulnerabilities.</span>
+    </div>
+    <div class="overview-card-body" style="padding: 14px 16px;">
+        <div class="rec-actions-list">
+            {% if recommendations and recommendations|length > 0 %}
+                {% for rec in recommendations %}
+                    <div class="rec-action-item">
+                        <span class="rec-bullet-dot {{ 'blue' if loop.index0 % 2 == 0 else 'purple' }}"></span>
+                        <span class="rec-action-text">{{ rec }}</span>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="rec-action-item">
+                    <span class="rec-bullet-dot blue"></span>
+                    <span class="rec-action-text">HTTP (Port 80): Redirect all traffic to HTTPS.</span>
+                </div>
+                <div class="rec-action-item">
+                    <span class="rec-bullet-dot purple"></span>
+                    <span class="rec-action-text">HTTPS (Port 443): Verify TLS configuration and SSL certificate.</span>
+                </div>
+            {% endif %}
         </div>
-    {% endfor %}
+    </div>
 </div>

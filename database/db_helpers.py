@@ -1002,54 +1002,108 @@ def get_dashboard_data(user_id=None):
 
 
 def get_recent_activity(limit=8, latest_ip=None, user_id=None):
-    """Most recently scanned hosts, newest first, for the dashboard feed.
-    If latest_ip is specified, scopes activity feed to the current target."""
+    """Most recently scanned hosts and URLs, newest first, for the dashboard feed."""
     conn = get_db_connection()
-    if latest_ip and user_id is not None:
-        rows = conn.execute(
-            """
-            SELECT target_ip, status, scan_time
-            FROM host_status
-            WHERE target_ip = ? AND user_id = ?
-            ORDER BY id DESC
-            LIMIT ?
-        """,
-            (latest_ip, user_id, limit),
-        ).fetchall()
-    elif latest_ip:
-        rows = conn.execute(
-            """
-            SELECT target_ip, status, scan_time
-            FROM host_status
-            WHERE target_ip = ?
-            ORDER BY id DESC
-            LIMIT ?
-        """,
-            (latest_ip, limit),
-        ).fetchall()
-    elif user_id is not None:
-        rows = conn.execute(
-            """
-            SELECT target_ip, status, scan_time
-            FROM host_status
-            WHERE user_id = ?
-            ORDER BY id DESC
-            LIMIT ?
-        """,
-            (user_id, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """
-            SELECT target_ip, status, scan_time
-            FROM host_status
-            ORDER BY id DESC
-            LIMIT ?
-        """,
-            (limit,),
-        ).fetchall()
+    activities = []
+    try:
+        if latest_ip and user_id is not None:
+            h_rows = conn.execute(
+                """
+                SELECT target_ip, status, scan_time
+                FROM host_status
+                WHERE target_ip = ? AND user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (latest_ip, user_id, limit),
+            ).fetchall()
+        elif latest_ip:
+            h_rows = conn.execute(
+                """
+                SELECT target_ip, status, scan_time
+                FROM host_status
+                WHERE target_ip = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (latest_ip, limit),
+            ).fetchall()
+        elif user_id is not None:
+            h_rows = conn.execute(
+                """
+                SELECT target_ip, status, scan_time
+                FROM host_status
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+        else:
+            h_rows = conn.execute(
+                """
+                SELECT target_ip, status, scan_time
+                FROM host_status
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        for r in h_rows:
+            target = r["target_ip"] or "Host"
+            status = r["status"] or "Alive"
+            activities.append({
+                "target_ip": target,
+                "status": status,
+                "title": f"{target} — {status}",
+                "scan_time": str(r["scan_time"]) if r["scan_time"] else "-",
+                "type": "ip"
+            })
+    except Exception:
+        pass
+
+    # URL Scans
+    try:
+        if user_id is not None:
+            u_rows = conn.execute(
+                """
+                SELECT url, ip, scan_time
+                FROM url_scan_results
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+        else:
+            u_rows = conn.execute(
+                """
+                SELECT url, ip, scan_time
+                FROM url_scan_results
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        for r in u_rows:
+            url_str = r["url"] or "URL"
+            activities.append({
+                "target_ip": url_str,
+                "status": "Alive",
+                "title": f"Scan completed: {url_str}",
+                "scan_time": str(r["scan_time"]) if r["scan_time"] else "-",
+                "type": "url"
+            })
+    except Exception:
+        pass
+
     conn.close()
-    return rows
+
+    # Sort descending by scan_time
+    activities.sort(key=lambda x: str(x.get("scan_time") or ""), reverse=True)
+    return activities[:limit]
 
 
 def get_risk_trend(limit=8, latest_ip=None, user_id=None):
@@ -1446,7 +1500,7 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         # Dashboard Stats
         stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
         assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
-        recent_activity = get_recent_activity(limit=1, latest_ip=latest_ip, user_id=user_id)
+        recent_activity = get_recent_activity(limit=6, user_id=user_id)
 
         if risk:
             severity = {

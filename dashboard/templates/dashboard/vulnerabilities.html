@@ -1,28 +1,40 @@
-<div>
-    <div class="panel-heading">
-        <h2>⚠ Top Vulnerabilities</h2>
-        <span class="sub">{{ vulnerabilities_data|length }} found</span>
+<div class="overview-card">
+    <div class="overview-card-header">
+        <div class="overview-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--med);">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Top Vulnerabilities</span>
+        </div>
+        <span class="overview-card-badge">{{ vulnerabilities_data|length }} found</span>
     </div>
-    <div class="glass feed">
-        {% for v in vulnerabilities_data[:8] %}
-            <div class="feed-item">
-                {% set lvl = (v.risk or 'low')|lower %}
-                <div class="feed-dot {{ 'crit' if lvl in ['critical','high'] else '' }}"></div>
-                <div class="feed-body">
-                    <div class="feed-title">Port {{ v.port }} &mdash; {{ v.service }}</div>
-                    <div class="feed-meta">
-                        <span class="badge badge-{{ lvl }}">{{ v.risk }}</span>
+    <div class="overview-card-body" style="padding: 12px 16px; display: flex; flex-direction: column; justify-content: center; min-height: 180px;">
+        {% if vulnerabilities_data and vulnerabilities_data|length > 0 %}
+        <div class="vuln-feed-list">
+            {% for v in vulnerabilities_data[:5] %}
+                <div class="vuln-feed-item">
+                    {% set lvl = (v.risk or 'low')|lower %}
+                    <div class="vuln-feed-dot {{ lvl }}"></div>
+                    <div class="vuln-feed-body">
+                        <div class="vuln-feed-title">Port {{ v.port }} &mdash; {{ v.service }}</div>
+                        <div class="vuln-feed-meta">
+                            <span class="badge badge-{{ lvl }}">{{ v.risk }}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            {% endfor %}
+        </div>
         {% else %}
-            <div class="feed-item">
-                <div class="feed-body">
-                    <div class="feed-title">No vulnerabilities found</div>
-                    <div class="feed-meta">Either nothing has been scanned yet, or the latest target came back clean.</div>
-                </div>
+        <div class="empty-state-card">
+            <div class="empty-shield-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="empty-shield-icon">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
             </div>
-        {% endfor %}
+            <h4 class="empty-state-title">No vulnerabilities found</h4>
+            <p class="empty-state-desc">Either nothing has been scanned yet, or the latest target came back clean.</p>
+        </div>
+        {% endif %}
     </div>
-</div>
 </div>

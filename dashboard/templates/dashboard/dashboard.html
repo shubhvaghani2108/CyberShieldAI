@@ -1,96 +1,102 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Security Operations Dashboard{% endblock %}
 
 {% block content %}
 
-<!-- RESULT DASHBOARD SHORTCUTS -->
-<div class="dashboard-shortcuts-bar" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-    <a href="{{ url_for('ip_scan_result_page') }}" class="btn btn-primary shortcut-btn" style="text-decoration:none; padding:7px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink:0;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
-        <span>IP Scan Result</span>
-    </a>
-    <a href="{{ url_for('url_scan_result_page') }}" class="btn btn-primary shortcut-btn" style="text-decoration:none; padding:7px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; flex-shrink:0;"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-        <span>URL Scan Result</span>
-    </a>
+<!-- 1. TOP QUICK ACTION BUTTONS (IP Scan & URL Scan) -->
+<div class="overview-action-bar">
+    <button type="button" class="btn-action-hero btn-action-ip" onclick="openScanModalWithTab('ip')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-hero-icon">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
+        </svg>
+        <span>IP Scan</span>
+    </button>
+    <button type="button" class="btn-action-hero btn-action-url" onclick="openScanModalWithTab('url')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="action-hero-icon">
+            <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+        </svg>
+        <span>URL Scan</span>
+    </button>
 </div>
-<style>
-@media (max-width: 640px) {
-    .dashboard-shortcuts-bar {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 8px !important;
-    }
-    .dashboard-shortcuts-bar .shortcut-btn {
-        justify-content: center !important;
-        padding: 8px 10px !important;
-        font-size: 12px !important;
-    }
-}
-</style>
 
+<!-- 2. METRICS STAT CARDS ROW (4 CARDS) -->
 {% include 'dashboard/cards.html' %}
 
-<div class="panel-heading">
-    <h2>📊 Analytics</h2>
-    <span class="sub">Live data from the latest scan</span>
-</div>
+<!-- 3. CHARTS ROW (3 CARDS) -->
 {% include 'dashboard/charts.html' %}
 
-{% include 'dashboard/asset_table.html' %}
-
-{% include 'dashboard/recent_activity.html' %}
-{% include 'dashboard/vulnerabilities.html' %}
-
-{% include 'dashboard/recommendations.html' %}
-
-<!-- LATEST URL SCAN SUMMARY -->
-<div class="panel-heading" id="latest-url-scan">
-    <h2>🌐 Latest URL Scan</h2>
-    <span class="sub">
-        {% if url_scan %}{{ url_scan.url }}{% else %}No URL scanned yet{% endif %}
-    </span>
+<!-- 4. RECENT ACTIVITY & TOP VULNERABILITIES (2-COLUMN ROW) -->
+<div class="overview-row-split">
+    {% include 'dashboard/recent_activity.html' %}
+    {% include 'dashboard/vulnerabilities.html' %}
 </div>
 
-{% if url_scan %}
-<div class="glass content-panel" style="padding:14px 18px;">
-    <div class="two-col-grid" style="align-items:start; gap:16px;">
-        <div>
-            <span class="eyebrow" style="margin-bottom:8px; display:block;">Target Overview</span>
-            <table class="info-table">
-                <tr><th>URL</th><td>{{ url_scan.url }}</td></tr>
-                <tr><th>Domain</th><td>{{ url_scan.domain or "-" }}</td></tr>
-                <tr><th>Resolved IP</th><td class="mono">{{ url_scan.ip or "Unknown" }}</td></tr>
-                <tr><th>Protocol</th><td>{{ url_scan.protocol|upper if url_scan.protocol else "-" }}</td></tr>
-                <tr><th>Scan Time</th><td class="mono">{{ url_scan.scan_time }}</td></tr>
-                <tr><th>Risk</th><td>
-                    <span class="risk-pill {{ (url_scan.risk or 'low')|lower }}">{{ url_scan.risk }} &middot; {{ url_scan.score }}/100</span>
-                </td></tr>
-            </table>
+<!-- 5. ASSET INVENTORY, RECOMMENDED ACTIONS & LATEST URL SCAN (3-COLUMN ROW) -->
+<div class="overview-row-trio">
+    {% include 'dashboard/asset_table.html' %}
+    {% include 'dashboard/recommendations.html' %}
+
+    <!-- Latest URL Scan Card -->
+    <div class="overview-card url-scan-card">
+        <div class="overview-card-header">
+            <div class="overview-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+                </svg>
+                <span>Latest URL Scan</span>
+            </div>
+            <a href="{{ url_for('url_scan_result_page') }}" class="overview-card-link" title="Open URL Scan Result">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px; height:13px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
         </div>
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
-            <div>
-                {% if url_remarks %}
-                <span class="eyebrow" style="margin-bottom:8px; display:block;">Findings / Remarks</span>
-                <ul class="remark-list" style="margin-bottom:12px;">
-                    {% for r in url_remarks %}<li>{{ r }}</li>{% endfor %}
-                </ul>
-                {% endif %}
+        <div class="overview-card-body" style="padding: 12px 16px; display: flex; flex-direction: column; justify-content: space-between;">
+            {% if url_scan %}
+            <div class="url-keyval-list">
+                <div class="url-keyval-row">
+                    <span class="url-key">URL</span>
+                    <span class="url-val url-truncate" title="{{ url_scan.url }}">{{ url_scan.url }}</span>
+                </div>
+                <div class="url-keyval-row">
+                    <span class="url-key">Domain</span>
+                    <span class="url-val">{{ url_scan.domain or "-" }}</span>
+                </div>
+                <div class="url-keyval-row">
+                    <span class="url-key">Resolved IP</span>
+                    <span class="url-val mono">{{ url_scan.ip or "Unknown" }}</span>
+                </div>
+                <div class="url-keyval-row">
+                    <span class="url-key">Protocol</span>
+                    <span class="url-val">{{ (url_scan.protocol or "HTTPS")|upper }}</span>
+                </div>
+                <div class="url-keyval-row">
+                    <span class="url-key">Scan Time</span>
+                    <span class="url-val mono utc-to-local" data-utc="{{ url_scan.scan_time }}">{{ url_scan.scan_time }}</span>
+                </div>
+                <div class="url-keyval-row">
+                    <span class="url-key">Risk</span>
+                    <span class="url-val">
+                        {% set urisk = (url_scan.risk or 'low')|lower %}
+                        <span class="badge badge-{{ urisk }}">{{ url_scan.risk or 'Low' }} &middot; {{ url_scan.score or 0 }}/100</span>
+                    </span>
+                </div>
             </div>
-            <div class="link-row" style="margin-top:auto; padding-top:10px;">
-                <a href="{{ url_for('url_scan_result_page') }}"><i class="bi bi-arrow-right-circle"></i> Full URL scan report (SSL/TLS, technology stack, WHOIS/GeoIP)</a>
-                <a href="{{ url_for('url_history') }}"><i class="bi bi-clock-history"></i> URL scan history</a>
+            <div class="url-card-actions">
+                <a href="{{ url_for('url_scan_result_page') }}" class="url-action-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Full Report
+                </a>
+                <a href="{{ url_for('download_full_report_pdf') }}?type=url" class="url-action-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export
+                </a>
             </div>
+            {% else %}
+            <div style="padding: 24px 8px; text-align: center; color: var(--text-2); font-size: 12.5px;">
+                No URL scanned yet.<br>Click <strong>URL Scan</strong> above to evaluate a website.
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
-{% else %}
-<div class="glass content-panel">
-    <p class="empty-note">No URL has been scanned yet. Click <strong>New Scan</strong> above and choose the URL Scan tab.</p>
-</div>
-{% endif %}
 
-{% endblock %}
-
-{% block extra_scripts_before %}
 {% endblock %}

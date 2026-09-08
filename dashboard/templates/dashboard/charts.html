@@ -1,26 +1,95 @@
-<div class="chart-grid">
+<div class="overview-charts-grid">
 
-    <div class="glass chart-card">
-        <h3>Open Ports by Service (latest scan)</h3>
-        <div class="chart-container">
-            <canvas id="portChart"></canvas>
+    <!-- Chart 1: Open Ports by Service -->
+    <div class="overview-card">
+        <div class="overview-card-header">
+            <div class="overview-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+                </svg>
+                <span>Open Ports by Service</span>
+            </div>
+            <a href="{{ url_for('view_ports') }}" class="overview-card-link">View Details &rarr;</a>
+        </div>
+        <div class="overview-card-body">
+            <div class="chart-container" style="position: relative; height: 165px;">
+                <canvas id="portChart"></canvas>
+            </div>
         </div>
     </div>
 
-    <div class="glass chart-card">
-        <h3>Vulnerability Severity Distribution</h3>
-        <div class="chart-container">
-            <canvas id="severityChart"></canvas>
+    <!-- Chart 2: Vulnerability Severity -->
+    <div class="overview-card">
+        <div class="overview-card-header">
+            <div class="overview-card-title">
+                <span>Vulnerability Severity</span>
+            </div>
+        </div>
+        <div class="overview-card-body severity-card-body">
+            <div class="severity-split-layout">
+                <!-- Doughnut ring on left with total in center -->
+                <div class="donut-box">
+                    <canvas id="severityChart"></canvas>
+                    <div class="donut-center-info">
+                        {% set total_sev = (chart_data.severity.critical|default(0) + chart_data.severity.high|default(0) + chart_data.severity.medium|default(0) + chart_data.severity.low|default(0)) %}
+                        <span class="donut-count" id="donutTotalCount">{{ total_sev }}</span>
+                        <span class="donut-sub">Total</span>
+                    </div>
+                </div>
+
+                <!-- Severity Breakdown Legend on right -->
+                <div class="severity-legend-col">
+                    <div class="sev-legend-row">
+                        <div class="sev-legend-left">
+                            <span class="sev-pill-dot crit"></span>
+                            <span class="sev-legend-name">Critical</span>
+                        </div>
+                        <span class="sev-legend-val" id="sevCountCrit">{{ chart_data.severity.critical|default(0) }}</span>
+                    </div>
+                    <div class="sev-legend-row">
+                        <div class="sev-legend-left">
+                            <span class="sev-pill-dot high"></span>
+                            <span class="sev-legend-name">High</span>
+                        </div>
+                        <span class="sev-legend-val" id="sevCountHigh">{{ chart_data.severity.high|default(0) }}</span>
+                    </div>
+                    <div class="sev-legend-row">
+                        <div class="sev-legend-left">
+                            <span class="sev-pill-dot med"></span>
+                            <span class="sev-legend-name">Medium</span>
+                        </div>
+                        <span class="sev-legend-val" id="sevCountMed">{{ chart_data.severity.medium|default(0) }}</span>
+                    </div>
+                    <div class="sev-legend-row">
+                        <div class="sev-legend-left">
+                            <span class="sev-pill-dot low"></span>
+                            <span class="sev-legend-name">Low</span>
+                        </div>
+                        <span class="sev-legend-val" id="sevCountLow">{{ chart_data.severity.low|default(0) }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-</div>
-
-<div class="glass chart-card" style="margin-top:10px;">
-    <h3>Risk Score Trend (recent scans)</h3>
-    <div class="chart-container" style="height:165px;">
-        <canvas id="riskTrendChart"></canvas>
+    <!-- Chart 3: Risk Score Trend -->
+    <div class="overview-card">
+        <div class="overview-card-header">
+            <div class="overview-card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+                </svg>
+                <span>Risk Score Trend</span>
+            </div>
+            <a href="{{ url_for('ip_history') }}" class="overview-card-link">View History &rarr;</a>
+        </div>
+        <div class="overview-card-body">
+            <div class="chart-container" style="position: relative; height: 165px;">
+                <canvas id="riskTrendChart"></canvas>
+            </div>
+        </div>
     </div>
+
 </div>
 
 <script id="dashboard-data" type="application/json">{{ chart_data|tojson }}</script>

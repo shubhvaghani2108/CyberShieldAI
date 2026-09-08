@@ -193,6 +193,15 @@ function initScanModal() {
       }
     });
   });
+
+  window.openScanModalWithTab = function(tabName) {
+    if (!overlay) return;
+    overlay.classList.add("open");
+    const targetTab = document.querySelector(`[data-scan-tab="${tabName}"]`);
+    if (targetTab) {
+      targetTab.click();
+    }
+  };
 }
 
 /* ---------------- toast helper (used by other pages too) ---------------- */
@@ -214,11 +223,13 @@ function showToast(message) {
 const activeChartInstances = [];
 
 function getChartThemeColors() {
-  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  const root = document.documentElement;
+  const isLight = root.getAttribute("data-theme") === "light";
   return {
-    textColor: isLight ? "#475569" : "#aab4d4",
-    gridColor: isLight ? "rgba(15,23,42,0.08)" : "rgba(122,162,255,0.08)",
-    doughnutBorder: isLight ? "#ffffff" : "#12151c"
+    isLight,
+    textColor: isLight ? "#475569" : "#9aa4b5",
+    gridColor: isLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.06)",
+    doughnutBorder: isLight ? "#ffffff" : "#12151c",
   };
 }
 
@@ -248,6 +259,14 @@ function initCharts() {
   const dataEl = document.getElementById("dashboard-data");
   if (!dataEl || typeof Chart === "undefined") return;
 
+  // Cleanup prior chart instances
+  while (activeChartInstances.length > 0) {
+    const c = activeChartInstances.pop();
+    try {
+      c.destroy();
+    } catch (_) {}
+  }
+
   let data;
   try {
     data = JSON.parse(dataEl.textContent);
@@ -265,136 +284,158 @@ function initCharts() {
   const sevCanvas = document.getElementById("severityChart");
   if (sevCanvas) {
     const sev = data.severity || { critical: 0, high: 0, medium: 0, low: 0 };
-    const total = sev.critical + sev.high + sev.medium + sev.low;
-    if (total > 0) {
-      const chart = new Chart(sevCanvas, {
-        type: "doughnut",
-        data: {
-          labels: ["Critical", "High", "Medium", "Low"],
-          datasets: [
-            {
-              data: [sev.critical, sev.high, sev.medium, sev.low],
-              backgroundColor: ["#ff3b6b", "#ff9f43", "#ffd93d", "#4fd1c5"],
-              borderColor: colors.doughnutBorder,
-              borderWidth: 3,
-              hoverOffset: 6,
-            },
-          ],
+    const total = (sev.critical || 0) + (sev.high || 0) + (sev.medium || 0) + (sev.low || 0);
+
+    // Update DOM counts if elements exist
+    const totalEl = document.getElementById("donutTotalCount");
+    if (totalEl) totalEl.textContent = total;
+    const cEl = document.getElementById("sevCountCrit");
+    if (cEl) cEl.textContent = sev.critical || 0;
+    const hEl = document.getElementById("sevCountHigh");
+    if (hEl) hEl.textContent = sev.high || 0;
+    const mEl = document.getElementById("sevCountMed");
+    if (mEl) mEl.textContent = sev.medium || 0;
+    const lEl = document.getElementById("sevCountLow");
+    if (lEl) lEl.textContent = sev.low || 0;
+
+    const chartConfig = total > 0 ? {
+      labels: ["Critical", "High", "Medium", "Low"],
+      datasets: [
+        {
+          data: [sev.critical || 0, sev.high || 0, sev.medium || 0, sev.low || 0],
+          backgroundColor: ["#f43f5e", "#fb923c", "#eab308", "#22c55e"],
+          borderColor: colors.doughnutBorder,
+          borderWidth: 2,
+          hoverOffset: 4,
         },
-        options: {
-          maintainAspectRatio: false,
-          cutout: "68%",
-          plugins: {
-            legend: {
-              position: "bottom",
-              labels: { boxWidth: 10, boxHeight: 10, padding: 14 },
+      ],
+    } : {
+      labels: ["None"],
+      datasets: [
+        {
+          data: [1],
+          backgroundColor: [colors.isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.08)"],
+          borderColor: "transparent",
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    const chart = new Chart(sevCanvas, {
+      type: "doughnut",
+      data: chartConfig,
+      options: {
+        maintainAspectRatio: false,
+        responsive: true,
+        cutout: "74%",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: total > 0,
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${ctx.parsed}`,
             },
           },
         },
-      });
-      activeChartInstances.push(chart);
-    } else {
-      sevCanvas.replaceWith(emptyState("No vulnerability data yet — run a scan to populate this chart."));
-    }
+      },
+    });
+    activeChartInstances.push(chart);
   }
 
   /* -------- Port / service distribution (bar) -------- */
   const portCanvas = document.getElementById("portChart");
   if (portCanvas) {
     const ports = data.port_distribution || [];
-    if (ports.length > 0) {
-      const chart = new Chart(portCanvas, {
-        type: "bar",
-        data: {
-          labels: ports.map((p) => p.label),
-          datasets: [
-            {
-              label: "Open ports",
-              data: ports.map((p) => p.count),
-              backgroundColor: "rgba(58,214,255,0.55)",
-              hoverBackgroundColor: "rgba(58,214,255,0.85)",
-              borderRadius: 6,
-              maxBarThickness: 28,
-            },
-          ],
-        },
-        options: {
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false } },
-            y: {
-              beginAtZero: true,
-              ticks: { precision: 0 },
-              grid: { color: colors.gridColor },
-            },
+    const hasData = ports.length > 0;
+    const chart = new Chart(portCanvas, {
+      type: "bar",
+      data: {
+        labels: hasData ? ports.map((p) => p.label) : ["No open ports"],
+        datasets: [
+          {
+            label: "Open ports",
+            data: hasData ? ports.map((p) => p.count) : [0],
+            backgroundColor: "#22d3ee",
+            hoverBackgroundColor: "#38bdf8",
+            borderRadius: 5,
+            maxBarThickness: 32,
+          },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            suggestedMax: hasData ? undefined : 2,
+            ticks: { precision: 0, stepSize: 1 },
+            grid: { color: colors.gridColor },
           },
         },
-      });
-      activeChartInstances.push(chart);
-    } else {
-      portCanvas.replaceWith(emptyState("No open ports detected yet — run a scan to populate this chart."));
-    }
+      },
+    });
+    activeChartInstances.push(chart);
   }
 
   /* -------- Risk trend across recent scans (line) -------- */
   const riskCanvas = document.getElementById("riskTrendChart");
   if (riskCanvas) {
     const trend = data.risk_trend || [];
-    if (trend.length > 0) {
-      const chart = new Chart(riskCanvas, {
-        type: "line",
-        data: {
-          labels: trend.map((t) => t.label),
-          datasets: [
-            {
-              label: "Risk Score",
-              data: trend.map((t) => t.score),
-              borderColor: "#a45bff",
-              backgroundColor: "rgba(164,91,255,0.15)",
-              fill: true,
-              tension: 0.35,
-              pointRadius: 5,
-              pointHoverRadius: 8,
-              pointHitRadius: 12,
-              pointBackgroundColor: "#a45bff",
-              pointBorderColor: "#ffffff",
-              pointBorderWidth: 1.5,
-            },
-          ],
-        },
-        options: {
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: function (context) {
-                  return `Risk Score: ${context.parsed.y} / 100`;
-                },
-              },
-            },
+    const hasData = trend.length > 0;
+    const chart = new Chart(riskCanvas, {
+      type: "line",
+      data: {
+        labels: hasData ? trend.map((t) => t.label) : ["Recent Target"],
+        datasets: [
+          {
+            label: "Risk Score",
+            data: hasData ? trend.map((t) => t.score) : [0],
+            borderColor: "#c084fc",
+            backgroundColor: "rgba(192,132,252,0.12)",
+            fill: true,
+            tension: 0.35,
+            pointRadius: 4.5,
+            pointHoverRadius: 7,
+            pointHitRadius: 10,
+            pointBackgroundColor: "#c084fc",
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 1.5,
           },
-          scales: {
-            x: { grid: { display: false } },
-            y: {
-              min: 0,
-              suggestedMax: 100,
-              grid: { color: colors.gridColor },
-              ticks: {
-                stepSize: 20,
-                callback: function (value) {
-                  return value;
-                },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return `Risk Score: ${context.parsed.y} / 100`;
               },
             },
           },
         },
-      });
-      activeChartInstances.push(chart);
-    } else {
-      riskCanvas.replaceWith(emptyState("No historical scans yet — risk trend appears after multiple scans."));
-    }
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            min: 0,
+            max: 100,
+            grid: { color: colors.gridColor },
+            ticks: {
+              stepSize: 20,
+              callback: function (value) {
+                return value;
+              },
+            },
+          },
+        },
+      },
+    });
+    activeChartInstances.push(chart);
   }
 }
 

@@ -1,25 +1,32 @@
-<div class="split-grid">
-<div>
-    <div class="panel-heading">
-        <h2>🕒 Recent Activity</h2>
-        <span class="sub">Latest scanned hosts</span>
+<div class="overview-card">
+    <div class="overview-card-header">
+        <div class="overview-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Recent Activity</span>
+        </div>
+        <a href="{{ url_for('ip_history') }}" class="overview-card-link">View All &rarr;</a>
     </div>
-    <div class="glass feed">
-        {% for item in recent_activity %}
-            <div class="feed-item">
-                <div class="feed-dot {{ 'ok' if item.status == 'Alive' else 'crit' if item.status == 'Dead' else '' }}"></div>
-                <div class="feed-body">
-                    <div class="feed-title">{{ item.target_ip }} &mdash; {{ item.status }}</div>
-                    <div class="feed-meta utc-to-local" data-utc="{{ item.scan_time }}">{{ item.scan_time }}</div>
+    <div class="overview-card-body" style="padding: 10px 16px;">
+        <div class="activity-feed-list">
+            {% for item in recent_activity %}
+                <div class="activity-feed-item">
+                    <div class="activity-feed-dot {{ 'crit' if item.status == 'Dead' or item.status == 'Down' else 'ok' }}"></div>
+                    <div class="activity-feed-body">
+                        <div class="activity-feed-title">{{ item.title or (item.target_ip ~ ' — ' ~ item.status) }}</div>
+                        <div class="activity-feed-time utc-to-local" data-utc="{{ item.scan_time }}">{{ item.scan_time }}</div>
+                    </div>
                 </div>
-            </div>
-        {% else %}
-            <div class="feed-item">
-                <div class="feed-body">
-                    <div class="feed-title">No activity yet</div>
-                    <div class="feed-meta">Run a scan to see it appear here in real time.</div>
+            {% else %}
+                <div class="activity-feed-item">
+                    <div class="activity-feed-dot ok"></div>
+                    <div class="activity-feed-body">
+                        <div class="activity-feed-title">No activity yet</div>
+                        <div class="activity-feed-time">Run a scan to see live activities appear here.</div>
+                    </div>
                 </div>
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </div>
 </div>
