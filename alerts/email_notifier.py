@@ -92,13 +92,14 @@ def send_smtp_email(
             try:
                 if ssl_mode or port == 465:
                     srv = smtplib.SMTP_SSL(target_ip, port, timeout=12)
-                    srv.helo(server_host)
+                    srv.ehlo(server_host)
                     return srv
                 else:
                     srv = smtplib.SMTP(target_ip, port, timeout=12)
-                    srv.helo(server_host)
+                    srv.ehlo(server_host)
                     if tls_mode or port == 587:
                         srv.starttls()
+                        srv.ehlo(server_host)
                     return srv
             except Exception as ce:
                 last_conn_err = ce
@@ -225,6 +226,7 @@ def format_alert_email_html(alert: dict) -> str:
     message = alert.get("message") or alert.get("description") or "Security anomaly detected."
     recommendation = alert.get("recommendation") or "Review target configuration and apply security remediation."
     timestamp = alert.get("created_at") or alert.get("scan_time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    scanned_by = alert.get("scanned_by") or alert.get("user_info") or ""
 
     # Severity styling
     if severity == "Critical":
@@ -239,6 +241,13 @@ def format_alert_email_html(alert: dict) -> str:
     else:
         sev_color = "#0284c7"
         sev_bg = "#e0f2fe"
+
+    scanned_by_html = ""
+    if scanned_by:
+        scanned_by_html = f"""<tr>
+            <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0;">Scanned By User</td>
+            <td style="padding: 10px 14px; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0;">{scanned_by}</td>
+          </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -279,6 +288,7 @@ def format_alert_email_html(alert: dict) -> str:
             <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0; width: 35%;">Target Host</td>
             <td style="padding: 10px 14px; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; font-family: monospace;">{target}</td>
           </tr>
+          {scanned_by_html}
           <tr>
             <td style="padding: 10px 14px; font-size: 13px; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0;">Alert Category</td>
             <td style="padding: 10px 14px; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0;">{alert_type}</td>
@@ -322,19 +332,75 @@ _LAST_SENT_LOG = {}
 _DISPATCH_LOCK = threading.Lock()
 
 
+def get_admin_alert_recipients(settings: dict = None) -> list:
+    """
+    Returns list of distinct email addresses for administrators who should receive alerts.
+    Pulls from:
+    1. Configured recipient_email in email_settings table.
+    2. Active admin users from the users table.
+    3. Environment variables (ALERT_RECIPIENT, ADMIN_EMAIL).
+    """
+    if not settings:
+        settings = get_email_settings()
+
+    recipients = set()
+
+    # 1. Configured recipient in settings
+    recip = (settings.get("recipient_email") or "").strip()
+    if recip and "@" in recip:
+        for r in recip.replace(";", ",").split(","):
+            clean = r.strip()
+            if clean and "@" in clean and not any(clean.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
+                recipients.add(clean)
+
+    # 2. Query admin users from users table
+    try:
+        from database.db_engine import get_db_connection
+        conn = get_db_connection()
+        try:
+            rows = conn.execute("SELECT email FROM users WHERE UPPER(role) = 'ADMIN' AND is_active = 1").fetchall()
+            for r in rows:
+                em = (r["email"] if hasattr(r, "__getitem__") else r[0]) if r else ""
+                clean_em = str(em or "").strip()
+                if clean_em and "@" in clean_em and not any(clean_em.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
+                    recipients.add(clean_em)
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[RECIPIENT NOTICE] Admin lookup notice: {e}")
+
+    # 3. Environment variables
+    for ev in ["ALERT_RECIPIENT", "ADMIN_EMAIL", "EMAIL_ADMIN"]:
+        val = (os.environ.get(ev) or "").strip()
+        if val and "@" in val and not any(val.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
+            recipients.add(val)
+
+    # 4. Fallback if still empty: from_email / smtp_user
+    if not recipients:
+        fallback = (settings.get("from_email") or settings.get("smtp_user") or "").strip()
+        if fallback and "@" in fallback:
+            recipients.add(fallback)
+
+    return sorted(list(recipients))
+
+
 def dispatch_alert_email(alert: dict):
     """
-    Asynchronously checks email settings and sends an alert email if conditions match.
-    Includes smart throttling to avoid triggering university mail gateway flood/spam filters.
+    Asynchronously checks email settings and sends an alert email to admin(s) if conditions match.
+    Includes smart throttling to avoid triggering mail flood/spam filters.
     """
     def _worker():
         try:
             settings = get_email_settings()
-            if not settings.get("enabled"):
+
+            # Allow sending if enabled or if credentials exist
+            has_creds = bool(settings.get("smtp_password") or os.environ.get("BREVO_API_KEY") or os.environ.get("SMTP_PASSWORD"))
+            if not settings.get("enabled") and not has_creds:
                 return
 
-            recipient = settings.get("recipient_email")
-            if not recipient:
+            admin_recipients = get_admin_alert_recipients(settings)
+            if not admin_recipients:
+                print("[EMAIL NOTIFIER] No admin recipients found. Skipping dispatch.")
                 return
 
             alert_type = str(alert.get("alert_type") or alert.get("title") or "")
@@ -344,30 +410,31 @@ def dispatch_alert_email(alert: dict):
             should_send = False
 
             # 1. Critical Alert (any alert with Critical severity)
-            if severity == "Critical" and settings.get("alert_critical"):
+            if severity == "Critical" and settings.get("alert_critical", 1):
                 should_send = True
 
             # 2. Security Score Drop
-            if "score drop" in alert_type.lower() and settings.get("alert_score_drop"):
+            if "score drop" in alert_type.lower() and settings.get("alert_score_drop", 1):
                 should_send = True
 
-            # 3. New Vulnerability
-            if "vulnerability" in alert_type.lower() and settings.get("alert_new_vuln"):
+            # 3. Any Vulnerability or CVE detected (Critical, High, Medium, Low)
+            if any(k in alert_type.lower() for k in ("vulnerability", "cve", "vuln", "exploit")) and settings.get("alert_new_vuln", 1):
                 should_send = True
 
             # 4. SSL Expiry (<30 days)
-            if ("ssl" in alert_type.lower() or "certificate" in alert_type.lower() or "expiry" in alert_type.lower()) and settings.get("alert_ssl_expiry"):
+            if any(k in alert_type.lower() for k in ("ssl", "certificate", "expiry")) and settings.get("alert_ssl_expiry", 1):
                 should_send = True
 
             # 5. New Open Port
-            if ("port" in alert_type.lower()) and settings.get("alert_new_port"):
+            if ("port" in alert_type.lower()) and settings.get("alert_new_port", 1):
                 should_send = True
 
             if not should_send:
                 return
 
             # Smart throttle: Prevent sending duplicate alert types for the same target within 60s
-            throttle_key = f"{target}::{alert_type}::{severity}"
+            alert_name = alert.get("title") or alert_type
+            throttle_key = f"{target}::{alert_name}::{severity}"
             now_ts = datetime.now().timestamp()
             with _DISPATCH_LOCK:
                 last_time = _LAST_SENT_LOG.get(throttle_key, 0)
@@ -381,15 +448,22 @@ def dispatch_alert_email(alert: dict):
 
             from alerts.email_api import get_email_api_config, send_https_email
             api_cfg = get_email_api_config()
-            if api_cfg.get("api_key") and api_cfg.get("provider") in ("brevo", "sendinblue", "sendgrid", "resend", "mailgun"):
-                success, msg = send_https_email(to_email=recipient, subject=subject, html_body=html_body, text_body=text_body)
-            else:
-                success, msg = send_smtp_email(recipient, subject, html_body, text_body, settings=settings)
+            use_https = bool(api_cfg.get("api_key") and api_cfg.get("provider") in ("brevo", "sendinblue", "sendgrid", "resend", "mailgun"))
 
-            if success:
-                print(f"[EMAIL NOTIFIER] Dispatched email alert to {recipient} for {target} ({alert_type})")
-            else:
-                print(f"[EMAIL NOTIFIER ERROR] {msg}")
+            for recipient in admin_recipients:
+                try:
+                    if use_https:
+                        success, msg = send_https_email(to_email=recipient, subject=subject, html_body=html_body, text_body=text_body)
+                    else:
+                        success, msg = send_smtp_email(recipient, subject, html_body, text_body, settings=settings)
+
+                    if success:
+                        print(f"[EMAIL NOTIFIER] Dispatched email alert to admin {recipient} for {target} ({alert_type})")
+                    else:
+                        print(f"[EMAIL NOTIFIER ERROR] {recipient}: {msg}")
+                except Exception as send_err:
+                    print(f"[EMAIL NOTIFIER WORKER ERROR] {recipient}: {send_err}")
+
         except Exception as e:
             print(f"[EMAIL NOTIFIER WORKER ERROR] {e}")
 

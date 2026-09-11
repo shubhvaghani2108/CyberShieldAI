@@ -236,6 +236,7 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
             vulnerabilities=vulns,
             cves=cves,
             ip=target,
+            user_id=user_id,
         )
 
         _job_log(job_id, "Security alerts generated.")
@@ -502,6 +503,7 @@ def _run_url_scan_job(job_id, url, user_id=None):
                 vulnerabilities=vulns_info,
                 cves=cves_info,
                 ip=ip if ip != "Unknown" else result["domain"],
+                user_id=user_id,
             )
             _job_log(job_id, "Security alerts generated.")
         except Exception as alert_err:

@@ -25,9 +25,10 @@ from alerts.save_alert import save_alert
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
 
-def generate_alerts(target, risk=None, ssl=None, ports=None, headers=None, vulnerabilities=None, cves=None, ip=None):
+def generate_alerts(target, risk=None, ssl=None, ports=None, headers=None, vulnerabilities=None, cves=None, ip=None, user_id=None, scanned_by=None, **kwargs):
     """
     Standard alert generator for static scan findings across both IP and URL targets.
+    Automatically identifies which user executed the scan and passes it to save_alert.
     """
     alerts = []
 
@@ -49,6 +50,22 @@ def generate_alerts(target, risk=None, ssl=None, ports=None, headers=None, vulne
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # Resolve scanner user display name
+    user_desc = scanned_by or ""
+    if not user_desc and user_id:
+        try:
+            conn = get_db_connection()
+            try:
+                user_row = conn.execute("SELECT username, email FROM users WHERE id = ?", (user_id,)).fetchone()
+                if user_row:
+                    uname = user_row["username"] if hasattr(user_row, "__getitem__") else user_row[0]
+                    uemail = user_row["email"] if hasattr(user_row, "__getitem__") else user_row[1]
+                    user_desc = f"{uname} ({uemail})"
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
     for alert in alerts:
         save_alert(
             target=target_name,
@@ -61,6 +78,7 @@ def generate_alerts(target, risk=None, ssl=None, ports=None, headers=None, vulne
             description=alert.get("description"),
             created_at=now_str,
             scan_time=now_str,
+            scanned_by=user_desc,
         )
 
     return alerts

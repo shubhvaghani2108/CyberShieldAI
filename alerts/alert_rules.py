@@ -365,11 +365,15 @@ def check_vulnerabilities(vulnerabilities):
         desc = v.get("description") if isinstance(v, dict) else (v["description"] if hasattr(v, "__getitem__") else "")
         rem = v.get("remediation") if isinstance(v, dict) else (v["remediation"] if hasattr(v, "__getitem__") else "")
 
-        risk_str = str(risk).capitalize()
-        if risk_str in ["Critical", "High"]:
+        risk_str = str(risk).capitalize() if risk else "Medium"
+        if risk_str not in ["Critical", "High", "Medium", "Low", "Informational"]:
+            risk_str = "Medium"
+
+        # Alert on any actionable security vulnerability
+        if risk_str != "Informational":
             alerts.append({
                 "alert_type": f"{risk_str} Vulnerability",
-                "title": f"{risk_str} Vulnerability on Port {port}",
+                "title": f"{risk_str} Vulnerability on Port {port}" if port else f"{risk_str} Vulnerability Detected",
                 "severity": risk_str,
                 "message": desc or f"{risk_str} vulnerability identified on port {port} ({service}).",
                 "description": desc or f"{service} on port {port}",
@@ -390,10 +394,13 @@ def check_cves(cves):
         port = c.get("port") if isinstance(c, dict) else (c["port"] if hasattr(c, "__getitem__") else "")
         desc = c.get("description") if isinstance(c, dict) else (c["description"] if hasattr(c, "__getitem__") else "")
 
-        sev_str = str(sev).capitalize()
-        if sev_str in ["Critical", "High"]:
+        sev_str = str(sev).capitalize() if sev else "High"
+        if sev_str not in ["Critical", "High", "Medium", "Low", "Informational"]:
+            sev_str = "High"
+
+        if sev_str != "Informational":
             alerts.append({
-                "alert_type": f"Known CVE: {cve_id}",
+                "alert_type": f"Vulnerability CVE: {cve_id}",
                 "title": f"{cve_id} Detected",
                 "severity": sev_str,
                 "message": desc or f"Vulnerability {cve_id} detected on port {port}.",

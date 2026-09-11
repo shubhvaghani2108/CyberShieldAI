@@ -74,6 +74,8 @@ def save_alert(
     description=None,
     created_at=None,
     scan_time=None,
+    scanned_by=None,
+    user_info=None,
     **kwargs,
 ):
     """
@@ -104,6 +106,7 @@ def save_alert(
     final_desc = description or message or ""
     final_msg = message or description or final_title
     final_rec = recommendation or ""
+    final_scanned_by = scanned_by or user_info or kwargs.get("user") or ""
 
     conn = get_db_connection()
     try:
@@ -153,6 +156,7 @@ def save_alert(
                 "recommendation": final_rec,
                 "created_at": alert_time,
                 "ip": final_ip,
+                "scanned_by": final_scanned_by,
             })
         except Exception as e:
             print(f"[DISPATCH ERROR] {e}")
