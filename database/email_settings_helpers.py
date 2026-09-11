@@ -84,7 +84,7 @@ def get_email_settings() -> dict:
                 d["from_email"] = env_from
             if not d.get("smtp_user"):
                 d["smtp_user"] = env_user
-            if not d.get("recipient_email") or d.get("recipient_email") == "smvaghani2005@gmail.com":
+            if not d.get("recipient_email") or d.get("recipient_email") in ("smvaghani2005@gmail.com", "23se02cb016@ppsu.ac.in"):
                 d["recipient_email"] = env_recip
             return d
 

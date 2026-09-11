@@ -337,7 +337,7 @@ def get_admin_alert_recipients(settings: dict = None) -> list:
     Returns list of distinct email addresses for administrators who should receive alerts.
     Pulls from:
     1. Configured recipient_email in email_settings table.
-    2. Active admin users from the users table.
+    2. Active admin users from the users table (if no specific recipient configured).
     3. Environment variables (ALERT_RECIPIENT, ADMIN_EMAIL).
     """
     if not settings:
@@ -345,7 +345,7 @@ def get_admin_alert_recipients(settings: dict = None) -> list:
 
     recipients = set()
 
-    # 1. Configured recipient in settings
+    # 1. Configured recipient in settings (takes priority)
     recip = (settings.get("recipient_email") or "").strip()
     if recip and "@" in recip:
         for r in recip.replace(";", ",").split(","):
@@ -353,31 +353,32 @@ def get_admin_alert_recipients(settings: dict = None) -> list:
             if clean and "@" in clean and not any(clean.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
                 recipients.add(clean)
 
-    # 2. Query admin users from users table
-    try:
-        from database.db_engine import get_db_connection
-        conn = get_db_connection()
-        try:
-            rows = conn.execute("SELECT email FROM users WHERE UPPER(role) = 'ADMIN' AND is_active = 1").fetchall()
-            for r in rows:
-                em = (r["email"] if hasattr(r, "__getitem__") else r[0]) if r else ""
-                clean_em = str(em or "").strip()
-                if clean_em and "@" in clean_em and not any(clean_em.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
-                    recipients.add(clean_em)
-        finally:
-            conn.close()
-    except Exception as e:
-        print(f"[RECIPIENT NOTICE] Admin lookup notice: {e}")
-
-    # 3. Environment variables
-    for ev in ["ALERT_RECIPIENT", "ADMIN_EMAIL", "EMAIL_ADMIN"]:
-        val = (os.environ.get(ev) or "").strip()
-        if val and "@" in val and not any(val.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com")):
-            recipients.add(val)
-
-    # 4. Fallback if still empty: from_email / smtp_user
+    # If no configured recipient, fallback to active admin users in DB and env vars
     if not recipients:
-        fallback = (settings.get("from_email") or settings.get("smtp_user") or "").strip()
+        try:
+            from database.db_engine import get_db_connection
+            conn = get_db_connection()
+            try:
+                rows = conn.execute("SELECT email FROM users WHERE UPPER(role) = 'ADMIN' AND is_active = 1").fetchall()
+                for r in rows:
+                    em = (r["email"] if hasattr(r, "__getitem__") else r[0]) if r else ""
+                    clean_em = str(em or "").strip()
+                    if clean_em and "@" in clean_em and not any(clean_em.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com", "@cybershield.ai")):
+                        recipients.add(clean_em)
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[RECIPIENT NOTICE] Admin lookup notice: {e}")
+
+        # Environment variables
+        for ev in ["ALERT_RECIPIENT", "ADMIN_EMAIL", "EMAIL_ADMIN"]:
+            val = (os.environ.get(ev) or "").strip()
+            if val and "@" in val and not any(val.lower().endswith(d) for d in ("@example.com", "@otp.test", "@test.com", "@cybershield.ai")):
+                recipients.add(val)
+
+    # Fallback if still empty: from_email / smtp_user
+    if not recipients:
+        fallback = (settings.get("from_email") or settings.get("smtp_user") or "defenderr0809@gmail.com").strip()
         if fallback and "@" in fallback:
             recipients.add(fallback)
 
