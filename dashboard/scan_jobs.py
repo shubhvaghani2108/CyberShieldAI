@@ -227,19 +227,21 @@ def _run_ip_scan_job(job_id, target, ports="top-1000", user_id=None):
         vulns = get_vulnerabilities(target, scan_id=scan_id)
         cves = get_cves(target, scan_id=scan_id)
 
-        generate_alerts(
-            target=target,
-            risk=risk,
-            ssl=ssl,
-            ports=ports_data,
-            headers=headers,
-            vulnerabilities=vulns,
-            cves=cves,
-            ip=target,
-            user_id=user_id,
-        )
-
-        _job_log(job_id, "Security alerts generated.")
+        try:
+            generate_alerts(
+                target=target,
+                risk=risk,
+                ssl=ssl,
+                ports=ports_data,
+                headers=headers,
+                vulnerabilities=vulns,
+                cves=cves,
+                ip=target,
+                user_id=user_id,
+            )
+            _job_log(job_id, "Security alerts generated.")
+        except Exception as alert_err:
+            print(f"[SCAN JOB NOTICE] Alert generation note: {alert_err}")
 
         _job_log(job_id, "Scan complete.")
         _job_done(job_id, result_ip=target, scan_id=scan_id)

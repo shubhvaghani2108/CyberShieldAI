@@ -374,8 +374,8 @@ def _get_pg_pool():
             return None
         try:
             from psycopg2.pool import ThreadedConnectionPool
-            # maxconn=4 per worker prevents exceeding Supabase pooler connection quotas
-            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=4, dsn=db_url, connect_timeout=5)
+            # maxconn=6 allows concurrency for scan threads + web polling while staying safely within quotas
+            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=6, dsn=db_url, connect_timeout=5)
             return _PG_POOL
         except Exception as e:
             print(f"[DB_ENGINE] Warning: could not initialize ThreadedConnectionPool: {e}")
@@ -400,7 +400,7 @@ def _get_pooled_pg_conn():
     pool = _get_pg_pool()
     db_url = get_database_url()
     if pool:
-        for _ in range(10):
+        for _ in range(60):
             try:
                 conn = pool.getconn()
                 try:
@@ -417,15 +417,7 @@ def _get_pooled_pg_conn():
                         pool.putconn(conn, close=True)
                     except Exception:
                         pass
-                    conn = pool.getconn()
-                    try:
-                        conn.rollback()
-                    except Exception:
-                        pass
-                    try:
-                        conn.autocommit = True
-                    except Exception:
-                        pass
+                    continue
 
                 return conn, pool
             except Exception:
@@ -433,9 +425,17 @@ def _get_pooled_pg_conn():
 
     # Fallback to direct connection if pool is exhausted or unavailable
     import psycopg2
-    raw_conn = psycopg2.connect(db_url, connect_timeout=5)
-    raw_conn.autocommit = True
-    return raw_conn, None
+    for attempt in range(3):
+        try:
+            raw_conn = psycopg2.connect(db_url, connect_timeout=5)
+            raw_conn.autocommit = True
+            return raw_conn, None
+        except Exception:
+            if attempt < 2:
+                import time
+                time.sleep(0.5)
+            else:
+                raise
 
 
 def _release_pooled_pg_conn(raw_conn, pool, force_close=False):

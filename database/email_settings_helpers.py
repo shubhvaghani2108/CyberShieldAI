@@ -66,10 +66,20 @@ def init_email_settings_table():
 
 
 
-def get_email_settings() -> dict:
+_CACHED_EMAIL_SETTINGS = None
+_CACHED_EMAIL_SETTINGS_TIME = 0
+
+
+def get_email_settings(force_refresh=False) -> dict:
     """
-    Retrieves the email and SMTP settings.
+    Retrieves the email and SMTP settings with a 30s cache to avoid excessive DB connections.
     """
+    global _CACHED_EMAIL_SETTINGS, _CACHED_EMAIL_SETTINGS_TIME
+    import time
+    now = time.time()
+    if not force_refresh and _CACHED_EMAIL_SETTINGS and (now - _CACHED_EMAIL_SETTINGS_TIME < 30):
+        return dict(_CACHED_EMAIL_SETTINGS)
+
     init_email_settings_table()
     conn = _get_conn()
     try:
@@ -86,9 +96,11 @@ def get_email_settings() -> dict:
                 d["smtp_user"] = env_user
             if not d.get("recipient_email") or d.get("recipient_email") in ("smvaghani2005@gmail.com", "23se02cb016@ppsu.ac.in"):
                 d["recipient_email"] = env_recip
-            return d
+            _CACHED_EMAIL_SETTINGS = d
+            _CACHED_EMAIL_SETTINGS_TIME = now
+            return dict(d)
 
-        return {
+        default_settings = {
             "id": 1,
             "smtp_server": "smtp.gmail.com",
             "smtp_port": 587,
@@ -105,6 +117,9 @@ def get_email_settings() -> dict:
             "alert_ssl_expiry": 1,
             "alert_new_port": 1,
         }
+        _CACHED_EMAIL_SETTINGS = default_settings
+        _CACHED_EMAIL_SETTINGS_TIME = now
+        return dict(default_settings)
     finally:
         conn.close()
 
@@ -113,6 +128,9 @@ def save_email_settings(settings: dict) -> bool:
     """
     Saves or updates the email and SMTP settings.
     """
+    global _CACHED_EMAIL_SETTINGS, _CACHED_EMAIL_SETTINGS_TIME
+    _CACHED_EMAIL_SETTINGS = None
+    _CACHED_EMAIL_SETTINGS_TIME = 0
     init_email_settings_table()
     conn = _get_conn()
     try:

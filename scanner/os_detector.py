@@ -84,13 +84,15 @@ def detect_os(target_ip, scan_id=None):
             try:
                 from scanner.port_scanner import deduce_os_from_services_and_system
                 conn_tmp = get_db_connection()
-                c_tmp = conn_tmp.cursor()
-                if scan_id:
-                    c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ? AND scan_id = ?", (target_ip, scan_id))
-                else:
-                    c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ?", (target_ip,))
-                ports_recs = [dict(r) for r in c_tmp.fetchall()]
-                conn_tmp.close()
+                try:
+                    c_tmp = conn_tmp.cursor()
+                    if scan_id:
+                        c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ? AND scan_id = ?", (target_ip, scan_id))
+                    else:
+                        c_tmp.execute("SELECT port, service, banner FROM ports WHERE ip = ?", (target_ip,))
+                    ports_recs = [dict(r) for r in c_tmp.fetchall()]
+                finally:
+                    conn_tmp.close()
                 deduced = deduce_os_from_services_and_system(ports_recs, target_ip)
                 if deduced.get("os_name") != "Unknown":
                     os_name = deduced["os_name"]

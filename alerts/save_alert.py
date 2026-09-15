@@ -6,12 +6,20 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DB_FILE = os.path.join(BASE_DIR, "cybershield.db")
 
 
+_ALERTS_TABLE_INITIALIZED = False
+
+
 def _ensure_alerts_table_columns():
     """
     Ensures that existing alerts table has all required columns:
     target, alert_type, severity, message, created_at, ip, title, description, recommendation, scan_time
     without creating duplicate tables.
     """
+    global _ALERTS_TABLE_INITIALIZED
+    if _ALERTS_TABLE_INITIALIZED:
+        return
+
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -55,9 +63,15 @@ def _ensure_alerts_table_columns():
                     pass
 
         conn.commit()
-        conn.close()
+        _ALERTS_TABLE_INITIALIZED = True
     except Exception as e:
         print(f"[ALERTS DB INIT ERROR] {e}")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 _ensure_alerts_table_columns()
