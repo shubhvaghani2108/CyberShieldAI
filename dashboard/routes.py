@@ -1044,8 +1044,20 @@ def register_routes(app):
                     "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
                 ).fetchone()
 
+        not_found_message = None
         if not latest_url_scan and not req_scan_id and not target_id:
-            latest_url_scan = get_latest_url_scan(user_id=current_user_id)
+            candidate_url = get_latest_url_scan(user_id=current_user_id)
+            latest_host = get_latest_host_status(user_id=current_user_id)
+            if candidate_url and latest_host:
+                scan_type = _determine_latest_scan_type(latest_host, candidate_url)
+                if scan_type == "url":
+                    latest_url_scan = candidate_url
+                else:
+                    latest_url_scan = None
+                    target_ip = latest_host["target_ip"] if hasattr(latest_host, "__getitem__") and "target_ip" in latest_host.keys() else "IP target"
+                    not_found_message = f"The most recent scan performed was an IP scan ({target_ip}). No URL scan was executed in the latest scan session."
+            else:
+                latest_url_scan = candidate_url
 
         conn.close()
 
@@ -1080,6 +1092,7 @@ def register_routes(app):
             return render_template(
                 "url_result.html",
                 result=None,
+                not_found_message=not_found_message,
                 active_page="url_scan_result",
                 page_title="URL Scan Result",
                 page_subtitle="Full detail for the latest URL scan",
@@ -2696,36 +2709,73 @@ def register_routes(app):
 
     @app.route("/download-report-json")
     def download_report_json():
-        latest_url_scan = get_latest_url_scan()
-        if not latest_url_scan:
-            return jsonify({"error": "No scan data found"}), 404
-        latest_dict = dict(latest_url_scan) if hasattr(latest_url_scan, "keys") else latest_url_scan
-        ip = latest_dict.get("ip") or "Unknown"
-        conn = get_db_connection()
-        res = conn.execute("SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
-        ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
-        vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
-        cves = conn.execute("SELECT * FROM cves WHERE ip=? ORDER BY port", (ip,)).fetchall()
-        
-        domain_name = res["domain"] if res and "domain" in res.keys() else ip
-        ssl_info = get_latest_ssl(domain_name) if domain_name else None
-        conn.close()
+        requested = request.args.get("type")
+        current_user_id = session.get("user_id")
+        latest_host = get_latest_host_status(user_id=current_user_id)
+        latest_url = get_latest_url_scan(user_id=current_user_id)
 
-        res_dict = dict(res) if res else {}
-        export_data = {
-            "report_title": "CyberShieldAI Vulnerability Assessment Report",
-            "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "target": res_dict.get("url", ip),
-            "ip": ip,
-            "domain": domain_name,
-            "security_score": res_dict.get("score", 0),
-            "risk_level": res_dict.get("risk", "Low"),
-            "protocol": res_dict.get("protocol", "HTTPS"),
-            "ssl_info": ssl_info,
-            "open_ports": [dict(p) for p in ports],
-            "vulnerabilities": [dict(v) for v in vulns],
-            "cves": [dict(c) for c in cves],
-        }
+        if requested == "ip":
+            scan_type = "ip"
+        elif requested == "url":
+            scan_type = "url"
+        else:
+            scan_type = _determine_latest_scan_type(latest_host, latest_url)
+
+        conn = get_db_connection()
+        if scan_type == "ip":
+            if not latest_host:
+                conn.close()
+                return jsonify({"error": "No scan data found"}), 404
+            host_dict = dict(latest_host) if hasattr(latest_host, "keys") else latest_host
+            ip = host_dict.get("target_ip") or "Unknown"
+            ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            cves = conn.execute("SELECT * FROM cves WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            risk_row = conn.execute("SELECT * FROM risk_summary WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
+            conn.close()
+
+            risk_dict = dict(risk_row) if risk_row else {}
+            export_data = {
+                "report_title": "CyberShieldAI Host Vulnerability Assessment Report",
+                "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "target": ip,
+                "ip": ip,
+                "status": host_dict.get("status", "Alive"),
+                "security_score": risk_dict.get("total_score", 0),
+                "risk_level": risk_dict.get("risk_level", "Low"),
+                "open_ports": [dict(p) for p in ports],
+                "vulnerabilities": [dict(v) for v in vulns],
+                "cves": [dict(c) for c in cves],
+            }
+        else:
+            if not latest_url:
+                conn.close()
+                return jsonify({"error": "No scan data found"}), 404
+            latest_dict = dict(latest_url) if hasattr(latest_url, "keys") else latest_url
+            ip = latest_dict.get("ip") or "Unknown"
+            res = conn.execute("SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
+            ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            cves = conn.execute("SELECT * FROM cves WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            domain_name = res["domain"] if res and "domain" in res.keys() else ip
+            ssl_info = get_latest_ssl(domain_name) if domain_name else None
+            conn.close()
+
+            res_dict = dict(res) if res else {}
+            export_data = {
+                "report_title": "CyberShieldAI Vulnerability Assessment Report",
+                "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "target": res_dict.get("url", ip),
+                "ip": ip,
+                "domain": domain_name,
+                "security_score": res_dict.get("score", 0),
+                "risk_level": res_dict.get("risk", "Low"),
+                "protocol": res_dict.get("protocol", "HTTPS"),
+                "ssl_info": ssl_info,
+                "open_ports": [dict(p) for p in ports],
+                "vulnerabilities": [dict(v) for v in vulns],
+                "cves": [dict(c) for c in cves],
+            }
 
         response = app.response_class(
             response=json.dumps(export_data, indent=2),
@@ -2739,27 +2789,55 @@ def register_routes(app):
     def download_report_csv():
         import io
         import csv
-        latest_url_scan = get_latest_url_scan()
-        if not latest_url_scan:
-            return "No scan data found", 404
-        latest_dict = dict(latest_url_scan) if hasattr(latest_url_scan, "keys") else latest_url_scan
-        ip = latest_dict.get("ip") or "Unknown"
-        conn = get_db_connection()
-        res = conn.execute("SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
-        ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
-        vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
-        conn.close()
+        requested = request.args.get("type")
+        current_user_id = session.get("user_id")
+        latest_host = get_latest_host_status(user_id=current_user_id)
+        latest_url = get_latest_url_scan(user_id=current_user_id)
 
+        if requested == "ip":
+            scan_type = "ip"
+        elif requested == "url":
+            scan_type = "url"
+        else:
+            scan_type = _determine_latest_scan_type(latest_host, latest_url)
+
+        conn = get_db_connection()
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["Section", "Item / Port", "Service / Attribute", "Severity / Value", "Details / Description"])
-        
-        if res:
-            res_dict = dict(res)
-            writer.writerow(["Overview", "Target URL", res_dict.get("url", "-"), "-", "-"])
-            writer.writerow(["Overview", "Resolved IP", res_dict.get("ip", "-"), "-", "-"])
-            writer.writerow(["Overview", "Security Score", str(res_dict.get("score", "-")), res_dict.get("risk", "-"), "-"])
-            writer.writerow(["Overview", "Protocol", res_dict.get("protocol", "-"), "-", "-"])
+
+        if scan_type == "ip":
+            if not latest_host:
+                conn.close()
+                return "No scan data found", 404
+            host_dict = dict(latest_host) if hasattr(latest_host, "keys") else latest_host
+            ip = host_dict.get("target_ip") or "Unknown"
+            ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            risk_row = conn.execute("SELECT * FROM risk_summary WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
+            conn.close()
+
+            risk_dict = dict(risk_row) if risk_row else {}
+            writer.writerow(["Overview", "Target IP", ip, "-", "-"])
+            writer.writerow(["Overview", "Host Status", host_dict.get("status", "Alive"), "-", "-"])
+            writer.writerow(["Overview", "Security Score", str(risk_dict.get("total_score", "-")), risk_dict.get("risk_level", "-"), "-"])
+        else:
+            if not latest_url:
+                conn.close()
+                return "No scan data found", 404
+            latest_dict = dict(latest_url) if hasattr(latest_url, "keys") else latest_url
+            ip = latest_dict.get("ip") or "Unknown"
+            res = conn.execute("SELECT * FROM url_scan_results WHERE ip=? ORDER BY id DESC LIMIT 1", (ip,)).fetchone()
+            ports = conn.execute("SELECT * FROM ports WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            vulns = conn.execute("SELECT * FROM vulnerabilities WHERE ip=? ORDER BY port", (ip,)).fetchall()
+            conn.close()
+
+            if res:
+                res_dict = dict(res)
+                writer.writerow(["Overview", "Target URL", res_dict.get("url", "-"), "-", "-"])
+                writer.writerow(["Overview", "Resolved IP", res_dict.get("ip", "-"), "-", "-"])
+                writer.writerow(["Overview", "Security Score", str(res_dict.get("score", "-")), res_dict.get("risk", "-"), "-"])
+                writer.writerow(["Overview", "Protocol", res_dict.get("protocol", "-"), "-", "-"])
 
         for p in ports:
             p_dict = dict(p)

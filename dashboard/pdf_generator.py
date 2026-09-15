@@ -24,6 +24,7 @@ from database.db_helpers import (
     get_latest_host_status,
     get_latest_url_scan,
     get_url_scan_dashboard_context,
+    determine_latest_scan_type,
 )
 
 REPORT_RISK_COLORS = {
@@ -237,35 +238,7 @@ def _fetch_findings_for_ip(ip):
     }
 
 
-def _parse_scan_time(value):
-    try:
-        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-    except (TypeError, ValueError):
-        return None
-
-
-def _determine_latest_scan_type(latest_host, latest_url):
-    """Figures out whether the most recent scan action was an IP scan or a URL scan."""
-    if not latest_host and not latest_url:
-        return None
-    if not latest_url:
-        return "ip"
-    if not latest_host:
-        return "url"
-
-    host_ip = latest_host["target_ip"]
-    url_ip = latest_url["ip"]
-    host_time = _parse_scan_time(latest_host["scan_time"])
-    url_time = _parse_scan_time(latest_url["scan_time"])
-
-    if host_ip and url_ip and host_ip == url_ip and host_time and url_time:
-        gap = (host_time - url_time).total_seconds()
-        if -5 <= gap <= 900:
-            return "url"
-
-    if host_time and url_time:
-        return "ip" if host_time >= url_time else "url"
-    return "ip" if host_time else "url"
+_determine_latest_scan_type = determine_latest_scan_type
 
 
 def _findings_sections(flow, styles, findings, page_width):

@@ -1,8 +1,8 @@
-from dns.rdtypes.ANY import ISDN
 import json
 import os
 import sqlite3
 import sys
+from datetime import datetime
 from collections import Counter
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -834,11 +834,54 @@ def get_latest_url_intelligence(ip=None, url=None, scan_id=None):
     return row
 
 
+def parse_scan_time(value):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
+
+
+def determine_latest_scan_type(latest_host, latest_url):
+    """Figures out whether the most recent scan action was an IP scan or a URL scan."""
+    if not latest_host and not latest_url:
+        return None
+    if not latest_url:
+        return "ip"
+    if not latest_host:
+        return "url"
+
+    host_scan_id = latest_host.get("scan_id") if hasattr(latest_host, "__getitem__") and "scan_id" in latest_host.keys() else None
+    url_scan_id = latest_url.get("scan_id") if hasattr(latest_url, "__getitem__") and "scan_id" in latest_url.keys() else None
+
+    # If both records share the exact same scan_id, it was a URL scan
+    if host_scan_id and url_scan_id and host_scan_id == url_scan_id:
+        return "url"
+
+    host_ip = latest_host["target_ip"] if hasattr(latest_host, "__getitem__") and "target_ip" in latest_host.keys() else None
+    url_ip = latest_url["ip"] if hasattr(latest_url, "__getitem__") and "ip" in latest_url.keys() else None
+    host_time = parse_scan_time(latest_host["scan_time"]) if hasattr(latest_host, "__getitem__") and "scan_time" in latest_host.keys() else None
+    url_time = parse_scan_time(latest_url["scan_time"]) if hasattr(latest_url, "__getitem__") and "scan_time" in latest_url.keys() else None
+
+    if host_ip and url_ip and host_ip == url_ip and host_time and url_time:
+        gap = (host_time - url_time).total_seconds()
+        if -5 <= gap <= 900:
+            return "url"
+
+    if host_time and url_time:
+        return "ip" if host_time >= url_time else "url"
+    return "ip" if host_time else "url"
+
+
 def get_url_scan_dashboard_context(user_id=None):
     """Bundles the latest URL scan together with its SSL, technology and
     WHOIS/GeoIP intelligence so the complete URL scan output can be shown
     directly on the main dashboard."""
+    latest_host = get_latest_host_status(user_id=user_id)
     url_scan = get_latest_url_scan(user_id=user_id)
+
+    if url_scan and latest_host:
+        if determine_latest_scan_type(latest_host, url_scan) == "ip":
+            url_scan = None
 
     if not url_scan:
         return {

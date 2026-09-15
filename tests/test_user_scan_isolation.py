@@ -288,3 +288,57 @@ def test_logout_and_switch_user_complete_isolation(client):
     resp3_url = client.get("/url-scan-result")
     assert b"user-alice-domain.test" in resp3_url.data
     assert b"user-bob-domain.test" not in resp3_url.data
+
+
+def test_ip_scan_does_not_show_stale_url_result(client):
+    conn = get_db_connection()
+    # 1. First Alice runs a URL scan at 09:56:16
+    conn.execute(
+        "INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-old-url-scan", 501, "13.227.65.104", "Alive", "2026-09-15 09:56:16")
+    )
+    conn.execute(
+        "INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-old-url-scan", 501, "13.227.65.104", "Alive", "2026-09-15 09:56:16")
+    )
+    conn.execute(
+        """
+        INSERT INTO url_scan_results (scan_id, user_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("alice-old-url-scan", 501, "https://trello.com/", "trello.com", "13.227.65.104", "https", 90, "Low", "Clean", "2026-09-15 09:56:16")
+    )
+
+    # 2. Later Alice runs ONLY an IP scan on 192.168.1.42 at 10:01:09
+    conn.execute(
+        "INSERT INTO scan_history (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-new-ip-scan", 501, "192.168.1.42", "Alive", "2026-09-15 10:01:09")
+    )
+    conn.execute(
+        "INSERT INTO host_status (scan_id, user_id, target_ip, status, scan_time) VALUES (?, ?, ?, ?, ?)",
+        ("alice-new-ip-scan", 501, "192.168.1.42", "Alive", "2026-09-15 10:01:09")
+    )
+    conn.commit()
+    conn.close()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 501
+        sess["username"] = "alice501"
+        sess["role"] = "OPERATOR"
+
+    # IP scan result page should show 192.168.1.42
+    resp_ip = client.get("/ip-scan-result")
+    assert resp_ip.status_code == 200
+    assert b"192.168.1.42" in resp_ip.data
+
+    # URL scan result page should NOT show trello.com because latest scan was IP only
+    resp_url = client.get("/url-scan-result")
+    assert resp_url.status_code == 200
+    assert b"trello.com" not in resp_url.data
+    assert b"The most recent scan performed was an IP scan" in resp_url.data
+
+    # But if specifically requested by scan_id, it is still accessible from history
+    resp_url_specific = client.get("/url-scan-result?scan_id=alice-old-url-scan")
+    assert resp_url_specific.status_code == 200
+    assert b"trello.com" in resp_url_specific.data
+
