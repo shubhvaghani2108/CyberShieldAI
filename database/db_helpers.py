@@ -27,34 +27,40 @@ def _resolve_db_path():
 DB_PATH = _resolve_db_path()
 
 
-def init_db():
-    conn = get_db_connection()
+def _init_db_tables(conn):
     cursor = conn.cursor()
 
     if is_postgres():
-        from scripts.migrate_sqlite_to_postgresql import TABLE_SCHEMAS, TABLE_INDEXES
-        
-        # 1. Create tables if they don't exist
-        schema_ddl = ";\n".join(list(TABLE_SCHEMAS.values()))
-        cursor.execute(schema_ddl)
-        
-        # 2. Add missing columns to existing tables (auto-migration)
-        tables_with_scan_id = ['alerts', 'cves', 'host_status', 'os_info', 'ports', 'risk_summary', 'scan_history', 'security_headers', 'security_posture', 'service_versions', 'ssl_results', 'technology_detection', 'url_intelligence', 'url_scan_results', 'virustotal_results', 'vulnerabilities']
-        tables_with_user_id = ['alerts', 'host_status', 'password_resets', 'scan_history', 'security_activity_logs', 'security_posture', 'url_scan_results']
-        
-        for t in tables_with_scan_id:
-            cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "scan_id" TEXT;')
+            # Fast-path check: if tables already exist, avoid running 40+ DDL migration queries on startup
+            try:
+                cursor.execute("SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1;")
+                if cursor.fetchone():
+                    return
+            except Exception:
+                pass
+
+            from scripts.migrate_sqlite_to_postgresql import TABLE_SCHEMAS, TABLE_INDEXES
             
-        for t in tables_with_user_id:
-            cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "user_id" INTEGER DEFAULT 1;')
+            # 1. Create tables if they don't exist
+            schema_ddl = ";\n".join(list(TABLE_SCHEMAS.values()))
+            cursor.execute(schema_ddl)
             
-        # 3. Create indexes
-        index_ddl = ";\n".join(TABLE_INDEXES)
-        cursor.execute(index_ddl)
-        
-        conn.commit()
-        conn.close()
-        return
+            # 2. Add missing columns to existing tables (auto-migration)
+            tables_with_scan_id = ['alerts', 'cves', 'host_status', 'os_info', 'ports', 'risk_summary', 'scan_history', 'security_headers', 'security_posture', 'service_versions', 'ssl_results', 'technology_detection', 'url_intelligence', 'url_scan_results', 'virustotal_results', 'vulnerabilities']
+            tables_with_user_id = ['alerts', 'host_status', 'password_resets', 'scan_history', 'security_activity_logs', 'security_posture', 'url_scan_results']
+            
+            for t in tables_with_scan_id:
+                cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "scan_id" TEXT;')
+                
+            for t in tables_with_user_id:
+                cursor.execute(f'ALTER TABLE "{t}" ADD COLUMN IF NOT EXISTS "user_id" INTEGER DEFAULT 1;')
+                
+            # 3. Create indexes
+            index_ddl = ";\n".join(TABLE_INDEXES)
+            cursor.execute(index_ddl)
+            
+            conn.commit()
+            return
 
     # PORTS (SQLite fallback)
     cursor.execute(
@@ -375,9 +381,15 @@ def init_db():
             (3, "defenderr0809", default_pass, "ANALYST", "defenderr0809@gmail.com", "Security Lead Defender", "google"),
             (4, "shubhvaghani21", default_pass, "USER", "shubhvaghani21@gmail.com", "Shubh Vaghani", "google")
         ])
+        conn.commit()
 
-    conn.commit()
-    conn.close()
+
+def init_db():
+    conn = get_db_connection()
+    try:
+        _init_db_tables(conn)
+    finally:
+        conn.close()
 
     try:
         from database.otp_helpers import init_otp_table
@@ -386,6 +398,8 @@ def init_db():
         pass
 
     migrate_db_add_scan_id()
+
+
 def seed_default_url_scan_if_empty(user_id=1):
     """Disabled: Each new user starts with a clean slate without default mock scans."""
     return
@@ -907,21 +921,23 @@ def get_url_scan_dashboard_context(user_id=None, latest_host=None):
     # Harmonize URL scan score with risk_summary if available
     try:
         conn = get_db_connection()
-        risk_row = None
-        if scan_id:
-            risk_row = conn.execute(
-                "SELECT total_score, risk_level FROM risk_summary WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
-                (scan_id,)
-            ).fetchone()
-        if not risk_row and resolved_ip and resolved_ip != "Unknown":
-            risk_row = conn.execute(
-                "SELECT total_score, risk_level FROM risk_summary WHERE ip = ? ORDER BY id DESC LIMIT 1",
-                (resolved_ip,)
-            ).fetchone()
-        if risk_row:
-            url_scan["score"] = risk_row["total_score"]
-            url_scan["risk"] = risk_row["risk_level"]
-        conn.close()
+        try:
+            risk_row = None
+            if scan_id:
+                risk_row = conn.execute(
+                    "SELECT total_score, risk_level FROM risk_summary WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                    (scan_id,)
+                ).fetchone()
+            if not risk_row and resolved_ip and resolved_ip != "Unknown":
+                risk_row = conn.execute(
+                    "SELECT total_score, risk_level FROM risk_summary WHERE ip = ? ORDER BY id DESC LIMIT 1",
+                    (resolved_ip,)
+                ).fetchone()
+            if risk_row:
+                url_scan["score"] = risk_row["total_score"]
+                url_scan["risk"] = risk_row["risk_level"]
+        finally:
+            conn.close()
     except Exception:
         pass
 
@@ -968,123 +984,123 @@ def get_url_scan_dashboard_context(user_id=None, latest_host=None):
 
 def get_dashboard_data(user_id=None):
     conn = get_db_connection()
+    try:
+        latest_ip = get_latest_ip(user_id=user_id)
+        latest_host = get_latest_host_status(user_id=user_id)
 
-    latest_ip = get_latest_ip(user_id=user_id)
-    latest_host = get_latest_host_status(user_id=user_id)
+        ports_count = 0
+        vulns_count = 0
+        cves_count = 0
+        risk_score = 0
+        risk_level = "Low"
 
-    ports_count = 0
-    vulns_count = 0
-    cves_count = 0
-    risk_score = 0
-    risk_level = "Low"
+        host_ip = "-"
+        host_status = "No Scan Yet"
+        host_scan_time = "-"
 
-    host_ip = "-"
-    host_status = "No Scan Yet"
-    host_scan_time = "-"
+        if latest_host:
+            host_ip = latest_host["target_ip"]
+            host_status = latest_host["status"]
+            host_scan_time = latest_host["scan_time"]
 
-    if latest_host:
-        host_ip = latest_host["target_ip"]
-        host_status = latest_host["status"]
-        host_scan_time = latest_host["scan_time"]
+        host_scan_id = latest_host["scan_id"] if latest_host and "scan_id" in latest_host.keys() else None
 
-    host_scan_id = latest_host["scan_id"] if latest_host and "scan_id" in latest_host.keys() else None
+        if host_scan_id:
+            row = conn.execute(
+                """
+                SELECT COUNT(DISTINCT port) AS cnt
+                FROM ports
+                WHERE scan_id = ?
+                """,
+                (host_scan_id,),
+            ).fetchone()
+            ports_count = row["cnt"] if row else 0
 
-    if host_scan_id:
-        row = conn.execute(
-            """
-            SELECT COUNT(DISTINCT port) AS cnt
-            FROM ports
-            WHERE scan_id = ?
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM vulnerabilities
+                WHERE scan_id = ?
+                """,
+                (host_scan_id,),
+            ).fetchone()
+            vulns_count = row["cnt"] if row else 0
+
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM cves
+                WHERE scan_id = ?
+                """,
+                (host_scan_id,),
+            ).fetchone()
+            cves_count = row["cnt"] if row else 0
+
+            row = conn.execute(
+                """
+                SELECT total_score, risk_level
+                FROM risk_summary
+                WHERE scan_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (host_scan_id,),
+            ).fetchone()
+
+            if row:
+                risk_score = row["total_score"]
+                risk_level = row["risk_level"]
+        elif latest_ip:
+            row = conn.execute(
+                """
+                SELECT COUNT(DISTINCT port) AS cnt
+                FROM ports
+                WHERE ip = ?
             """,
-            (host_scan_id,),
-        ).fetchone()
-        ports_count = row["cnt"] if row else 0
+                (latest_ip,),
+            ).fetchone()
+            ports_count = row["cnt"] if row else 0
 
-        row = conn.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM vulnerabilities
-            WHERE scan_id = ?
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM vulnerabilities
+                WHERE id IN (
+                    SELECT MAX(id) FROM vulnerabilities WHERE ip = ? GROUP BY port, risk, service
+                )
             """,
-            (host_scan_id,),
-        ).fetchone()
-        vulns_count = row["cnt"] if row else 0
+                (latest_ip,),
+            ).fetchone()
+            vulns_count = row["cnt"] if row else 0
 
-        row = conn.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM cves
-            WHERE scan_id = ?
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM cves
+                WHERE id IN (
+                    SELECT MAX(id) FROM cves WHERE ip = ? GROUP BY cve_id, port
+                )
             """,
-            (host_scan_id,),
-        ).fetchone()
-        cves_count = row["cnt"] if row else 0
+                (latest_ip,),
+            ).fetchone()
+            cves_count = row["cnt"] if row else 0
 
-        row = conn.execute(
-            """
-            SELECT total_score, risk_level
-            FROM risk_summary
-            WHERE scan_id = ?
-            ORDER BY id DESC
-            LIMIT 1
+            row = conn.execute(
+                """
+                SELECT total_score, risk_level
+                FROM risk_summary
+                WHERE ip = ?
+                ORDER BY id DESC
+                LIMIT 1
             """,
-            (host_scan_id,),
-        ).fetchone()
+                (latest_ip,),
+            ).fetchone()
 
-        if row:
-            risk_score = row["total_score"]
-            risk_level = row["risk_level"]
-    elif latest_ip:
-        row = conn.execute(
-            """
-            SELECT COUNT(DISTINCT port) AS cnt
-            FROM ports
-            WHERE ip = ?
-        """,
-            (latest_ip,),
-        ).fetchone()
-        ports_count = row["cnt"] if row else 0
-
-        row = conn.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM vulnerabilities
-            WHERE id IN (
-                SELECT MAX(id) FROM vulnerabilities WHERE ip = ? GROUP BY port, risk, service
-            )
-        """,
-            (latest_ip,),
-        ).fetchone()
-        vulns_count = row["cnt"] if row else 0
-
-        row = conn.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM cves
-            WHERE id IN (
-                SELECT MAX(id) FROM cves WHERE ip = ? GROUP BY cve_id, port
-            )
-        """,
-            (latest_ip,),
-        ).fetchone()
-        cves_count = row["cnt"] if row else 0
-
-        row = conn.execute(
-            """
-            SELECT total_score, risk_level
-            FROM risk_summary
-            WHERE ip = ?
-            ORDER BY id DESC
-            LIMIT 1
-        """,
-            (latest_ip,),
-        ).fetchone()
-
-        if row:
-            risk_score = row["total_score"]
-            risk_level = row["risk_level"]
-
-    conn.close()
+            if row:
+                risk_score = row["total_score"]
+                risk_level = row["risk_level"]
+    finally:
+        conn.close()
 
     return {
         "ports": ports_count,
@@ -1315,12 +1331,7 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
     return trend
 
 
-def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
-    """Gathers everything about the specified or latest IP/host scan into one dict."""
-    data = {}
-    conn = get_db_connection()
-    latest_ip = target_ip or get_latest_ip(user_id=user_id)
-
+def _fetch_ip_scan_db_data(conn, user_id, target_ip, scan_id, latest_ip):
     # Host
     host = None
     if scan_id:
@@ -1366,7 +1377,12 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
             """
         ).fetchone()
 
-    host_scan_id = scan_id or (host["scan_id"] if host and "scan_id" in host.keys() else None)
+    # Determine effective scan_id for this scan run
+    host_scan_id = (
+        scan_id
+        if scan_id
+        else (host["scan_id"] if host and "scan_id" in host.keys() and host["scan_id"] else None)
+    )
 
     # Ports
     if host_scan_id:
@@ -1568,7 +1584,23 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         ).fetchone()
     else:
         risk = None
-    conn.close()
+
+    return host, ports, services, vulnerabilities, cves, os_info, risk
+
+
+def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
+    """Gathers everything about the specified or latest IP/host scan into one dict."""
+    data = {}
+    latest_ip = target_ip or get_latest_ip(user_id=user_id)
+    conn = get_db_connection()
+    try:
+        host, ports, services, vulnerabilities, cves, os_info, risk = _fetch_ip_scan_db_data(
+            conn, user_id, target_ip, scan_id, latest_ip
+        )
+    finally:
+        conn.close()
+
+    host_scan_id = scan_id or (host["scan_id"] if host and "scan_id" in host.keys() else None)
 
     # Recommendations
     if latest_ip:

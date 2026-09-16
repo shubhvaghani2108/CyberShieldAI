@@ -39,6 +39,7 @@ def add_monitored_target(target, frequency=24):
             (clean_target, freq),
         )
         conn.commit()
+        invalidate_monitoring_analytics_cache()
         return True
     except Exception as e:
         print(f"[ERROR] Failed to add monitored target '{clean_target}': {e}")
@@ -146,6 +147,7 @@ def delete_monitored_target(target_id):
             (target_id,),
         )
         conn.commit()
+        invalidate_monitoring_analytics_cache()
         return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] Failed to delete monitored target #{target_id}: {e}")
@@ -178,6 +180,7 @@ def enable_monitoring(target_id):
             (target_id,),
         )
         conn.commit()
+        invalidate_monitoring_analytics_cache()
         return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] Failed to enable monitoring for #{target_id}: {e}")
@@ -210,6 +213,7 @@ def disable_monitoring(target_id):
             (target_id,),
         )
         conn.commit()
+        invalidate_monitoring_analytics_cache()
         return cur.rowcount > 0
     except Exception as e:
         print(f"[ERROR] Failed to disable monitoring for #{target_id}: {e}")
@@ -242,6 +246,16 @@ def count_monitored_targets():
 
 
 # ==========================================================
+_MONITORING_ANALYTICS_CACHE = {"timestamp": 0, "data": None}
+
+
+def invalidate_monitoring_analytics_cache():
+    global _MONITORING_ANALYTICS_CACHE
+    _MONITORING_ANALYTICS_CACHE["timestamp"] = 0
+    _MONITORING_ANALYTICS_CACHE["data"] = None
+
+
+# ==========================================================
 # Monitoring Dashboard Analytics Helper
 # ==========================================================
 def get_monitoring_analytics():
@@ -252,9 +266,27 @@ def get_monitoring_analytics():
     - Warning Assets
     - Critical Assets
     - Last Monitoring Run
+    Uses batch queries and a 30-second TTL cache to eliminate N+1 DB queries on /monitoring page loads.
     """
+    import time
+    now_ts = time.time()
+    if _MONITORING_ANALYTICS_CACHE["data"] and (now_ts - _MONITORING_ANALYTICS_CACHE["timestamp"] < 30):
+        return dict(_MONITORING_ANALYTICS_CACHE["data"])
+
     targets = get_monitored_targets()
     total_assets = len(targets)
+    if total_assets == 0:
+        result = {
+            "total_monitored_assets": 0,
+            "healthy_assets": 0,
+            "warning_assets": 0,
+            "critical_assets": 0,
+            "last_monitoring_run": "No Runs Yet",
+        }
+        _MONITORING_ANALYTICS_CACHE["timestamp"] = now_ts
+        _MONITORING_ANALYTICS_CACHE["data"] = result
+        return result
+
     healthy_count = 0
     warning_count = 0
     critical_count = 0
@@ -263,28 +295,51 @@ def get_monitoring_analytics():
     conn = None
     try:
         conn = get_db_connection()
+
+        # Batch load recent scan results into memory for fast lookup
+        url_rows = conn.execute(
+            """
+            SELECT ip, domain, url, risk, score, scan_time
+            FROM url_scan_results
+            ORDER BY id DESC
+            LIMIT 100
+            """
+        ).fetchall()
+
+        risk_rows = conn.execute(
+            """
+            SELECT ip, risk_level AS risk, total_score AS score, scan_time
+            FROM risk_summary
+            ORDER BY id DESC
+            LIMIT 100
+            """
+        ).fetchall()
+
+        # Build in-memory lookup maps
+        url_map = {}
+        for r in url_rows:
+            st = r["scan_time"]
+            if st and (not last_run or str(st) > str(last_run)):
+                last_run = st
+            for key in (r["ip"], r["domain"], r["url"]):
+                if key and key not in url_map:
+                    url_map[str(key).strip().lower()] = r
+
+        risk_map = {}
+        for r in risk_rows:
+            st = r["scan_time"]
+            if st and (not last_run or str(st) > str(last_run)):
+                last_run = st
+            if r["ip"] and r["ip"] not in risk_map:
+                risk_map[str(r["ip"]).strip().lower()] = r
+
         for t in targets:
-            target_val = t["target"]
-            like_target = f"%{target_val}%"
+            target_val = str(t["target"]).strip().lower()
+            clean_host = target_val.replace("https://", "").replace("http://", "").split("/")[0]
 
-            row = conn.execute(
-                """
-                SELECT risk, score, scan_time FROM url_scan_results
-                WHERE (ip = ? OR domain = ? OR url = ? OR url LIKE ?)
-                ORDER BY id DESC LIMIT 1
-                """,
-                (target_val, target_val, target_val, like_target),
-            ).fetchone()
-
+            row = url_map.get(target_val) or url_map.get(clean_host)
             if not row:
-                row = conn.execute(
-                    """
-                    SELECT risk_level AS risk, total_score AS score, scan_time FROM risk_summary
-                    WHERE ip = ?
-                    ORDER BY id DESC LIMIT 1
-                    """,
-                    (target_val,),
-                ).fetchone()
+                row = risk_map.get(target_val) or risk_map.get(clean_host)
 
             if row:
                 risk_level = str(row["risk"] or "Low").strip().lower()
@@ -314,13 +369,16 @@ def get_monitoring_analytics():
             if latest_row and latest_row["scan_time"]:
                 last_run = latest_row["scan_time"]
 
-        return {
+        result = {
             "total_monitored_assets": total_assets,
             "healthy_assets": healthy_count,
             "warning_assets": warning_count,
             "critical_assets": critical_count,
             "last_monitoring_run": last_run or "No Runs Yet",
         }
+        _MONITORING_ANALYTICS_CACHE["timestamp"] = now_ts
+        _MONITORING_ANALYTICS_CACHE["data"] = result
+        return result
     except Exception as e:
         print(f"[ERROR] Failed to calculate monitoring analytics: {e}")
         return {

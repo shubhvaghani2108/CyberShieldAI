@@ -144,7 +144,11 @@ def setup_auth_middleware(app):
     @app.before_request
     def require_login_gatekeeper():
         # Fast path: static assets, health, and readiness bypass all checks immediately
-        if request.endpoint in ("health", "readiness", "static") or request.path.startswith("/static/"):
+        if (
+            request.endpoint in ("health", "readiness", "static")
+            or request.path in ("/health", "/readiness")
+            or request.path.startswith("/static/")
+        ):
             return None
 
         # If user is already authenticated, the system clearly has users

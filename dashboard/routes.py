@@ -917,7 +917,7 @@ def register_routes(app):
 
     @app.route("/health", methods=["GET"])
     def health():
-        return jsonify({"status": "healthy", "service": "CyberShieldAI"}), 200
+        return jsonify({"status": "ok", "service": "CyberShieldAI"}), 200
 
     @app.route("/readiness", methods=["GET"])
     def readiness():
@@ -928,6 +928,7 @@ def register_routes(app):
         return redirect(url_for("dashboard"))
 
     @app.route("/")
+    @app.route("/dashboard")
     def dashboard():
         current_user_id = session.get("user_id")
 
@@ -1021,45 +1022,46 @@ def register_routes(app):
 
         conn = get_db_connection()
         latest_url_scan = None
-
-        if req_scan_id:
-            if current_user_id is not None:
-                latest_url_scan = conn.execute(
-                    "SELECT * FROM url_scan_results WHERE scan_id=? AND user_id=? ORDER BY id DESC LIMIT 1",
-                    (req_scan_id, current_user_id),
-                ).fetchone()
-            if not latest_url_scan:
-                latest_url_scan = conn.execute(
-                    "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1",
-                    (req_scan_id,),
-                ).fetchone()
-
-        if not latest_url_scan and target_id:
-            if current_user_id is not None:
-                latest_url_scan = conn.execute(
-                    "SELECT * FROM url_scan_results WHERE id=? AND user_id=?", (target_id, current_user_id)
-                ).fetchone()
-            if not latest_url_scan:
-                latest_url_scan = conn.execute(
-                    "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
-                ).fetchone()
-
         not_found_message = None
-        if not latest_url_scan and not req_scan_id and not target_id:
-            candidate_url = get_latest_url_scan(user_id=current_user_id)
-            latest_host = get_latest_host_status(user_id=current_user_id)
-            if candidate_url and latest_host:
-                scan_type = _determine_latest_scan_type(latest_host, candidate_url)
-                if scan_type == "url":
-                    latest_url_scan = candidate_url
-                else:
-                    latest_url_scan = None
-                    target_ip = latest_host["target_ip"] if hasattr(latest_host, "__getitem__") and "target_ip" in latest_host.keys() else "IP target"
-                    not_found_message = f"The most recent scan performed was an IP scan ({target_ip}). No URL scan was executed in the latest scan session."
-            else:
-                latest_url_scan = candidate_url
 
-        conn.close()
+        try:
+            if req_scan_id:
+                if current_user_id is not None:
+                    latest_url_scan = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE scan_id=? AND user_id=? ORDER BY id DESC LIMIT 1",
+                        (req_scan_id, current_user_id),
+                    ).fetchone()
+                if not latest_url_scan:
+                    latest_url_scan = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE scan_id=? ORDER BY id DESC LIMIT 1",
+                        (req_scan_id,),
+                    ).fetchone()
+
+            if not latest_url_scan and target_id:
+                if current_user_id is not None:
+                    latest_url_scan = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE id=? AND user_id=?", (target_id, current_user_id)
+                    ).fetchone()
+                if not latest_url_scan:
+                    latest_url_scan = conn.execute(
+                        "SELECT * FROM url_scan_results WHERE id=?", (target_id,)
+                    ).fetchone()
+
+            if not latest_url_scan and not req_scan_id and not target_id:
+                candidate_url = get_latest_url_scan(user_id=current_user_id)
+                latest_host = get_latest_host_status(user_id=current_user_id)
+                if candidate_url and latest_host:
+                    scan_type = _determine_latest_scan_type(latest_host, candidate_url)
+                    if scan_type == "url":
+                        latest_url_scan = candidate_url
+                    else:
+                        latest_url_scan = None
+                        target_ip = latest_host["target_ip"] if hasattr(latest_host, "__getitem__") and "target_ip" in latest_host.keys() else "IP target"
+                        not_found_message = f"The most recent scan performed was an IP scan ({target_ip}). No URL scan was executed in the latest scan session."
+                else:
+                    latest_url_scan = candidate_url
+        finally:
+            conn.close()
 
         if not latest_url_scan and req_scan_id:
             return render_template(
@@ -1121,12 +1123,8 @@ def register_routes(app):
             scan_id=latest_url_scan["scan_id"] if "scan_id" in latest_url_scan.keys() else None,
         )
 
-    def _render_url_result(ip="Unknown", url_result_id=None, scan_id=None):
-        logger.info(f"[URL_RESULT_RENDER] Querying record: requested_scan_id={scan_id}, requested_url_result_id={url_result_id}, ip={ip}")
-        conn = get_db_connection()
+    def _fetch_url_scan_dataset(conn, ip, url_result_id, scan_id, current_user_id):
         result = None
-        current_user_id = session.get("user_id")
-
         if scan_id:
             if current_user_id is not None:
                 result = conn.execute(
@@ -1173,12 +1171,6 @@ def register_routes(app):
             result.get("scan_id")
             if result and hasattr(result, "keys") and "scan_id" in result.keys()
             else scan_id
-        )
-
-        logger.info(
-            f"[URL_RESULT_RENDER] Selected scan record: id={result.get('id') if result else None}, "
-            f"url={result.get('url') if result else None}, "
-            f"scan_id={current_scan_id}"
         )
 
         if current_scan_id:
@@ -1339,6 +1331,34 @@ def register_routes(app):
                     (ip,),
                 ).fetchone()
 
+        return result, ip, current_scan_id, ports, services, os_info, raw_vulnerabilities, cves, risk_summary, technology_row
+
+    def _render_url_result(ip="Unknown", url_result_id=None, scan_id=None):
+        logger.info(f"[URL_RESULT_RENDER] Querying record: requested_scan_id={scan_id}, requested_url_result_id={url_result_id}, ip={ip}")
+        current_user_id = session.get("user_id")
+        conn = get_db_connection()
+        try:
+            (
+                result,
+                ip,
+                current_scan_id,
+                ports,
+                services,
+                os_info,
+                raw_vulnerabilities,
+                cves,
+                risk_summary,
+                technology_row,
+            ) = _fetch_url_scan_dataset(conn, ip, url_result_id, scan_id, current_user_id)
+        finally:
+            conn.close()
+
+        logger.info(
+            f"[URL_RESULT_RENDER] Selected scan record: id={result.get('id') if result else None}, "
+            f"url={result.get('url') if result else None}, "
+            f"scan_id={current_scan_id}"
+        )
+
         if os_info:
             os_info = dict(os_info)
 
@@ -1375,8 +1395,6 @@ def register_routes(app):
         recommendations = generate_recommendations(
             ports, services, os_info, vulnerabilities
         )
-
-        conn.close()
 
         remarks = []
         if result and result["remarks"]:
@@ -1425,14 +1443,7 @@ def register_routes(app):
                     except Exception:
                         pass
                 if not dns_loaded:
-                    if target_domain and target_domain not in ("Unknown", "-", "", None):
-                        from scanner.dns_lookup import get_dns_records
-                        try:
-                            raw_url_info["dns"] = get_dns_records(target_domain)
-                        except Exception:
-                            raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
-                    else:
-                        raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
+                    raw_url_info["dns"] = {"A": [ip] if ip and ip != "Unknown" else [], "AAAA": [], "MX": [], "NS": [], "TXT": [], "CNAME": []}
             elif result and result.get("url"):
                 raw_url_info = {}
         except Exception as e:
@@ -1467,23 +1478,8 @@ def register_routes(app):
                 technology_scanned=bool(technology),
                 vulnerability_scanned=bool(vulnerabilities and len(vulnerabilities) > 0)
             )
-            if ai_result and isinstance(ai_result, dict):
-                try:
-                    save_security_posture(
-                        scan_id=current_scan_id,
-                        ip=ip,
-                        url=result["url"] if result and "url" in result.keys() else ip,
-                        security_score=ai_result.get("score"),
-                        security_grade=ai_result.get("grade", "N/A"),
-                        threat_score=result.get("score", 0) if result and "score" in result.keys() else 0,
-                        risk_level=result.get("risk", "Low") if result and "risk" in result.keys() else "Low",
-                        assessment_status=ai_result.get("status", "ASSESSED"),
-                        scan_time=result.get("scan_time") if result and "scan_time" in result.keys() else None
-                    )
-                except Exception as post_err:
-                    print("Security Posture Save Error:", post_err)
         except Exception as e:
-            print("AI Engine Error:", e)
+            logger.error(f"AI Engine Error: {e}")
             ai_result = {}
 
         # =====================================
@@ -1491,62 +1487,63 @@ def register_routes(app):
         # =====================================
         from scanner.scan_snapshot import get_scan_snapshot, get_previous_scan_id
         conn2 = get_db_connection()
-        posture_target = result["domain"] if result and "domain" in result.keys() else ip
+        try:
+            posture_target = result["domain"] if result and "domain" in result.keys() else ip
 
-        previous_scan_id = get_previous_scan_id(posture_target, current_scan_id)
+            previous_scan_id = get_previous_scan_id(posture_target, current_scan_id)
 
-        # Build Empirical Current and Previous Snapshots via scan_id
-        current_scan_dict = get_scan_snapshot(current_scan_id)
-        if not current_scan_dict:
-            current_scan_dict = {
-                "scan_id": current_scan_id,
-                "score": ai_result.get("score"),
-                "status": ai_result.get("status", "ASSESSED"),
-                "grade": ai_result.get("grade", "N/A"),
-                "threat_score": result.get("score", 0) if result else 0,
-                "protocol": result.get("protocol", "HTTPS") if result else "HTTPS",
-                "open_ports": [p["port"] for p in ports] if ports else [],
-                "tls_version": ssl_info.get("tls_version") if ssl_info else None,
-                "ssl_data": ssl_info,
-                "headers": {},
-                "headers_available": False,
-                "waf": None,
-                "waf_available": False,
-                "technologies": [],
-                "technologies_available": False,
-                "cves": [],
-                "scan_time": result.get("scan_time", "Current") if result else "Current"
-            }
+            # Build Empirical Current and Previous Snapshots via scan_id
+            current_scan_dict = get_scan_snapshot(current_scan_id)
+            if not current_scan_dict:
+                current_scan_dict = {
+                    "scan_id": current_scan_id,
+                    "score": ai_result.get("score"),
+                    "status": ai_result.get("status", "ASSESSED"),
+                    "grade": ai_result.get("grade", "N/A"),
+                    "threat_score": result.get("score", 0) if result else 0,
+                    "protocol": result.get("protocol", "HTTPS") if result else "HTTPS",
+                    "open_ports": [p["port"] for p in ports] if ports else [],
+                    "tls_version": ssl_info.get("tls_version") if ssl_info else None,
+                    "ssl_data": ssl_info,
+                    "headers": {},
+                    "headers_available": False,
+                    "waf": None,
+                    "waf_available": False,
+                    "technologies": [],
+                    "technologies_available": False,
+                    "cves": [],
+                    "scan_time": result.get("scan_time", "Current") if result else "Current"
+                }
 
-        previous_scan_dict = get_scan_snapshot(previous_scan_id) if previous_scan_id else {"has_previous": False}
-        if previous_scan_dict and "scan_id" in previous_scan_dict:
-            previous_scan_dict["has_previous"] = True
+            previous_scan_dict = get_scan_snapshot(previous_scan_id) if previous_scan_id else {"has_previous": False}
+            if previous_scan_dict and "scan_id" in previous_scan_dict:
+                previous_scan_dict["has_previous"] = True
 
-        # Fetch Posture History Records for Trend Chart/Table (Grouped by scan_id / id)
-        like_posture_target = f"%{posture_target}%"
-        posture_history_rows = conn2.execute(
-            """
-            SELECT *
-            FROM security_posture
-            WHERE ip = ? OR url = ? OR url LIKE ?
-            ORDER BY id DESC
-            LIMIT 10
-            """,
-            (ip, posture_target, like_posture_target)
-        ).fetchall()
-        
-        history_scans = []
-        for r in posture_history_rows:
-            d = dict(r)
-            d["security_score"] = d.get("security_score")
-            d["security_grade"] = d.get("security_grade")
-            d["score"] = d.get("security_score")
-            d["grade"] = d.get("security_grade")
-            d["risk"] = d.get("risk_level", "Low")
-            d["protocol"] = result.get("protocol", "HTTPS") if result else "HTTPS"
-            history_scans.append(d)
-
-        conn2.close()
+            # Fetch Posture History Records for Trend Chart/Table (Grouped by scan_id / id)
+            like_posture_target = f"%{posture_target}%"
+            posture_history_rows = conn2.execute(
+                """
+                SELECT *
+                FROM security_posture
+                WHERE ip = ? OR url = ? OR url LIKE ?
+                ORDER BY id DESC
+                LIMIT 10
+                """,
+                (ip, posture_target, like_posture_target)
+            ).fetchall()
+            
+            history_scans = []
+            for r in posture_history_rows:
+                d = dict(r)
+                d["security_score"] = d.get("security_score")
+                d["security_grade"] = d.get("security_grade")
+                d["score"] = d.get("security_score")
+                d["grade"] = d.get("security_grade")
+                d["risk"] = d.get("risk_level", "Low")
+                d["protocol"] = result.get("protocol", "HTTPS") if result else "HTTPS"
+                history_scans.append(d)
+        finally:
+            conn2.close()
 
         scan_comparison = compare_url_scans(current_scan_dict, previous_scan_dict)
         scan_timeline = generate_scan_timeline(
@@ -1608,16 +1605,6 @@ def register_routes(app):
             url_info["dns"] = raw_url_info.get("dns", {})
             url_info["waf"] = raw_url_info.get("waf", {})
             url_info["security_headers"] = raw_url_info.get("security_headers", {})
-
-        print("[URL RESULT DEBUG]")
-        print("result =", result)
-        print("url_info =", url_info)
-        print("current_scan_id =", current_scan_id)
-        print("technology =", technology)
-        print("ports =", ports)
-        print("services =", services)
-        print("vulnerabilities =", vulnerabilities)
-        print("cves =", cves)
 
         return render_template(
             "url_result.html",
@@ -2245,37 +2232,65 @@ def register_routes(app):
     def history():
         conn = get_db_connection()
         current_user_id = session.get("user_id")
+        try:
+            page = max(1, request.args.get("page", 1, type=int))
+        except Exception:
+            page = 1
+        per_page = 20
+        offset = (page - 1) * per_page
+        total_count = 0
+        rows = []
+
         if current_user_id is not None:
-            rows = conn.execute(
-                """
-                SELECT id, target_ip, status, scan_time
-                FROM scan_history
-                WHERE user_id = ?
-                ORDER BY id DESC
-                LIMIT 150
-                """,
-                (current_user_id,),
-            ).fetchall()
-            if not rows:
-                rows = conn.execute(
-                    """
-                    SELECT id, target_ip, status, scan_time
-                    FROM host_status
-                    WHERE user_id = ?
-                    ORDER BY id DESC
-                    LIMIT 150
-                    """,
-                    (current_user_id,),
-                ).fetchall()
+            try:
+                count_row = conn.execute(
+                    "SELECT COUNT(*) AS cnt FROM scan_history WHERE user_id = ?",
+                    (current_user_id,)
+                ).fetchone()
+                total_count = (count_row["cnt"] if count_row else 0) or 0
+                if total_count == 0:
+                    count_row2 = conn.execute(
+                        "SELECT COUNT(*) AS cnt FROM host_status WHERE user_id = ?",
+                        (current_user_id,)
+                    ).fetchone()
+                    total_count = (count_row2["cnt"] if count_row2 else 0) or 0
+                    rows = conn.execute(
+                        """
+                        SELECT id, target_ip, status, scan_time
+                        FROM host_status
+                        WHERE user_id = ?
+                        ORDER BY id DESC
+                        LIMIT ? OFFSET ?
+                        """,
+                        (current_user_id, per_page, offset),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT id, target_ip, status, scan_time
+                        FROM scan_history
+                        WHERE user_id = ?
+                        ORDER BY id DESC
+                        LIMIT ? OFFSET ?
+                        """,
+                        (current_user_id, per_page, offset),
+                    ).fetchall()
+            finally:
+                conn.close()
         else:
-            rows = []
-        conn.close()
+            conn.close()
+
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
         return render_template(
             "history.html",
             active_page="history",
             page_title="IP Scan History",
             page_subtitle="Every host scan that has been run",
             rows=rows,
+            page=page,
+            total_pages=total_pages,
+            total_count=total_count,
+            per_page=per_page,
         )
 
     @app.route("/history/delete/<int:item_id>", methods=["POST", "GET"])
@@ -2304,26 +2319,48 @@ def register_routes(app):
     def url_history():
         conn = get_db_connection()
         current_user_id = session.get("user_id")
+        try:
+            page = max(1, request.args.get("page", 1, type=int))
+        except Exception:
+            page = 1
+        per_page = 20
+        offset = (page - 1) * per_page
+        total_count = 0
+        rows = []
+
         if current_user_id is not None:
-            rows = conn.execute(
-                """
-                SELECT id, url, domain, ip, protocol, score, risk, scan_time
-                FROM url_scan_results
-                WHERE user_id = ?
-                ORDER BY id DESC
-                LIMIT 150
-                """,
-                (current_user_id,),
-            ).fetchall()
+            try:
+                count_row = conn.execute(
+                    "SELECT COUNT(*) AS cnt FROM url_scan_results WHERE user_id = ?",
+                    (current_user_id,)
+                ).fetchone()
+                total_count = (count_row["cnt"] if count_row else 0) or 0
+                rows = conn.execute(
+                    """
+                    SELECT id, url, domain, ip, protocol, score, risk, scan_time, scan_id
+                    FROM url_scan_results
+                    WHERE user_id = ?
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (current_user_id, per_page, offset),
+                ).fetchall()
+            finally:
+                conn.close()
         else:
-            rows = []
-        conn.close()
+            conn.close()
+
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
         return render_template(
             "url_history.html",
             active_page="url_history",
             page_title="URL Scan History",
             page_subtitle="Every URL scan that has been run",
             rows=rows,
+            page=page,
+            total_pages=total_pages,
+            total_count=total_count,
+            per_page=per_page,
         )
 
     @app.route("/url-history/delete/<int:item_id>", methods=["POST", "GET"])
@@ -2347,14 +2384,7 @@ def register_routes(app):
         flash("URL scan history record deleted successfully.", "success")
         return redirect(url_for("url_history"))
 
-    @app.route("/risk-report")
-    def risk_report():
-        req_scan_id = request.args.get("scan_id", "").strip()
-        requested_target = request.args.get("target", "").strip()
-        current_user_id = session.get("user_id")
-
-        conn = get_db_connection()
-
+    def _fetch_risk_report_dataset(conn, req_scan_id, requested_target, current_user_id):
         scan_id = req_scan_id if req_scan_id else None
         target_ip = requested_target
         if scan_id and not target_ip:
@@ -2383,7 +2413,8 @@ def register_routes(app):
                     """,
                     (current_user_id,),
                 ).fetchall()
-            else:
+                available_targets = [r["target_ip"] for r in target_rows if r["target_ip"]]
+            if not available_targets:
                 target_rows = conn.execute(
                     """
                     SELECT target_ip 
@@ -2394,65 +2425,36 @@ def register_routes(app):
                     LIMIT 20
                     """
                 ).fetchall()
-            for tr in target_rows:
-                ip_val = tr[0]
-                available_targets.append({"ip": ip_val, "risk_level": "Medium"})
+                available_targets = [r["target_ip"] for r in target_rows if r["target_ip"]]
         except Exception:
-            available_targets = [{"ip": target_ip, "risk_level": "Low"}] if target_ip else []
+            available_targets = []
 
         # 2. Host Metadata
         host_meta = {}
         if scan_id:
-            h_row = conn.execute(
+            h = conn.execute(
                 "SELECT * FROM host_status WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
                 (scan_id,),
             ).fetchone()
-            if h_row:
-                host_meta = dict(h_row)
-            os_row = conn.execute(
-                "SELECT * FROM os_info WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
-                (scan_id,),
-            ).fetchone()
-            if os_row:
-                host_meta["os_name"] = os_row["os_name"] or host_meta.get("os_name", "Linux / Generic")
-                host_meta["device_type"] = os_row["device_type"] or host_meta.get("device_type", "Unknown")
-                host_meta["os_accuracy"] = os_row["os_details"] or "95%"
+            if h:
+                host_meta = dict(h)
         elif target_ip:
-            h_row = conn.execute(
+            h = conn.execute(
                 "SELECT * FROM host_status WHERE target_ip = ? ORDER BY id DESC LIMIT 1",
                 (target_ip,),
             ).fetchone()
-            if h_row:
-                host_meta = dict(h_row)
-            os_row = conn.execute(
-                "SELECT * FROM os_info WHERE ip = ? ORDER BY id DESC LIMIT 1",
-                (target_ip,),
-            ).fetchone()
-            if os_row:
-                host_meta["os_name"] = os_row["os_name"] or host_meta.get("os_name", "Linux / Generic")
-                host_meta["device_type"] = os_row["device_type"] or host_meta.get("device_type", "Unknown")
-                host_meta["os_accuracy"] = os_row["os_details"] or "95%"
+            if h:
+                host_meta = dict(h)
 
-        # 3. Posture / Score
-        posture = {"security_score": 75, "security_grade": "B", "risk_level": "Medium"}
+        # 3. Security Posture Record
+        posture = {}
         if scan_id:
             p_row = conn.execute(
-                "SELECT * FROM security_posture WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
+                "SELECT * FROM security_posture WHERE scan_id = ? LIMIT 1",
                 (scan_id,),
             ).fetchone()
             if p_row:
                 posture = dict(p_row)
-            else:
-                r_latest = conn.execute(
-                    "SELECT * FROM risk_summary WHERE scan_id = ? ORDER BY id DESC LIMIT 1",
-                    (scan_id,),
-                ).fetchone()
-                if r_latest:
-                    tot = r_latest["total_score"] or 0
-                    calc_score = max(20, min(100, 100 - (tot * 3)))
-                    posture["security_score"] = calc_score
-                    posture["security_grade"] = "A" if calc_score >= 80 else ("B" if calc_score >= 60 else "C")
-                    posture["risk_level"] = r_latest["risk_level"] or "Medium"
         elif target_ip:
             p_row = conn.execute(
                 "SELECT * FROM security_posture WHERE ip = ? ORDER BY id DESC LIMIT 1",
@@ -2460,7 +2462,14 @@ def register_routes(app):
             ).fetchone()
             if p_row:
                 posture = dict(p_row)
-            else:
+
+        if not posture and (scan_id or target_ip):
+            posture = {
+                "security_score": 85,
+                "security_grade": "B",
+                "risk_level": "Medium",
+            }
+            if target_ip:
                 r_latest = conn.execute(
                     "SELECT * FROM risk_summary WHERE ip = ? ORDER BY id DESC LIMIT 1",
                     (target_ip,),
@@ -2565,19 +2574,53 @@ def register_routes(app):
                 (target_ip,),
             ).fetchall()
 
-        # 7. Actionable Remediation Steps
+        # 7. Actionable Remediation Steps (pre-fetch CVEs in batch to eliminate N+1 queries)
+        cve_map = {}
+        if vuln_rows and target_ip:
+            try:
+                cve_rows_batch = conn.execute(
+                    "SELECT port, cve_id FROM cves WHERE ip = ? ORDER BY id DESC",
+                    (target_ip,)
+                ).fetchall()
+                for cr in cve_rows_batch:
+                    p = cr["port"]
+                    if p not in cve_map and cr["cve_id"]:
+                        cve_map[p] = cr["cve_id"]
+            except Exception:
+                pass
+
+        return scan_id, target_ip, latest_ip, available_targets, host_meta, posture, rows, vuln_rows, port_rows, cve_map
+
+    @app.route("/risk-report")
+    def risk_report():
+        req_scan_id = request.args.get("scan_id", "").strip()
+        requested_target = request.args.get("target", "").strip()
+        current_user_id = session.get("user_id")
+
+        conn = get_db_connection()
+        try:
+            (
+                scan_id,
+                target_ip,
+                latest_ip,
+                available_targets,
+                host_meta,
+                posture,
+                rows,
+                vuln_rows,
+                port_rows,
+                cve_map,
+            ) = _fetch_risk_report_dataset(conn, req_scan_id, requested_target, current_user_id)
+        finally:
+            conn.close()
+
         remediation_items = []
         for v in vuln_rows:
             port_num = v["port"]
             srv_name = v["service"] or f"Port {port_num}"
             risk_val = v["risk"] or "Medium"
 
-            # Match CVE ID if available
-            cve_match = conn.execute(
-                "SELECT cve_id FROM cves WHERE ip = ? AND port = ? ORDER BY id DESC LIMIT 1",
-                (target_ip, port_num),
-            ).fetchone()
-            matched_cve = cve_match["cve_id"] if cve_match and cve_match["cve_id"] else f"CVE-SEC-{port_num}"
+            matched_cve = cve_map.get(port_num) or f"CVE-SEC-{port_num}"
 
             desc_text = v["description"] if ("description" in v.keys() and v["description"]) else f"Potential exposure point on exposed {srv_name} listening service on port {port_num}."
             rem_text = v["remediation"] if ("remediation" in v.keys() and v["remediation"]) else f"Harden {srv_name} daemon configuration, enforce TLS encryption, and restrict public access via firewall security groups."
@@ -2644,7 +2687,6 @@ def register_routes(app):
                 f"or high severity exposures mapped across scanned perimeter interfaces."
             )
 
-        conn.close()
         return render_template(
             "risk_report.html",
             active_page="risk_report",

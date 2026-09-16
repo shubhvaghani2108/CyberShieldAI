@@ -176,7 +176,7 @@ def get_monitoring_alerts(limit=50):
                 COALESCE(alert_type, title, 'Security Alert') AS alert_type,
                 COALESCE(severity, 'Medium') AS severity,
                 COALESCE(message, description, title, '') AS message,
-                COALESCE(created_at, scan_time, datetime('now')) AS created_at
+                COALESCE(CAST(created_at AS TEXT), scan_time, '') AS created_at
             FROM alerts
             ORDER BY id DESC
             LIMIT ?

@@ -6,6 +6,7 @@ services:
     plan: free
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --worker-class gthread --timeout 120 --keep-alive 5 dashboard.app:app"
+    healthCheckPath: /health
     envVars:
       - key: FLASK_ENV
         value: production
