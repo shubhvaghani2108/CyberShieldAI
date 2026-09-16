@@ -932,17 +932,37 @@ def register_routes(app):
     def dashboard():
         current_user_id = session.get("user_id")
 
-        data = get_ip_scan_context(user_id=current_user_id)
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            cached_dash = dashboard_cache.get("dashboard_context", user_id=current_user_id)
+        except Exception:
+            cached_dash = None
 
-        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, latest_host=data.get("host"))
-
-        # ===============================
-        # ALERTS
-        # ===============================
-
-        recent_alerts = get_recent_alerts(user_id=current_user_id)
-
-        alert_stats = get_alert_statistics(user_id=current_user_id)
+        if cached_dash is not None:
+            data = cached_dash.get("data", {})
+            url_ctx = cached_dash.get("url_ctx", {})
+            recent_alerts = cached_dash.get("recent_alerts", [])
+            alert_stats = cached_dash.get("alert_stats", {})
+        else:
+            data = get_ip_scan_context(user_id=current_user_id)
+            url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, latest_host=data.get("host"))
+            recent_alerts = get_recent_alerts(user_id=current_user_id)
+            alert_stats = get_alert_statistics(user_id=current_user_id)
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set(
+                    "dashboard_context",
+                    {
+                        "data": data,
+                        "url_ctx": url_ctx,
+                        "recent_alerts": recent_alerts,
+                        "alert_stats": alert_stats,
+                    },
+                    user_id=current_user_id,
+                    ttl=30,
+                )
+            except Exception:
+                pass
 
         return render_template(
 
@@ -1004,12 +1024,25 @@ def register_routes(app):
 
     @app.route("/ip-scan-result")
     @app.route("/ip-scan-result/<target_ip>")
-
     def ip_scan_result_page(target_ip=None):
         req_ip = target_ip or request.args.get("ip") or request.args.get("target")
         req_scan_id = request.args.get("scan_id")
         current_user_id = session.get("user_id")
-        data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
+
+        if not req_ip and not req_scan_id:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_data = dashboard_cache.get("ip_scan_result_page_data", user_id=current_user_id)
+                if cached_data is not None:
+                    data = cached_data
+                else:
+                    data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
+                    dashboard_cache.set("ip_scan_result_page_data", data, user_id=current_user_id, ttl=30)
+            except Exception:
+                data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
+        else:
+            data = get_ip_scan_context(user_id=current_user_id, target_ip=req_ip, scan_id=req_scan_id, include_dashboard_data=False)
+
 
         return render_template(
             "ip_result.html",
@@ -1035,9 +1068,19 @@ def register_routes(app):
         target_id = request.args.get("id", type=int)
         current_user_id = session.get("user_id")
 
+        if not req_scan_id and not target_id:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("url_scan_page_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
         conn = get_db_connection()
         latest_url_scan = None
         not_found_message = None
+
 
         try:
             if req_scan_id:
@@ -1106,7 +1149,7 @@ def register_routes(app):
             ), 404
 
         if not latest_url_scan:
-            return render_template(
+            rendered = render_template(
                 "url_result.html",
                 result=None,
                 not_found_message=not_found_message,
@@ -1131,12 +1174,26 @@ def register_routes(app):
                 virustotal=None,
                 cves=[],
             )
+            if not req_scan_id and not target_id:
+                try:
+                    from dashboard.dashboard_cache import dashboard_cache
+                    dashboard_cache.set("url_scan_page_html", rendered, user_id=current_user_id, ttl=30)
+                except Exception:
+                    pass
+            return rendered
 
-        return _render_url_result(
+        rendered = _render_url_result(
             ip=latest_url_scan["ip"] or "Unknown",
             url_result_id=latest_url_scan["id"],
             scan_id=latest_url_scan["scan_id"] if "scan_id" in latest_url_scan.keys() else None,
         )
+        if not req_scan_id and not target_id:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("url_scan_page_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
     def _fetch_url_scan_dataset(conn, ip, url_result_id, scan_id, current_user_id):
         result = None
@@ -1659,6 +1716,16 @@ def register_routes(app):
             virustotal=virustotal,
             cves=cves,
         )
+
+        if not scan_id and not url_result_id:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("url_scan_page_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+
+        return rendered
+
 
 
 
@@ -2245,12 +2312,22 @@ def register_routes(app):
 
     @app.route("/history")
     def history():
-        conn = get_db_connection()
         current_user_id = session.get("user_id")
         try:
             page = max(1, request.args.get("page", 1, type=int))
         except Exception:
             page = 1
+
+        if page == 1:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("history_page_1_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
+        conn = get_db_connection()
         per_page = 20
         offset = (page - 1) * per_page
         total_count = 0
@@ -2296,7 +2373,7 @@ def register_routes(app):
             conn.close()
 
         total_pages = max(1, (total_count + per_page - 1) // per_page)
-        return render_template(
+        rendered = render_template(
             "history.html",
             active_page="history",
             page_title="IP Scan History",
@@ -2307,6 +2384,13 @@ def register_routes(app):
             total_count=total_count,
             per_page=per_page,
         )
+        if page == 1:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("history_page_1_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
     @app.route("/history/delete/<int:item_id>", methods=["POST", "GET"])
     def delete_ip_history_item(item_id):
@@ -2320,6 +2404,11 @@ def register_routes(app):
             conn.execute("DELETE FROM scan_history WHERE id = ? AND user_id = ?", (item_id, current_user_id))
             conn.execute("DELETE FROM host_status WHERE id = ? AND user_id = ?", (item_id, current_user_id))
             conn.commit()
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.invalidate(user_id=current_user_id)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error deleting IP scan history record #{item_id}: {e}")
         finally:
@@ -2916,6 +3005,15 @@ def register_routes(app):
     # ==========================================================
     @app.route("/monitoring")
     def monitoring_page():
+        current_user_id = session.get("user_id")
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            cached_html = dashboard_cache.get("monitoring_page_html", user_id=current_user_id)
+            if cached_html is not None:
+                return cached_html
+        except Exception:
+            pass
+
         from scheduler.monitor import get_monitoring_logs, get_monitored_targets_with_schedule
         from database.monitoring_helpers import get_monitoring_analytics
         from alerts.alert_engine import get_monitoring_alerts
@@ -2923,7 +3021,7 @@ def register_routes(app):
         logs = get_monitoring_logs(limit=20)
         analytics = get_monitoring_analytics()
         alerts = get_monitoring_alerts(limit=20)
-        return render_template(
+        rendered = render_template(
             "monitoring.html",
             active_page="monitoring",
             page_title="Target Monitoring",
@@ -2933,10 +3031,21 @@ def register_routes(app):
             analytics=analytics,
             alerts=alerts,
         )
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.set("monitoring_page_html", rendered, user_id=current_user_id, ttl=30)
+        except Exception:
+            pass
+        return rendered
 
     @app.route("/monitoring/run-cycle", methods=["POST"])
     def monitoring_run_cycle_route():
         from scheduler.monitor import run_monitoring_cycle
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.invalidate()
+        except Exception:
+            pass
         results = run_monitoring_cycle()
         count = len(results)
         flash(f"Monitoring cycle executed. Processed {count} active target{'s' if count != 1 else ''}.", "success")
@@ -2946,6 +3055,11 @@ def register_routes(app):
     def monitoring_add():
         from database.monitoring_helpers import add_monitored_target, is_target_exists, get_monitored_targets
         from scheduler.monitor import sync_target_jobs
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.invalidate()
+        except Exception:
+            pass
         raw_target = request.form.get("target") or (request.json.get("target") if request.is_json else "")
         target = str(raw_target or "").strip()
         frequency = request.form.get("frequency") or (request.json.get("frequency") if request.is_json else 24)
@@ -2997,6 +3111,11 @@ def register_routes(app):
     @app.route("/monitoring/enable/<int:target_id>", methods=["POST", "GET"])
     def monitoring_enable_route(target_id):
         from scheduler.monitor import sync_target_jobs
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.invalidate()
+        except Exception:
+            pass
         enable_monitoring(target_id)
         sync_target_jobs()
         if request.is_json:
@@ -3007,6 +3126,11 @@ def register_routes(app):
     @app.route("/monitoring/disable/<int:target_id>", methods=["POST", "GET"])
     def monitoring_disable_route(target_id):
         from scheduler.monitor import sync_target_jobs
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.invalidate()
+        except Exception:
+            pass
         disable_monitoring(target_id)
         sync_target_jobs()
         if request.is_json:
@@ -3017,6 +3141,11 @@ def register_routes(app):
     @app.route("/monitoring/delete/<int:target_id>", methods=["POST", "GET"])
     def monitoring_delete_route(target_id):
         from scheduler.monitor import sync_target_jobs
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            dashboard_cache.invalidate()
+        except Exception:
+            pass
         delete_monitored_target(target_id)
         sync_target_jobs()
         if request.is_json:

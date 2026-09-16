@@ -419,12 +419,11 @@ def migrate_db_add_scan_id():
 
     conn = None
     try:
-        if is_postgres():
-            _SCAN_ID_MIGRATION_DONE = True
-            return
-
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        is_pg = is_postgres()
+        add_col_prefix = "ADD COLUMN IF NOT EXISTS " if is_pg else "ADD COLUMN "
 
         tables = [
             "url_scan_results",
@@ -450,14 +449,15 @@ def migrate_db_add_scan_id():
                 cursor.execute(f"PRAGMA table_info({table})")
                 columns = [row[1] for row in cursor.fetchall()]
                 if columns and "scan_id" not in columns:
-                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN scan_id TEXT")
+                    cursor.execute(f"ALTER TABLE {table} {add_col_prefix}scan_id TEXT")
                 if table in ("url_scan_results", "security_posture", "scan_history", "host_status", "alerts") and "user_id" not in columns:
-                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN user_id INTEGER DEFAULT 1")
+                    cursor.execute(f"ALTER TABLE {table} {add_col_prefix}user_id INTEGER DEFAULT 1")
             except Exception:
                 pass
 
         indexes = [
             ("idx_posture_scan_id", "security_posture", "scan_id"),
+            ("idx_posture_user_id", "security_posture", "user_id, id DESC"),
             ("idx_ports_scan_id", "ports", "scan_id"),
             ("idx_ports_ip_scan", "ports", "ip, scan_id"),
             ("idx_vulns_scan_id", "vulnerabilities", "scan_id"),
@@ -483,6 +483,9 @@ def migrate_db_add_scan_id():
             ("idx_vulns_scan_port", "vulnerabilities", "scan_id, port"),
             ("idx_cves_scan_port", "cves", "scan_id, port"),
             ("idx_services_scan_port", "service_versions", "scan_id, port"),
+            ("idx_services_scan_id", "service_versions", "scan_id"),
+            ("idx_headers_scan_id", "security_headers", "scan_id"),
+            ("idx_headers_url_scan", "security_headers", "url, scan_id"),
             ("idx_host_target_ip", "host_status", "target_ip"),
             ("idx_history_target_ip", "scan_history", "target_ip"),
         ]
@@ -524,6 +527,7 @@ def migrate_db_add_scan_id():
                 conn.close()
             except Exception:
                 pass
+
 
 
 
@@ -1228,8 +1232,8 @@ def get_recent_activity(limit=8, latest_ip=None, user_id=None):
             })
     except Exception:
         pass
-
-    conn.close()
+    finally:
+        conn.close()
 
     # Sort descending by scan_time
     activities.sort(key=lambda x: str(x.get("scan_time") or ""), reverse=True)
@@ -1328,8 +1332,8 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
             })
     except Exception:
         pass
-
-    conn.close()
+    finally:
+        conn.close()
 
     # Sort all entries by scan_time ascending
     combined.sort(key=lambda x: x["scan_time"] if x["scan_time"] else "")
@@ -1607,6 +1611,15 @@ def _fetch_ip_scan_db_data(conn, user_id, target_ip, scan_id, latest_ip):
 
 def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
     """Gathers everything about the specified or latest IP/host scan into one dict."""
+    if target_ip is None and scan_id is None and include_dashboard_data:
+        try:
+            from dashboard.dashboard_cache import dashboard_cache
+            cached = dashboard_cache.get("ip_scan_dashboard_ctx", user_id=user_id)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass
+
     data = {}
     latest_ip = target_ip or get_latest_ip(user_id=user_id)
     conn = get_db_connection()
@@ -1616,6 +1629,7 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         )
     finally:
         conn.close()
+
 
     host_scan_id = scan_id or (host["scan_id"] if host and "scan_id" in host.keys() else None)
 
@@ -1702,6 +1716,13 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         data["assets"] = assets
         data["recent_activity"] = recent_activity
         data["chart_data"] = chart_data
+
+        if target_ip is None and scan_id is None:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("ip_scan_dashboard_ctx", data, user_id=user_id, ttl=30)
+            except Exception:
+                pass
     else:
         data["stats"] = {}
         data["assets"] = []
@@ -1709,3 +1730,4 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
         data["chart_data"] = {}
 
     return data
+

@@ -182,10 +182,6 @@ def translate_sql_for_postgres(sql):
     if not s:
         return "", False
 
-    # Handle PRAGMA journal_mode
-    if re.match(r"^PRAGMA\s+journal_mode", s, re.IGNORECASE):
-        return "SELECT 1", False
-
     # Handle PRAGMA table_info
     pragma_match = re.match(r"^PRAGMA\s+table_info\s*\(\s*['\"]?(\w+)['\"]?\s*\)", s, re.IGNORECASE)
     if pragma_match:
@@ -202,6 +198,14 @@ def translate_sql_for_postgres(sql):
             WHERE table_schema = 'public' AND LOWER(table_name) = '{tbl}'
             ORDER BY ordinal_position
         """, False
+
+    # Handle any other PRAGMA statement (journal_mode, foreign_keys, synchronous, etc.)
+    if re.match(r"^PRAGMA\s+", s, re.IGNORECASE):
+        return "SELECT 1", False
+
+    # Handle sqlite_sequence table
+    if "sqlite_sequence" in s.lower():
+        return "SELECT 1", False
 
     # Handle sqlite_master
     if "sqlite_master" in s.lower():
