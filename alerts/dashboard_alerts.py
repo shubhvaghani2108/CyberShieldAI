@@ -58,39 +58,49 @@ def get_recent_alerts(limit=10, user_id=None):
     return rows
 
 
+import time
+
+_ALERT_STATS_CACHE = {}
+_ALERT_STATS_CACHE_TTL = 15  # seconds
+
 def get_alert_statistics(user_id=None):
+    now = time.time()
+    cache_key = f"alert_stats_{user_id}"
+    cached = _ALERT_STATS_CACHE.get(cache_key)
+    if cached and (now - cached["time"] < _ALERT_STATS_CACHE_TTL):
+        return dict(cached["data"])
+
     conn = get_db_connection()
     _ensure_user_id_col(conn)
-    stats = {}
-    for severity in ["Critical", "High", "Medium", "Low"]:
-        try:
-            if user_id is not None:
-                row = conn.execute(
-                    """
-                    SELECT COUNT(*) AS total
-                    FROM alerts
-                    WHERE severity=? AND (user_id = ? OR user_id IS NULL)
-                    """,
-                    (severity, user_id),
-                ).fetchone()
-            else:
-                row = conn.execute(
-                    """
-                    SELECT COUNT(*) AS total
-                    FROM alerts
-                    WHERE severity=?
-                    """,
-                    (severity,),
-                ).fetchone()
-        except Exception:
-            row = conn.execute(
+    stats = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    try:
+        if user_id is not None:
+            rows = conn.execute(
                 """
-                SELECT COUNT(*) AS total
+                SELECT severity, COUNT(*) AS total
                 FROM alerts
-                WHERE severity=?
+                WHERE user_id = ? OR user_id IS NULL
+                GROUP BY severity
                 """,
-                (severity,),
-            ).fetchone()
-        stats[severity] = row["total"] if row else 0
-    conn.close()
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT severity, COUNT(*) AS total
+                FROM alerts
+                GROUP BY severity
+                """
+            ).fetchall()
+
+        for r in rows:
+            sev = (r["severity"] or "").capitalize()
+            if sev in stats:
+                stats[sev] = r["total"] or 0
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+    _ALERT_STATS_CACHE[cache_key] = {"time": now, "data": dict(stats)}
     return stats

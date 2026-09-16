@@ -460,6 +460,12 @@ def migrate_db_add_scan_id():
             ("idx_tech_url_scan", "technology_detection", "url, scan_id"),
             ("idx_url_intel_url_scan", "url_intelligence", "url, scan_id"),
             ("idx_vt_url_scan", "virustotal_results", "url, scan_id"),
+            ("idx_ports_scan_port", "ports", "scan_id, port"),
+            ("idx_vulns_scan_port", "vulnerabilities", "scan_id, port"),
+            ("idx_cves_scan_port", "cves", "scan_id, port"),
+            ("idx_services_scan_port", "service_versions", "scan_id, port"),
+            ("idx_host_target_ip", "host_status", "target_ip"),
+            ("idx_history_target_ip", "scan_history", "target_ip"),
         ]
         for idx_name, tbl, cols in indexes:
             try:
@@ -872,11 +878,12 @@ def determine_latest_scan_type(latest_host, latest_url):
     return "ip" if host_time else "url"
 
 
-def get_url_scan_dashboard_context(user_id=None):
+def get_url_scan_dashboard_context(user_id=None, latest_host=None):
     """Bundles the latest URL scan together with its SSL, technology and
     WHOIS/GeoIP intelligence so the complete URL scan output can be shown
     directly on the main dashboard."""
-    latest_host = get_latest_host_status(user_id=user_id)
+    if latest_host is None:
+        latest_host = get_latest_host_status(user_id=user_id)
     url_scan = get_latest_url_scan(user_id=user_id)
 
     if url_scan and latest_host:
@@ -1196,8 +1203,19 @@ def get_recent_activity(limit=8, latest_ip=None, user_id=None):
     return activities[:limit]
 
 
+import time
+
+_RISK_TREND_CACHE = {}
+_RISK_TREND_CACHE_TTL = 15
+
 def get_risk_trend(limit=8, latest_ip=None, user_id=None):
     """Most recent risk scores from both IP scans and URL scans, oldest -> newest, for the trend chart."""
+    now = time.time()
+    cache_key = f"{user_id}_{latest_ip}_{limit}"
+    cached = _RISK_TREND_CACHE.get(cache_key)
+    if cached and (now - cached["time"] < _RISK_TREND_CACHE_TTL):
+        return list(cached["data"])
+
     conn = get_db_connection()
     combined = []
 
@@ -1293,15 +1311,13 @@ def get_risk_trend(limit=8, latest_ip=None, user_id=None):
             label = str(label).split(" ")[-1]
         trend.append({"label": label, "score": r["score"] if r["score"] is not None else 0})
 
+    _RISK_TREND_CACHE[cache_key] = {"time": now, "data": list(trend)}
     return trend
 
 
 def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dashboard_data=True):
     """Gathers everything about the specified or latest IP/host scan into one dict."""
-    if include_dashboard_data:
-        data = get_dashboard_data(user_id=user_id)
-    else:
-        data = {}
+    data = {}
     conn = get_db_connection()
     latest_ip = target_ip or get_latest_ip(user_id=user_id)
 
@@ -1586,9 +1602,27 @@ def get_ip_scan_context(user_id=None, target_ip=None, scan_id=None, include_dash
     else:
         data["security_score"] = 100
 
+    # Populate compatibility stats fields directly from fetched objects
+    data["ports"] = len(ports)
+    data["vulns"] = len(vulnerabilities)
+    data["cves"] = len(cves)
+    data["risk_score"] = risk["total_score"] if risk else 0
+    data["risk_level"] = risk["risk_level"] if risk else "Low"
+    data["host_ip"] = host["target_ip"] if host else (latest_ip or "-")
+    data["host_status"] = host["status"] if host else "No Scan Yet"
+    data["host_scan_time"] = host["scan_time"] if host else "-"
+
     if include_dashboard_data:
-        # Dashboard Stats
-        stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id)
+        # Dashboard Stats - pass precomputed items to eliminate 7 redundant queries
+        precomputed = {
+            "host": host,
+            "risk": risk,
+            "ports": ports,
+            "services": services,
+            "vulnerabilities": vulnerabilities,
+            "cves": cves,
+        }
+        stats = get_dashboard_stats(latest_ip, scan_id=host_scan_id, user_id=user_id, precomputed=precomputed)
         assets = get_assets(latest_ip=latest_ip, latest_only=True, user_id=user_id)
         recent_activity = get_recent_activity(limit=6, user_id=user_id)
 

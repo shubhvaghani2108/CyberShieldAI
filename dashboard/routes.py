@@ -933,7 +933,7 @@ def register_routes(app):
 
         data = get_ip_scan_context(user_id=current_user_id)
 
-        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id)
+        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, latest_host=data.get("host"))
 
         # ===============================
         # ALERTS

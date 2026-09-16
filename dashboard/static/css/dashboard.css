@@ -59,6 +59,46 @@
   box-sizing: border-box;
 }
 
+/* Instant Navigation Top Progress Indicator */
+#csa-nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent, #22d3ee), #38bdf8, #818cf8);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.7), 0 0 4px rgba(56, 189, 248, 0.4);
+  z-index: 999999;
+  opacity: 0;
+  pointer-events: none;
+  transition: width 0.25s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+}
+
+#csa-nav-progress.animating {
+  opacity: 1;
+}
+
+#csa-nav-progress.done {
+  width: 100% !important;
+  opacity: 0;
+  transition: width 0.15s ease, opacity 0.3s ease 0.1s;
+}
+
+.csa-page-transition-fade {
+  animation: csaFadeIn 0.18s ease-out forwards;
+}
+
+@keyframes csaFadeIn {
+  from {
+    opacity: 0.85;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 html, body {
   margin: 0;
   padding: 0;

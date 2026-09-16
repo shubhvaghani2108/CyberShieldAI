@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initThemeToggle();
   initUtcToLocalTimestamps();
   initResultTabNavigation();
+  initInstantNavigation();
 });
 
 /* ---------------- theme toggle (dark / light / system) ---------------- */
@@ -707,6 +708,212 @@ window.toggleAllAccordions = function() {
     if (btn) btn.textContent = "👁 View All Sections";
   }
 };
+
+/* ---------------- Instant Page Navigation & Hover Prefetching ---------------- */
+function reinitializePageComponents() {
+  initScanModal();
+  initCharts();
+  initUtcToLocalTimestamps();
+  initResultTabNavigation();
+
+  const sidebar = document.getElementById("appSidebar");
+  const backdrop = document.getElementById("sidebarBackdrop");
+  if (sidebar && sidebar.classList.contains("open")) {
+    sidebar.classList.remove("open");
+  }
+  if (backdrop && backdrop.classList.contains("open")) {
+    backdrop.classList.remove("open");
+  }
+}
+
+function initInstantNavigation() {
+  const progressBar = document.getElementById("csa-nav-progress");
+  const prefetchCache = new Map();
+  let activeAbort = null;
+
+  function startProgress() {
+    if (!progressBar) return;
+    progressBar.classList.remove("done");
+    progressBar.classList.add("animating");
+    progressBar.style.width = "25%";
+    setTimeout(() => {
+      if (progressBar && progressBar.classList.contains("animating")) {
+        progressBar.style.width = "72%";
+      }
+    }, 100);
+  }
+
+  function finishProgress() {
+    if (!progressBar) return;
+    progressBar.style.width = "100%";
+    progressBar.classList.remove("animating");
+    progressBar.classList.add("done");
+    setTimeout(() => {
+      if (progressBar) {
+        progressBar.classList.remove("done");
+        progressBar.style.width = "0%";
+      }
+    }, 350);
+  }
+
+  function resetProgress() {
+    if (!progressBar) return;
+    progressBar.classList.remove("animating", "done");
+    progressBar.style.width = "0%";
+  }
+
+  function shouldIntercept(anchor) {
+    if (!anchor || anchor.tagName !== "A") return false;
+    const href = anchor.getAttribute("href");
+    if (!href) return false;
+    if (
+      href.startsWith("#") ||
+      href.startsWith("javascript:") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:") ||
+      anchor.target === "_blank" ||
+      anchor.hasAttribute("download") ||
+      anchor.hasAttribute("data-no-pjax") ||
+      anchor.hasAttribute("data-open-scan-modal") ||
+      anchor.hasAttribute("data-close-scan-modal")
+    ) {
+      return false;
+    }
+
+    try {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin) return false;
+      const p = url.pathname;
+      if (
+        p.startsWith("/download") ||
+        p.startsWith("/auth/") ||
+        p.startsWith("/login") ||
+        p.startsWith("/logout") ||
+        p.startsWith("/setup") ||
+        p.startsWith("/register") ||
+        p.startsWith("/api/") ||
+        p.startsWith("/scan/start") ||
+        p.startsWith("/scanning") ||
+        p.endsWith(".pdf") ||
+        p.endsWith(".json") ||
+        p.endsWith(".csv")
+      ) {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Hover prefetching for near-instant transitions
+  document.addEventListener("mouseover", (e) => {
+    const anchor = e.target.closest("a");
+    if (!shouldIntercept(anchor)) return;
+    const href = anchor.href;
+    if (prefetchCache.has(href)) return;
+
+    fetch(href, { priority: "low", headers: { "X-Requested-With": "CyberShieldAI" } })
+      .then((res) => {
+        if (res.ok && res.headers.get("content-type")?.includes("text/html")) {
+          return res.text();
+        }
+        return null;
+      })
+      .then((html) => {
+        if (html) {
+          prefetchCache.set(href, { html, time: Date.now() });
+          setTimeout(() => prefetchCache.delete(href), 30000);
+        }
+      })
+      .catch(() => {});
+  });
+
+  async function navigate(urlStr, pushHistory = true) {
+    if (activeAbort) {
+      activeAbort.abort();
+    }
+    activeAbort = new AbortController();
+    startProgress();
+
+    try {
+      let html = null;
+      const cached = prefetchCache.get(urlStr);
+      if (cached && Date.now() - cached.time < 30000) {
+        html = cached.html;
+      } else {
+        const res = await fetch(urlStr, {
+          signal: activeAbort.signal,
+          headers: { "X-Requested-With": "CyberShieldAI" }
+        });
+        if (!res.ok || !res.headers.get("content-type")?.includes("text/html")) {
+          window.location.href = urlStr;
+          return;
+        }
+        if (res.redirected && (res.url.includes("/login") || res.url.includes("/setup") || res.url.includes("/scanning"))) {
+          window.location.href = res.url;
+          return;
+        }
+        html = await res.text();
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      const newContainer = doc.querySelector(".container");
+      const curContainer = document.querySelector(".container");
+
+      if (!newContainer || !curContainer) {
+        window.location.href = urlStr;
+        return;
+      }
+
+      document.title = doc.title;
+
+      if (pushHistory) {
+        window.history.pushState({ path: urlStr }, doc.title, urlStr);
+      }
+
+      curContainer.innerHTML = newContainer.innerHTML;
+      curContainer.classList.remove("csa-page-transition-fade");
+      void curContainer.offsetWidth;
+      curContainer.classList.add("csa-page-transition-fade");
+
+      // Sync active sidebar item
+      const newActive = doc.querySelector(".nav-item.active, .sidebar-nav a.active");
+      const curActives = document.querySelectorAll(".nav-item.active, .sidebar-nav a.active");
+      curActives.forEach((el) => el.classList.remove("active"));
+      if (newActive) {
+        const matchingLink = document.querySelector(`.sidebar-nav a[href="${newActive.getAttribute("href")}"]`) ||
+                             document.querySelector(`.nav-item[href="${newActive.getAttribute("href")}"]`);
+        if (matchingLink) matchingLink.classList.add("active");
+      }
+
+      // Re-initialize widgets
+      reinitializePageComponents();
+      finishProgress();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        resetProgress();
+        window.location.href = urlStr;
+      }
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
+    const anchor = e.target.closest("a");
+    if (!shouldIntercept(anchor)) return;
+    e.preventDefault();
+    navigate(anchor.href, true);
+  });
+
+  window.addEventListener("popstate", (e) => {
+    if (window.location.hash) return;
+    navigate(window.location.href, false);
+  });
+}
 
 
 
