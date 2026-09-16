@@ -46,23 +46,26 @@ def _ensure_monitoring_logs_table():
         return
     try:
         conn = get_db_connection()
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS monitoring_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target TEXT NOT NULL,
-                status TEXT NOT NULL,
-                message TEXT,
-                details TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        try:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS monitoring_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    target TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    message TEXT,
+                    details TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
-        )
-        conn.commit()
-        conn.close()
-        _MONITORING_LOGS_INITIALIZED = True
+            conn.commit()
+            _MONITORING_LOGS_INITIALIZED = True
+        finally:
+            conn.close()
     except Exception as e:
         print("[MONITORING] Warning initializing monitoring_logs table:", e)
+
 
 
 
@@ -99,15 +102,17 @@ def _log(target, status, message="", details=None):
         details_str = json.dumps(details) if isinstance(details, (dict, list)) else (str(details) if details else "")
         _ensure_monitoring_logs_table()
         conn = get_db_connection()
-        conn.execute(
-            """
-            INSERT INTO monitoring_logs (target, status, message, details, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (target, status, message, details_str, timestamp),
-        )
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(
+                """
+                INSERT INTO monitoring_logs (target, status, message, details, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (target, status, message, details_str, timestamp),
+            )
+            conn.commit()
+        finally:
+            conn.close()
     except Exception as db_err:
         print(f"[MONITORING LOG DB ERROR] {db_err}")
 
@@ -126,17 +131,19 @@ def get_monitoring_logs(limit=100):
     # Fallback to database
     try:
         conn = get_db_connection()
-        rows = conn.execute(
-            """
-            SELECT target, status, message, details, created_at as timestamp
-            FROM monitoring_logs
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+        try:
+            rows = conn.execute(
+                """
+                SELECT target, status, message, details, created_at as timestamp
+                FROM monitoring_logs
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
     except Exception:
         return []
 
@@ -147,11 +154,14 @@ def clear_monitoring_logs():
         MONITORING_LOGS.clear()
     try:
         conn = get_db_connection()
-        conn.execute("DELETE FROM monitoring_logs")
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute("DELETE FROM monitoring_logs")
+            conn.commit()
+        finally:
+            conn.close()
     except Exception:
         pass
+
 
 
 # ==========================================================
@@ -285,46 +295,49 @@ def scan_monitored_target(target):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         conn = get_db_connection()
-        conn.execute(
-            """
-            INSERT INTO url_scan_results
-            (scan_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                result["url"],
-                result["domain"],
-                result["ip"],
-                result["protocol"],
-                result["score"],
-                result["risk"],
-                remarks_str,
-                now_str,
-            ),
-        )
+        try:
+            conn.execute(
+                """
+                INSERT INTO url_scan_results
+                (scan_id, url, domain, ip, protocol, score, risk, remarks, scan_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id,
+                    result["url"],
+                    result["domain"],
+                    result["ip"],
+                    result["protocol"],
+                    result["score"],
+                    result["risk"],
+                    remarks_str,
+                    now_str,
+                ),
+            )
 
-        technology_json = (
-            json.dumps(technology)
-            if isinstance(technology, (dict, list))
-            else json.dumps({"raw": str(technology)})
-        )
-        conn.execute(
-            """
-            INSERT INTO technology_detection
-            (scan_id, ip, url, technologies, scan_time)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                scan_id,
-                result["ip"],
-                result["url"],
-                technology_json,
-                now_str,
-            ),
-        )
-        conn.commit()
-        conn.close()
+            technology_json = (
+                json.dumps(technology)
+                if isinstance(technology, (dict, list))
+                else json.dumps({"raw": str(technology)})
+            )
+            conn.execute(
+                """
+                INSERT INTO technology_detection
+                (scan_id, ip, url, technologies, scan_time)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id,
+                    result["ip"],
+                    result["url"],
+                    technology_json,
+                    now_str,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
 
         # 6b. Generate security score and save security posture
         threat_score = int(result.get("score", 0))

@@ -417,7 +417,12 @@ def migrate_db_add_scan_id():
     if _SCAN_ID_MIGRATION_DONE:
         return
 
+    conn = None
     try:
+        if is_postgres():
+            _SCAN_ID_MIGRATION_DONE = True
+            return
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -510,10 +515,16 @@ def migrate_db_add_scan_id():
             pass
 
         conn.commit()
-        conn.close()
         _SCAN_ID_MIGRATION_DONE = True
     except Exception as e:
         print(f"[DB] Notice: migrate_db_add_scan_id deferred ({e})")
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 
 
 
@@ -892,10 +903,10 @@ def determine_latest_scan_type(latest_host, latest_url):
     return "ip" if host_time else "url"
 
 
-def get_url_scan_dashboard_context(user_id=None, latest_host=None):
+def get_url_scan_dashboard_context(user_id=None, latest_host=None, include_deep_intel=False):
     """Bundles the latest URL scan together with its SSL, technology and
-    WHOIS/GeoIP intelligence so the complete URL scan output can be shown
-    directly on the main dashboard."""
+    WHOIS/GeoIP intelligence. When include_deep_intel=False (default for initial
+    dashboard paint), expensive deep queries are omitted for fast first paint."""
     if latest_host is None:
         latest_host = get_latest_host_status(user_id=user_id)
     url_scan = get_latest_url_scan(user_id=user_id)
@@ -945,31 +956,36 @@ def get_url_scan_dashboard_context(user_id=None, latest_host=None):
     if url_scan.get("remarks"):
         remarks = [r.strip() for r in str(url_scan["remarks"]).split("|") if r.strip()]
 
-    url_ssl = get_latest_ssl(url_scan["domain"]) if url_scan["domain"] else None
-    url_tech = get_latest_technology(ip=url_scan["ip"], url=url_scan["url"])
-
+    url_ssl = None
+    url_tech = None
     tech_list = []
     tech_server = None
-    if url_tech and url_tech["technologies"]:
-        try:
-            parsed = json.loads(url_tech["technologies"])
-            if isinstance(parsed, dict):
-                tech_list = parsed.get("technologies", []) or []
-                tech_server = parsed.get("server")
-            elif isinstance(parsed, list):
-                tech_list = parsed
-        except (TypeError, ValueError):
-            tech_list = [
-                t.strip() for t in str(url_tech["technologies"]).split(",") if t.strip()
-            ]
-    if not tech_server and url_tech is not None:
-        try:
-            tech_server = url_tech["server"]
-        except (IndexError, KeyError):
-            tech_server = None
+    url_intel = None
 
-    scan_id = url_scan["scan_id"] if "scan_id" in url_scan.keys() else None
-    url_intel = get_latest_url_intelligence(ip=url_scan["ip"], url=url_scan["url"], scan_id=scan_id)
+    if include_deep_intel:
+        url_ssl = get_latest_ssl(url_scan["domain"]) if url_scan.get("domain") else None
+        url_tech = get_latest_technology(ip=url_scan.get("ip"), url=url_scan.get("url"))
+
+        if url_tech and url_tech.get("technologies"):
+            try:
+                parsed = json.loads(url_tech["technologies"])
+                if isinstance(parsed, dict):
+                    tech_list = parsed.get("technologies", []) or []
+                    tech_server = parsed.get("server")
+                elif isinstance(parsed, list):
+                    tech_list = parsed
+            except (TypeError, ValueError):
+                tech_list = [
+                    t.strip() for t in str(url_tech["technologies"]).split(",") if t.strip()
+                ]
+        if not tech_server and url_tech is not None:
+            try:
+                tech_server = url_tech.get("server")
+            except Exception:
+                tech_server = None
+
+        scan_id_val = url_scan.get("scan_id")
+        url_intel = get_latest_url_intelligence(ip=url_scan.get("ip"), url=url_scan.get("url"), scan_id=scan_id_val)
 
     return {
         "url_scan": url_scan,
@@ -980,6 +996,7 @@ def get_url_scan_dashboard_context(user_id=None, latest_host=None):
         "url_tech_list": tech_list,
         "url_intel": url_intel,
     }
+
 
 
 def get_dashboard_data(user_id=None):

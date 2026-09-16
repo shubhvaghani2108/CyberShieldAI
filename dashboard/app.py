@@ -113,7 +113,14 @@ def inject_template_helpers():
         get_user_avatar=get_user_avatar,
     )
 
-# Security Headers Middleware
+import time
+from flask import g, request
+
+@app.before_request
+def start_request_perf_timer():
+    g._req_start_time = time.perf_counter()
+
+# Security Headers & Performance Middleware
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -129,7 +136,14 @@ def set_security_headers(response):
         response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
     elif "Cache-Control" not in response.headers:
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
+
+    start_time = getattr(g, "_req_start_time", None)
+    if start_time is not None and not request.path.startswith("/static/"):
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        print(f"[PERF] route={request.path} status={response.status_code} total={duration_ms:.1f}ms")
+
     return response
+
 
 
 # Safe Error Handlers (No stack traces or internal secrets exposed)

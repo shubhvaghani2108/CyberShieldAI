@@ -988,8 +988,23 @@ def register_routes(app):
 
         )
 
+    @app.route("/api/dashboard/url-context", methods=["GET"])
+    def api_dashboard_url_context():
+        current_user_id = session.get("user_id")
+        if not current_user_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, include_deep_intel=True)
+        safe_ctx = {}
+        for k, v in url_ctx.items():
+            if hasattr(v, "keys"):
+                safe_ctx[k] = dict(v)
+            else:
+                safe_ctx[k] = v
+        return jsonify(safe_ctx), 200
+
     @app.route("/ip-scan-result")
     @app.route("/ip-scan-result/<target_ip>")
+
     def ip_scan_result_page(target_ip=None):
         req_ip = target_ip or request.args.get("ip") or request.args.get("target")
         req_scan_id = request.args.get("scan_id")

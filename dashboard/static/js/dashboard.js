@@ -763,8 +763,8 @@ function initLinkPrefetching() {
     }, 120);
   }
 
-  // Prefetch internal HTML pages on mouseover for near-instant native page loads
-  document.addEventListener("mouseover", (e) => {
+  // Prefetch internal HTML pages on mouseover or focusin for near-instant native page loads
+  const triggerPrefetch = (e) => {
     const anchor = e.target.closest("a");
     if (!anchor || !anchor.href) return;
     const href = anchor.href;
@@ -794,7 +794,11 @@ function initLinkPrefetching() {
       link.as = "document";
       document.head.appendChild(link);
     } catch (_) {}
-  });
+  };
+
+  document.addEventListener("mouseover", triggerPrefetch, { passive: true });
+  document.addEventListener("focusin", triggerPrefetch, { passive: true });
+
 
   // Animate progress bar on navigation click
   document.addEventListener("click", (e) => {
