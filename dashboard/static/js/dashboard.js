@@ -3,46 +3,23 @@
    Sidebar toggle, live clock, particles, scan modal, charts
    ========================================================= */
 
-document.addEventListener("DOMContentLoaded", function () {
-  initSidebarToggle();
-  initClock();
-  initScanModal();
-  initCharts();
-  initThemeToggle();
-  initUtcToLocalTimestamps();
-  initResultTabNavigation();
-  initInstantNavigation();
-});
+/* ---------------- Theme state & switcher ---------------- */
+function getSystemTheme() {
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
 
-/* ---------------- theme toggle (dark / light / system) ---------------- */
-function initThemeToggle() {
-  const root = document.documentElement;
+function getStoredTheme() {
   let stored = localStorage.getItem("csa-theme");
-  
   if (!stored) {
     const match = document.cookie.match(new RegExp("(?:^|; )csa_theme=([^;]*)"));
     if (match) stored = decodeURIComponent(match[1]);
   }
+  return stored || getSystemTheme();
+}
 
-  if (!stored) {
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-      stored = "light";
-    } else {
-      stored = "dark";
-    }
-  }
-
-  if (stored === "light") {
-    root.setAttribute("data-theme", "light");
-  } else {
-    root.setAttribute("data-theme", "dark");
-  }
-
-  const toggle = document.querySelector("[data-theme-toggle]");
-  if (!toggle) return;
-
-  function syncUI() {
-    const isLight = root.getAttribute("data-theme") === "light";
+function syncThemeUI(theme) {
+  const isLight = theme === "light";
+  document.querySelectorAll("[data-theme-toggle]").forEach((toggle) => {
     toggle.setAttribute("aria-pressed", isLight ? "true" : "false");
     const label = toggle.querySelector(".theme-toggle-label");
     if (label) label.textContent = isLight ? "Light" : "Dark";
@@ -53,72 +30,45 @@ function initThemeToggle() {
       sunIcon.style.display = isLight ? "inline-block" : "none";
       moonIcon.style.display = isLight ? "none" : "inline-block";
     }
-  }
-  syncUI();
+  });
+}
 
-  // Listen for real-time OS theme switches if user has not manually overridden theme
-  if (window.matchMedia) {
-    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
-      if (!localStorage.getItem("csa-theme")) {
-        const theme = e.matches ? "light" : "dark";
-        root.setAttribute("data-theme", theme);
-        syncUI();
-        if (typeof updateChartsTheme === "function") {
-          updateChartsTheme();
-        }
-      }
-    });
-  }
-
-  toggle.addEventListener("click", () => {
-    const isLight = root.getAttribute("data-theme") === "light";
-    const nextTheme = isLight ? "dark" : "light";
-    
-    root.setAttribute("data-theme", nextTheme);
-    localStorage.setItem("csa-theme", nextTheme);
-    document.cookie = "csa_theme=" + nextTheme + "; path=/; max-age=31536000; SameSite=Lax";
-    
-    syncUI();
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.setAttribute("data-theme", theme);
+  syncThemeUI(theme);
+  try {
     if (typeof updateChartsTheme === "function") {
       updateChartsTheme();
     }
-  });
+  } catch (_) {}
 }
 
-/* ---------------- particles ---------------- */
-/* ---------------- sidebar (slide panel) ---------------- */
-function initSidebarToggle() {
-  const toggle = document.querySelector(".sidebar-toggle");
-  const sidebar = document.querySelector(".sidebar");
-  const backdrop = document.getElementById("sidebarBackdrop");
-  const closeBtn = document.querySelector("[data-close-sidebar]");
-  if (!toggle || !sidebar) return;
-
-  function openSidebar() {
-    sidebar.classList.add("open");
-    if (backdrop) backdrop.classList.add("open");
-    toggle.setAttribute("aria-expanded", "true");
-  }
-  function closeSidebar() {
-    sidebar.classList.remove("open");
-    if (backdrop) backdrop.classList.remove("open");
-    toggle.setAttribute("aria-expanded", "false");
-  }
-
-  toggle.addEventListener("click", () => {
-    sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
-  });
-  if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
-  if (backdrop) backdrop.addEventListener("click", closeSidebar);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && sidebar.classList.contains("open")) closeSidebar();
-  });
-  // Close automatically once a nav link is used, so the panel doesn't
-  // stay open over the newly-loaded page.
-  sidebar.querySelectorAll(".sidebar-nav a").forEach((link) => {
-    link.addEventListener("click", closeSidebar);
-  });
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem("csa-theme", next);
+  document.cookie = "csa_theme=" + next + "; path=/; max-age=31536000; SameSite=Lax";
+  applyTheme(next);
 }
+
+function initTheme() {
+  const theme = getStoredTheme();
+  applyTheme(theme);
+
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+      if (!localStorage.getItem("csa-theme")) {
+        applyTheme(e.matches ? "light" : "dark");
+      }
+    });
+  }
+}
+
+// Global window helpers so external or inline buttons can invoke them safely
+window.csaToggleTheme = toggleTheme;
+window.csaApplyTheme = applyTheme;
 
 /* ---------------- live clock ---------------- */
 function initClock() {
@@ -137,73 +87,160 @@ function initClock() {
   setInterval(tick, 1000);
 }
 
-/* ---------------- new scan modal ---------------- */
-function initScanModal() {
+/* ---------------- new scan modal programmatic helper ---------------- */
+window.openScanModalWithTab = function (tabName) {
   const overlay = document.getElementById("newScanModal");
-  const openBtns = document.querySelectorAll("[data-open-scan-modal]");
-  const closeBtns = document.querySelectorAll("[data-close-scan-modal]");
   if (!overlay) return;
+  overlay.classList.add("open");
+  const targetTab = document.querySelector(`[data-scan-tab="${tabName}"]`);
+  if (targetTab) {
+    targetTab.click();
+  }
+};
 
-  openBtns.forEach((btn) =>
-    btn.addEventListener("click", () => overlay.classList.add("open"))
-  );
-  closeBtns.forEach((btn) =>
-    btn.addEventListener("click", () => overlay.classList.remove("open"))
-  );
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.classList.remove("open");
-  });
+/* ---------------- Global Delegated Event Listeners (Always active, never unbound) ---------------- */
+document.addEventListener("click", function (e) {
+  // 1. Sidebar toggle button (Mobile & Tablet)
+  const sidebarToggle = e.target.closest(".sidebar-toggle");
+  if (sidebarToggle) {
+    e.preventDefault();
+    e.stopPropagation();
+    const sidebar = document.querySelector(".sidebar") || document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar) {
+      const willOpen = !sidebar.classList.contains("open");
+      sidebar.classList.toggle("open", willOpen);
+      if (backdrop) backdrop.classList.toggle("open", willOpen);
+      sidebarToggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    }
+    return;
+  }
 
-  // Disable + relabel the submit button on whichever form is submitted,
-  // so a double-click can't fire two scan jobs.
-  document.querySelectorAll(".scan-form").forEach((form) => {
-    form.addEventListener("submit", () => {
-      const submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) {
+  // 2. Close Sidebar (Close button or Backdrop)
+  const closeSidebarBtn = e.target.closest("[data-close-sidebar], #sidebarBackdrop");
+  if (closeSidebarBtn) {
+    e.preventDefault();
+    const sidebar = document.querySelector(".sidebar") || document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar) sidebar.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+    const toggle = document.querySelector(".sidebar-toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  // 3. Close Sidebar when clicking a navigation link
+  const navLink = e.target.closest(".sidebar-nav a");
+  if (navLink) {
+    const sidebar = document.querySelector(".sidebar") || document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar && sidebar.classList.contains("open")) {
+      sidebar.classList.remove("open");
+      if (backdrop) backdrop.classList.remove("open");
+      const toggle = document.querySelector(".sidebar-toggle");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  // 4. Open New Scan Modal
+  const openScanBtn = e.target.closest("[data-open-scan-modal]");
+  if (openScanBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const modal = document.getElementById("newScanModal");
+    if (modal) {
+      modal.classList.add("open");
+      const activeForm = modal.querySelector('.scan-form:not([style*="display: none"])') || modal.querySelector(".scan-form");
+      const input = activeForm ? activeForm.querySelector("input[type=text]") : null;
+      if (input) setTimeout(() => input.focus(), 60);
+    }
+    return;
+  }
+
+  // 5. Close New Scan Modal (Cancel button or close icon)
+  const closeScanBtn = e.target.closest("[data-close-scan-modal]");
+  if (closeScanBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const modal = document.getElementById("newScanModal");
+    if (modal) modal.classList.remove("open");
+    return;
+  }
+
+  // 6. Click on Modal backdrop to dismiss
+  if (e.target && e.target.id === "newScanModal") {
+    e.target.classList.remove("open");
+    return;
+  }
+
+  // 7. Theme Toggle Switch
+  const themeToggle = e.target.closest("[data-theme-toggle]");
+  if (themeToggle) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleTheme();
+    return;
+  }
+
+  // 8. Scan Modal Tabs (IP Scan vs URL Scan)
+  const scanTab = e.target.closest("[data-scan-tab]");
+  if (scanTab) {
+    e.preventDefault();
+    const target = scanTab.getAttribute("data-scan-tab");
+    document.querySelectorAll("[data-scan-tab]").forEach((tab) => {
+      const active = tab === scanTab;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-scan-form]").forEach((form) => {
+      form.style.display = form.getAttribute("data-scan-form") === target ? "" : "none";
+    });
+    const sub = document.getElementById("scanModalSub");
+    if (sub) {
+      if (target === "url") {
+        sub.textContent = "Scan a website URL for web threats, SSL/TLS certificates, DNS records, and vulnerabilities.";
+      } else {
+        sub.textContent = "Scan an IP address for open ports, running services, and network vulnerabilities.";
+      }
+    }
+    const targetForm = document.querySelector(`[data-scan-form="${target}"]`);
+    const input = targetForm ? targetForm.querySelector("input[type=text]") : null;
+    if (input) setTimeout(() => input.focus(), 50);
+    return;
+  }
+});
+
+// Global Escape Key to close modal or sidebar
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("newScanModal");
+    if (modal && modal.classList.contains("open")) {
+      modal.classList.remove("open");
+    }
+    const sidebar = document.querySelector(".sidebar") || document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar && sidebar.classList.contains("open")) {
+      sidebar.classList.remove("open");
+      if (backdrop) backdrop.classList.remove("open");
+      const toggle = document.querySelector(".sidebar-toggle");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    }
+  }
+});
+
+// Submit button single-click protection
+document.addEventListener("submit", function (e) {
+  const form = e.target.closest(".scan-form");
+  if (form) {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn && !submitBtn.disabled) {
+      setTimeout(() => {
         submitBtn.disabled = true;
         submitBtn.textContent = "Launching scan...";
-      }
-    });
-  });
-
-  // Tab switching between "IP Scan" and "URL Scan".
-  const tabs = document.querySelectorAll("[data-scan-tab]");
-  const forms = document.querySelectorAll("[data-scan-form]");
-  const subtitle = document.getElementById("scanModalSub");
-  const subtitles = {
-    ip: "Scan an IP address for open ports, running services, and network vulnerabilities.",
-    url: "Scan a website URL for web threats, SSL/TLS certificates, DNS records, and vulnerabilities.",
-  };
-
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      const target = tab.getAttribute("data-scan-tab");
-
-      tabs.forEach((t) => {
-        const active = t === tab;
-        t.classList.toggle("active", active);
-        t.setAttribute("aria-selected", active ? "true" : "false");
-      });
-
-      forms.forEach((f) => {
-        f.style.display = f.getAttribute("data-scan-form") === target ? "" : "none";
-      });
-
-      if (subtitle && subtitles[target]) {
-        subtitle.textContent = subtitles[target];
-      }
-    });
-  });
-
-  window.openScanModalWithTab = function(tabName) {
-    if (!overlay) return;
-    overlay.classList.add("open");
-    const targetTab = document.querySelector(`[data-scan-tab="${tabName}"]`);
-    if (targetTab) {
-      targetTab.click();
+      }, 0);
     }
-  };
-}
+  }
+});
 
 /* ---------------- toast helper (used by other pages too) ---------------- */
 function showToast(message) {
@@ -709,210 +746,105 @@ window.toggleAllAccordions = function() {
   }
 };
 
-/* ---------------- Instant Page Navigation & Hover Prefetching ---------------- */
-function reinitializePageComponents() {
-  initScanModal();
-  initCharts();
-  initUtcToLocalTimestamps();
-  initResultTabNavigation();
-
-  const sidebar = document.getElementById("appSidebar");
-  const backdrop = document.getElementById("sidebarBackdrop");
-  if (sidebar && sidebar.classList.contains("open")) {
-    sidebar.classList.remove("open");
-  }
-  if (backdrop && backdrop.classList.contains("open")) {
-    backdrop.classList.remove("open");
-  }
-}
-
-function initInstantNavigation() {
+/* ---------------- Fast Navigation, Link Prefetching & Visual Progress ---------------- */
+function initLinkPrefetching() {
   const progressBar = document.getElementById("csa-nav-progress");
-  const prefetchCache = new Map();
-  let activeAbort = null;
+  const prefetched = new Set();
 
   function startProgress() {
     if (!progressBar) return;
     progressBar.classList.remove("done");
     progressBar.classList.add("animating");
-    progressBar.style.width = "25%";
+    progressBar.style.width = "40%";
     setTimeout(() => {
       if (progressBar && progressBar.classList.contains("animating")) {
-        progressBar.style.width = "72%";
+        progressBar.style.width = "78%";
       }
-    }, 100);
+    }, 120);
   }
 
-  function finishProgress() {
-    if (!progressBar) return;
-    progressBar.style.width = "100%";
-    progressBar.classList.remove("animating");
-    progressBar.classList.add("done");
-    setTimeout(() => {
-      if (progressBar) {
-        progressBar.classList.remove("done");
-        progressBar.style.width = "0%";
-      }
-    }, 350);
-  }
-
-  function resetProgress() {
-    if (!progressBar) return;
-    progressBar.classList.remove("animating", "done");
-    progressBar.style.width = "0%";
-  }
-
-  function shouldIntercept(anchor) {
-    if (!anchor || anchor.tagName !== "A") return false;
-    const href = anchor.getAttribute("href");
-    if (!href) return false;
-    if (
-      href.startsWith("#") ||
-      href.startsWith("javascript:") ||
-      href.startsWith("mailto:") ||
-      href.startsWith("tel:") ||
-      anchor.target === "_blank" ||
-      anchor.hasAttribute("download") ||
-      anchor.hasAttribute("data-no-pjax") ||
-      anchor.hasAttribute("data-open-scan-modal") ||
-      anchor.hasAttribute("data-close-scan-modal")
-    ) {
-      return false;
-    }
+  // Prefetch internal HTML pages on mouseover for near-instant native page loads
+  document.addEventListener("mouseover", (e) => {
+    const anchor = e.target.closest("a");
+    if (!anchor || !anchor.href) return;
+    const href = anchor.href;
+    if (prefetched.has(href)) return;
 
     try {
       const url = new URL(href, window.location.origin);
-      if (url.origin !== window.location.origin) return false;
+      if (url.origin !== window.location.origin) return;
       const p = url.pathname;
       if (
-        p.startsWith("/download") ||
-        p.startsWith("/auth/") ||
-        p.startsWith("/login") ||
-        p.startsWith("/logout") ||
-        p.startsWith("/setup") ||
-        p.startsWith("/register") ||
         p.startsWith("/api/") ||
         p.startsWith("/scan/start") ||
-        p.startsWith("/scanning") ||
+        p.startsWith("/download") ||
+        p.startsWith("/auth/") ||
+        p.startsWith("/logout") ||
         p.endsWith(".pdf") ||
-        p.endsWith(".json") ||
-        p.endsWith(".csv")
+        p.endsWith(".csv") ||
+        p.endsWith(".json")
       ) {
-        return false;
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // Hover prefetching for near-instant transitions
-  document.addEventListener("mouseover", (e) => {
-    const anchor = e.target.closest("a");
-    if (!shouldIntercept(anchor)) return;
-    const href = anchor.href;
-    if (prefetchCache.has(href)) return;
-
-    fetch(href, { priority: "low", headers: { "X-Requested-With": "CyberShieldAI" } })
-      .then((res) => {
-        if (res.ok && res.headers.get("content-type")?.includes("text/html")) {
-          return res.text();
-        }
-        return null;
-      })
-      .then((html) => {
-        if (html) {
-          prefetchCache.set(href, { html, time: Date.now() });
-          setTimeout(() => prefetchCache.delete(href), 30000);
-        }
-      })
-      .catch(() => {});
-  });
-
-  async function navigate(urlStr, pushHistory = true) {
-    if (activeAbort) {
-      activeAbort.abort();
-    }
-    activeAbort = new AbortController();
-    startProgress();
-
-    try {
-      let html = null;
-      const cached = prefetchCache.get(urlStr);
-      if (cached && Date.now() - cached.time < 30000) {
-        html = cached.html;
-      } else {
-        const res = await fetch(urlStr, {
-          signal: activeAbort.signal,
-          headers: { "X-Requested-With": "CyberShieldAI" }
-        });
-        if (!res.ok || !res.headers.get("content-type")?.includes("text/html")) {
-          window.location.href = urlStr;
-          return;
-        }
-        if (res.redirected && (res.url.includes("/login") || res.url.includes("/setup") || res.url.includes("/scanning"))) {
-          window.location.href = res.url;
-          return;
-        }
-        html = await res.text();
-      }
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-
-      const newContainer = doc.querySelector(".container");
-      const curContainer = document.querySelector(".container");
-
-      if (!newContainer || !curContainer) {
-        window.location.href = urlStr;
         return;
       }
 
-      document.title = doc.title;
+      prefetched.add(href);
+      const link = document.createElement("link");
+      link.rel = "prefetch";
+      link.href = href;
+      link.as = "document";
+      document.head.appendChild(link);
+    } catch (_) {}
+  });
 
-      if (pushHistory) {
-        window.history.pushState({ path: urlStr }, doc.title, urlStr);
-      }
-
-      curContainer.innerHTML = newContainer.innerHTML;
-      curContainer.classList.remove("csa-page-transition-fade");
-      void curContainer.offsetWidth;
-      curContainer.classList.add("csa-page-transition-fade");
-
-      // Sync active sidebar item
-      const newActive = doc.querySelector(".nav-item.active, .sidebar-nav a.active");
-      const curActives = document.querySelectorAll(".nav-item.active, .sidebar-nav a.active");
-      curActives.forEach((el) => el.classList.remove("active"));
-      if (newActive) {
-        const matchingLink = document.querySelector(`.sidebar-nav a[href="${newActive.getAttribute("href")}"]`) ||
-                             document.querySelector(`.nav-item[href="${newActive.getAttribute("href")}"]`);
-        if (matchingLink) matchingLink.classList.add("active");
-      }
-
-      // Re-initialize widgets
-      reinitializePageComponents();
-      finishProgress();
-      window.scrollTo({ top: 0, behavior: "instant" });
-    } catch (err) {
-      if (err.name !== "AbortError") {
-        resetProgress();
-        window.location.href = urlStr;
-      }
-    }
-  }
-
+  // Animate progress bar on navigation click
   document.addEventListener("click", (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
     const anchor = e.target.closest("a");
-    if (!shouldIntercept(anchor)) return;
-    e.preventDefault();
-    navigate(anchor.href, true);
+    if (!anchor || !anchor.href) return;
+
+    try {
+      const url = new URL(anchor.href, window.location.origin);
+      if (
+        url.origin === window.location.origin &&
+        !url.pathname.startsWith("/download") &&
+        !anchor.hasAttribute("download") &&
+        !anchor.target &&
+        !anchor.hasAttribute("data-open-scan-modal") &&
+        !anchor.hasAttribute("data-close-scan-modal")
+      ) {
+        startProgress();
+      }
+    } catch (_) {}
   });
 
-  window.addEventListener("popstate", (e) => {
-    if (window.location.hash) return;
-    navigate(window.location.href, false);
+  window.addEventListener("pageshow", () => {
+    if (progressBar) {
+      progressBar.classList.remove("animating");
+      progressBar.classList.add("done");
+      setTimeout(() => {
+        if (progressBar) {
+          progressBar.classList.remove("done");
+          progressBar.style.width = "0%";
+        }
+      }, 300);
+    }
   });
+}
+
+/* ---------------- Resilient Boot Sequence ---------------- */
+function bootDashboard() {
+  try { initTheme(); } catch (e) { console.error("Theme init error", e); }
+  try { initClock(); } catch (e) { console.error("Clock init error", e); }
+  try { initCharts(); } catch (e) { console.error("Charts init error", e); }
+  try { initUtcToLocalTimestamps(); } catch (e) { console.error("Timestamps init error", e); }
+  try { initResultTabNavigation(); } catch (e) { console.error("Tabs init error", e); }
+  try { initLinkPrefetching(); } catch (e) { console.error("Prefetch init error", e); }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootDashboard);
+} else {
+  bootDashboard();
 }
 
 
