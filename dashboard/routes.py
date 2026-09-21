@@ -1011,8 +1011,7 @@ def register_routes(app):
     @app.route("/api/dashboard/url-context", methods=["GET"])
     def api_dashboard_url_context():
         current_user_id = session.get("user_id")
-        if not current_
-        user_id:
+        if not current_user_id:
             return jsonify({"error": "Unauthorized"}), 401
         url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, include_deep_intel=True)
         safe_ctx = {}
