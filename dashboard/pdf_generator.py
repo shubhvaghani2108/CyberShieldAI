@@ -7,6 +7,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     HRFlowable,
+    Image as RLImage,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -163,6 +164,35 @@ def _report_header_footer(canvas_obj, doc, subtitle):
         f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  ·  Page {doc.page}",
     )
     canvas_obj.restoreState()
+
+
+def _build_brand_header(title, subtitle, styles, width):
+    """Builds a clean brand header with CyberShieldAI logo on the left and title + subtitle."""
+    logo_path = os.path.join(BASE_DIR, "dashboard", "static", "img", "cybershield_logo.png")
+    text_block = [
+        Paragraph(title, styles["RTitle"]),
+        Spacer(1, 1),
+        Paragraph(subtitle, styles["RSub"]),
+    ]
+    if os.path.exists(logo_path):
+        logo_img = RLImage(logo_path, width=32, height=32)
+        tbl = Table([[logo_img, text_block]], colWidths=[40, width - 40])
+        tbl.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        return tbl
+    tbl = Table([[text_block]], colWidths=[width])
+    tbl.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return tbl
 
 
 def _fetch_findings_for_ip(ip):
@@ -344,11 +374,10 @@ def _build_ip_scan_pdf(user_id=None):
     )
     flow = []
 
-    flow.append(Paragraph("CyberShieldAI", styles["RTitle"]))
-    flow.append(Paragraph("IP / Network Vulnerability Scan Report", styles["RSub"]))
-    flow.append(Spacer(1, 10))
+    flow.append(_build_brand_header("CyberShieldAI", "IP / Network Vulnerability Scan Report", styles, page_width))
+    flow.append(Spacer(1, 8))
     flow.append(HRFlowable(width="100%", color=REPORT_LINE, thickness=1))
-    flow.append(Spacer(1, 12))
+    flow.append(Spacer(1, 10))
 
     if not latest_ip:
         flow.append(Paragraph(
@@ -416,8 +445,7 @@ def _build_url_scan_pdf(user_id=None):
     )
     flow = []
 
-    flow.append(Paragraph("CyberShieldAI", styles["RTitle"]))
-    flow.append(Paragraph("URL Threat Scan Report", styles["RSub"]))
+    flow.append(_build_brand_header("CyberShieldAI", "URL Threat Scan Report", styles, page_width))
     flow.append(Spacer(1, 8))
     flow.append(HRFlowable(width="100%", color=REPORT_LINE, thickness=1))
     flow.append(Spacer(1, 8))
@@ -573,11 +601,13 @@ def _build_url_scan_pdf(user_id=None):
 
 def _build_empty_state_pdf():
     styles = _report_styles()
+    page_width = A4[0] - 72
     pdf_path = os.path.join(BASE_DIR, "CyberShield_Report.pdf")
     doc = SimpleDocTemplate(pdf_path, pagesize=A4, title="CyberShieldAI Report")
     flow = [
-        Paragraph("CyberShieldAI", styles["RTitle"]),
-        Paragraph("No scan has been run yet.", styles["RSub"]),
+        _build_brand_header("CyberShieldAI", "Security Scan Report", styles, page_width),
+        Spacer(1, 8),
+        HRFlowable(width="100%", color=REPORT_LINE, thickness=1),
         Spacer(1, 12),
         Paragraph(
             "Run an IP scan or a URL scan from the dashboard, then download the report again.",
