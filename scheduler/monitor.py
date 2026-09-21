@@ -550,6 +550,32 @@ def get_monitored_targets_with_schedule():
     scheduler = get_apscheduler_instance()
     is_running = scheduler.running if scheduler else False
 
+    # Batch-fetch recent scans in a single query to eliminate N+1 DB connections
+    recent_scans_map = {}
+    conn = None
+    try:
+        conn = get_db_connection()
+        url_rows = conn.execute(
+            """
+            SELECT ip, domain, url, scan_time
+            FROM url_scan_results
+            ORDER BY id DESC
+            LIMIT 200
+            """
+        ).fetchall()
+        for r in url_rows:
+            st = r["scan_time"]
+            for key in (r["ip"], r["domain"], r["url"]):
+                if key:
+                    k_str = str(key).strip().lower()
+                    if k_str not in recent_scans_map and st:
+                        recent_scans_map[k_str] = str(st)
+    except Exception:
+        pass
+    finally:
+        if conn:
+            conn.close()
+
     enriched = []
     for t in targets:
         target_dict = dict(t)
@@ -558,12 +584,17 @@ def get_monitored_targets_with_schedule():
         enabled = target_dict.get("enabled", 0) == 1
         freq = int(target_dict.get("scan_frequency", 24))
 
-        # 1. Last Scan Time
-        last_rec = get_target_last_scan(target_val)
-        if last_rec and last_rec.get("scan_time"):
-            last_scan_str = str(last_rec["scan_time"])
-        else:
-            last_scan_str = "Never Scanned"
+        # 1. Last Scan Time (Lookup from batch map first, fallback if not in recent 200)
+        target_norm = str(target_val or "").strip().lower()
+        clean_host = target_norm.replace("https://", "").replace("http://", "").split("/")[0]
+        last_scan_str = recent_scans_map.get(target_norm) or recent_scans_map.get(clean_host)
+
+        if not last_scan_str:
+            last_rec = get_target_last_scan(target_val)
+            if last_rec and last_rec.get("scan_time"):
+                last_scan_str = str(last_rec["scan_time"])
+            else:
+                last_scan_str = "Never Scanned"
         target_dict["last_scan_time"] = last_scan_str
 
         # 2. Next Scan Time & Monitoring Status

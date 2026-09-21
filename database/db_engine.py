@@ -378,8 +378,8 @@ def _get_pg_pool():
             return None
         try:
             from psycopg2.pool import ThreadedConnectionPool
-            # maxconn=6 allows concurrency for scan threads + web polling while staying safely within quotas
-            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=6, dsn=db_url, connect_timeout=5)
+            # maxconn=10 allows sufficient concurrency for background workers + web navigation without pool starvation
+            _PG_POOL = ThreadedConnectionPool(minconn=1, maxconn=10, dsn=db_url, connect_timeout=5)
             return _PG_POOL
         except Exception as e:
             print(f"[DB_ENGINE] Warning: could not initialize ThreadedConnectionPool: {e}")
@@ -646,8 +646,13 @@ def get_db_connection():
         return conn
     else:
         import sqlite3
-        raw_sqlite = sqlite3.connect(resolve_sqlite_path())
+        raw_sqlite = sqlite3.connect(resolve_sqlite_path(), timeout=30.0, check_same_thread=False)
         raw_sqlite.row_factory = sqlite3.Row
+        try:
+            raw_sqlite.execute("PRAGMA busy_timeout = 30000")
+            raw_sqlite.execute("PRAGMA journal_mode = WAL")
+        except Exception:
+            pass
 
         in_request = False
         try:

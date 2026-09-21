@@ -746,10 +746,9 @@ window.toggleAllAccordions = function() {
   }
 };
 
-/* ---------------- Fast Navigation, Link Prefetching & Visual Progress ---------------- */
-function initLinkPrefetching() {
+/* ---------------- Fast Navigation & Visual Progress ---------------- */
+function initNavProgressBar() {
   const progressBar = document.getElementById("csa-nav-progress");
-  const prefetched = new Set();
 
   function startProgress() {
     if (!progressBar) return;
@@ -762,43 +761,6 @@ function initLinkPrefetching() {
       }
     }, 120);
   }
-
-  // Prefetch internal HTML pages on mouseover or focusin for near-instant native page loads
-  const triggerPrefetch = (e) => {
-    const anchor = e.target.closest("a");
-    if (!anchor || !anchor.href) return;
-    const href = anchor.href;
-    if (prefetched.has(href)) return;
-
-    try {
-      const url = new URL(href, window.location.origin);
-      if (url.origin !== window.location.origin) return;
-      const p = url.pathname;
-      if (
-        p.startsWith("/api/") ||
-        p.startsWith("/scan/start") ||
-        p.startsWith("/download") ||
-        p.startsWith("/auth/") ||
-        p.startsWith("/logout") ||
-        p.endsWith(".pdf") ||
-        p.endsWith(".csv") ||
-        p.endsWith(".json")
-      ) {
-        return;
-      }
-
-      prefetched.add(href);
-      const link = document.createElement("link");
-      link.rel = "prefetch";
-      link.href = href;
-      link.as = "document";
-      document.head.appendChild(link);
-    } catch (_) {}
-  };
-
-  document.addEventListener("mouseover", triggerPrefetch, { passive: true });
-  document.addEventListener("focusin", triggerPrefetch, { passive: true });
-
 
   // Animate progress bar on navigation click
   document.addEventListener("click", (e) => {
@@ -842,7 +804,7 @@ function bootDashboard() {
   try { initCharts(); } catch (e) { console.error("Charts init error", e); }
   try { initUtcToLocalTimestamps(); } catch (e) { console.error("Timestamps init error", e); }
   try { initResultTabNavigation(); } catch (e) { console.error("Tabs init error", e); }
-  try { initLinkPrefetching(); } catch (e) { console.error("Prefetch init error", e); }
+  try { initNavProgressBar(); } catch (e) { console.error("Nav progress bar init error", e); }
 }
 
 if (document.readyState === "loading") {

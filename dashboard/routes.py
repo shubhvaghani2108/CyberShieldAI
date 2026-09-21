@@ -1832,6 +1832,15 @@ def register_routes(app):
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
 
+        if not req_scan_id and not target and scope == "latest":
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("ports_default_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
         try:
             conn = get_db_connection()
             scan_id = req_scan_id if req_scan_id else None
@@ -2022,7 +2031,7 @@ def register_routes(app):
 
             meanings = [interpret_banner(r["service"], r["banner"]) for r in enriched_rows]
 
-            return render_template(
+            rendered = render_template(
                 "ports.html",
                 active_page="ports",
                 page_title="Open Ports",
@@ -2034,6 +2043,13 @@ def register_routes(app):
                 current_target=target or (latest_ip if scope != "all" else "all"),
                 has_scanned=bool(latest_ip or target),
             )
+            if not req_scan_id and not target and scope == "latest":
+                try:
+                    from dashboard.dashboard_cache import dashboard_cache
+                    dashboard_cache.set("ports_default_html", rendered, user_id=current_user_id, ttl=30)
+                except Exception:
+                    pass
+            return rendered
         except Exception as e:
             logger.error(f"[VIEW_PORTS ERROR] {e}", exc_info=True)
             return render_template(
@@ -2055,6 +2071,15 @@ def register_routes(app):
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+        if not req_scan_id and not target and scope == "latest":
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("vulns_default_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
         conn = get_db_connection()
 
         scan_id = req_scan_id if req_scan_id else None
@@ -2161,7 +2186,7 @@ def register_routes(app):
             rows = []
 
         conn.close()
-        return render_template(
+        rendered = render_template(
             "vulnerabilities.html",
             active_page="vulnerabilities",
             page_title="Vulnerabilities",
@@ -2172,6 +2197,13 @@ def register_routes(app):
             scan_id=scan_id,
             has_scanned=bool(active_target),
         )
+        if not req_scan_id and not target and scope == "latest":
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("vulns_default_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
     @app.route("/cves")
     def view_cves():
@@ -2179,6 +2211,15 @@ def register_routes(app):
         scope = request.args.get("scope", "latest")
         target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+        if not req_scan_id and not target and scope == "latest":
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("cves_default_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
         conn = get_db_connection()
 
         scan_id = req_scan_id if req_scan_id else None
@@ -2298,7 +2339,7 @@ def register_routes(app):
             rows.append(r_dict)
 
         conn.close()
-        return render_template(
+        rendered = render_template(
             "cves.html",
             active_page="cves",
             page_title="CVE Database",
@@ -2309,6 +2350,13 @@ def register_routes(app):
             current_target=target or (latest_ip if scope != "all" else "all"),
             has_scanned=bool(latest_ip or target),
         )
+        if not req_scan_id and not target and scope == "latest":
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("cves_default_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
     @app.route("/history")
     def history():
@@ -2421,12 +2469,22 @@ def register_routes(app):
 
     @app.route("/url-history")
     def url_history():
-        conn = get_db_connection()
         current_user_id = session.get("user_id")
         try:
             page = max(1, request.args.get("page", 1, type=int))
         except Exception:
             page = 1
+
+        if page == 1:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("url_history_page_1_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
+
+        conn = get_db_connection()
         per_page = 20
         offset = (page - 1) * per_page
         total_count = 0
@@ -2455,7 +2513,7 @@ def register_routes(app):
             conn.close()
 
         total_pages = max(1, (total_count + per_page - 1) // per_page)
-        return render_template(
+        rendered = render_template(
             "url_history.html",
             active_page="url_history",
             page_title="URL Scan History",
@@ -2466,6 +2524,13 @@ def register_routes(app):
             total_count=total_count,
             per_page=per_page,
         )
+        if page == 1:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("url_history_page_1_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
     @app.route("/url-history/delete/<int:item_id>", methods=["POST", "GET"])
     def delete_url_history_item(item_id):
@@ -2478,6 +2543,11 @@ def register_routes(app):
         try:
             conn.execute("DELETE FROM url_scan_results WHERE id = ? AND user_id = ?", (item_id, current_user_id))
             conn.commit()
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.invalidate(user_id=current_user_id)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Error deleting URL scan history record #{item_id}: {e}")
         finally:
@@ -2700,6 +2770,14 @@ def register_routes(app):
         req_scan_id = request.args.get("scan_id", "").strip()
         requested_target = request.args.get("target", "").strip()
         current_user_id = session.get("user_id")
+        if not req_scan_id and not requested_target:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                cached_html = dashboard_cache.get("risk_report_default_html", user_id=current_user_id)
+                if cached_html is not None:
+                    return cached_html
+            except Exception:
+                pass
 
         conn = get_db_connection()
         try:
@@ -2791,7 +2869,7 @@ def register_routes(app):
                 f"or high severity exposures mapped across scanned perimeter interfaces."
             )
 
-        return render_template(
+        rendered = render_template(
             "risk_report.html",
             active_page="risk_report",
             page_title="Executive Risk Report",
@@ -2814,6 +2892,13 @@ def register_routes(app):
             total_score=rows[0]["total_score"] if rows else 0,
             risk_level=risk_level,
         )
+        if not req_scan_id and not requested_target:
+            try:
+                from dashboard.dashboard_cache import dashboard_cache
+                dashboard_cache.set("risk_report_default_html", rendered, user_id=current_user_id, ttl=30)
+            except Exception:
+                pass
+        return rendered
 
 
     @app.route("/analytics")
