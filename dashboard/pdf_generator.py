@@ -231,55 +231,36 @@ def _report_styles():
 # Visual Component Builders (White Professional Theme)
 # ----------------------------------------------------------------------
 def _build_header(report_title, target_name, scan_time, report_id, styles, width):
-    """Creates the formal company header block with logo and metadata."""
+    """Creates the clean, simple company header with authentic project logo, omitting cluttered metadata."""
     logo_path = os.path.join(BASE_DIR, "dashboard", "static", "img", "cybershield_logo.png")
     if os.path.exists(logo_path):
-        logo_img = RLImage(logo_path, width=28, height=28)
+        logo_img = RLImage(logo_path, width=32, height=32)
     else:
-        logo_img = Paragraph('<font color="#1d4ed8"><b>[CS]</b></font>', styles["BrandTitle"])
+        logo_img = Paragraph('<font color="#0284c7"><b>[CS]</b></font>', styles["BrandTitle"])
 
     brand_block = [
-        Paragraph("CyberShieldAI", styles["BrandTitle"]),
+        Paragraph('<font color="#0f172a"><b>Cyber</b></font><font color="#0284c7"><b>Shield</b></font><font color="#2563eb"><b>AI</b></font>', styles["BrandTitle"]),
         Spacer(1, 1),
-        Paragraph(report_title, styles["BrandSubtitle"]),
+        Paragraph(report_title or "Security Scan Report", styles["BrandSubtitle"]),
     ]
-    brand_tbl = Table([[logo_img, brand_block]], colWidths=[34, width * 0.55 - 34])
+    brand_tbl = Table([[logo_img, brand_block]], colWidths=[38, width - 38])
     brand_tbl.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-
-    clean_target = str(target_name or "Assessment Target")
-    if len(clean_target) > 50:
-        clean_target = clean_target[:47] + "..."
-
-    meta_block = [
-        Paragraph(f"<b>Report ID:</b> {report_id}", styles["HeaderMeta"]),
-        Paragraph(f"<b>Scan Date:</b> {scan_time}", styles["HeaderMeta"]),
-        Paragraph(f"<b>Target:</b> {clean_target}", styles["HeaderMeta"]),
-    ]
-
-    header_tbl = Table([[brand_tbl, meta_block]], colWidths=[width * 0.55, width * 0.45])
-    header_tbl.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("LINEBELOW", (0, 0), (-1, -1), 1.2, C_BLUE_PRIMARY),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LINEBELOW", (0, 0), (-1, -1), 1.2, C_BLUE_PRIMARY),
     ]))
-    return header_tbl
+    return brand_tbl
 
 
 def _build_risk_score_highlight(score, risk_level, target_domain, open_ports_count, vulns_count, styles, width):
-    """Builds a clean, professional corporate risk score highlight bar."""
+    """Builds a clean, professional corporate risk score highlight bar without cramped truncated text."""
     card_w = width / 4.0
     sev = _get_sev(risk_level)
     score_display = 0 if score in (None, "", "None") else score
+    level_name = str(risk_level or "Low").upper()
 
     # Card 1: Risk Score
     c1 = [
@@ -287,19 +268,16 @@ def _build_risk_score_highlight(score, risk_level, target_domain, open_ports_cou
         Spacer(1, 1),
         Paragraph(f'<font color="{sev["text"].hexval()}"><b>{score_display} / 100</b></font>', styles["CardVal"]),
         Spacer(1, 1),
-        Paragraph(f'<font color="{sev["text"].hexval()}"><b>● {str(risk_level or "LOW").upper()}</b></font>', styles["CardSub"]),
+        Paragraph(f'<font color="{sev["text"].hexval()}"><b>● {level_name}</b></font>', styles["CardSub"]),
     ]
 
-    # Card 2: Target Domain / IP
-    dom_str = str(target_domain or "Target Asset")
-    if len(dom_str) > 22:
-        dom_str = dom_str[:19] + "..."
+    # Card 2: Risk Classification
     c2 = [
-        Paragraph("TARGET ASSET", styles["CardLabel"]),
+        Paragraph("RISK LEVEL", styles["CardLabel"]),
         Spacer(1, 1),
-        Paragraph(f"<b>{dom_str}</b>", ParagraphStyle("TDom", fontName="Helvetica-Bold", fontSize=8.5, leading=10.5, textColor=C_TEXT_DARK)),
+        Paragraph(f'<font color="{sev["text"].hexval()}"><b>{level_name}</b></font>', styles["CardVal"]),
         Spacer(1, 1),
-        Paragraph("Verified Host", styles["CardSub"]),
+        Paragraph("Exposure Rating", styles["CardSub"]),
     ]
 
     # Card 3: Open Ports
@@ -325,7 +303,7 @@ def _build_risk_score_highlight(score, risk_level, target_domain, open_ports_cou
     tbl.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.5, C_BORDER),
-        ("LINEBEFORE", (0, 0), (0, -1), 2, sev["border"]),
+        ("LINEBEFORE", (0, 0), (0, -1), 2.5, sev["border"]),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
@@ -759,7 +737,7 @@ def _build_ip_scan_pdf(user_id=None):
             flow.append(_build_data_table(
                 headers=["Port", "State", "Service", "Service Banner / Response"],
                 rows=rows,
-                col_widths=[page_width * 0.12, page_width * 0.14, page_width * 0.20, page_width * 0.54],
+                col_widths=[page_width * 0.11, page_width * 0.13, page_width * 0.18, page_width * 0.58],
                 styles=styles,
             ))
         else:
@@ -796,20 +774,18 @@ def _build_ip_scan_pdf(user_id=None):
                 v_dict = dict(v) if hasattr(v, "keys") else v
                 rec = v_dict.get("remediation") or "Restrict external access and apply firewall filtering"
                 cvss = v_dict.get("cvss_score") if v_dict.get("cvss_score") is not None else (7.5 if v_dict.get("risk") == "High" else (9.8 if v_dict.get("risk") == "Critical" else 5.3))
-                vector = v_dict.get("cvss_vector") or "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
                 imp = v_dict.get("impact") or "Exposure Risk"
                 rows.append([
                     f"{v_dict.get('port')}/{v_dict.get('service') or '—'}",
                     v_dict.get("risk") or "Medium",
                     str(cvss),
-                    vector[:20],
-                    imp[:22],
-                    rec[:30],
+                    imp,
+                    rec,
                 ])
             flow.append(_build_data_table(
-                headers=["Port/Service", "Severity", "CVSS v3.1", "Vector", "Impact", "Remediation"],
+                headers=["Port/Service", "Severity", "CVSS", "Impact / Type", "Remediation"],
                 rows=rows,
-                col_widths=[page_width * 0.16, page_width * 0.14, page_width * 0.11, page_width * 0.18, page_width * 0.20, page_width * 0.21],
+                col_widths=[page_width * 0.16, page_width * 0.13, page_width * 0.09, page_width * 0.26, page_width * 0.36],
                 styles=styles,
                 risk_col=1,
             ))
@@ -827,22 +803,22 @@ def _build_ip_scan_pdf(user_id=None):
                 cvss = cv_dict.get("cvss_score") if cv_dict.get("cvss_score") is not None else "—"
                 cwe = cv_dict.get("cwe_id") or "CWE-200"
                 published = cv_dict.get("published_date") or "—"
-                exploit = "⚡ PoC" if cv_dict.get("exploit_available") else "No"
+                exploit = "PoC Available" if cv_dict.get("exploit_available") else "No"
                 rows.append([
                     cv_dict.get("cve_id", "—"),
-                    cwe,
-                    f"{cv_dict.get('port')}/{cv_dict.get('service') or '—'}",
                     cv_dict.get("severity") or "Medium",
                     str(cvss),
+                    f"{cv_dict.get('port')}/{cv_dict.get('service') or '—'}",
+                    cwe,
                     published,
                     exploit,
                 ])
             flow.append(_build_data_table(
-                headers=["CVE ID", "CWE Weakness", "Port/Service", "Severity", "CVSS v3.1", "Published", "Exploit"],
+                headers=["CVE ID", "Severity", "CVSS", "Port/Service", "Weakness (CWE)", "Published", "Exploit"],
                 rows=rows,
-                col_widths=[page_width * 0.17, page_width * 0.15, page_width * 0.14, page_width * 0.13, page_width * 0.10, page_width * 0.15, page_width * 0.16],
+                col_widths=[page_width * 0.18, page_width * 0.13, page_width * 0.09, page_width * 0.16, page_width * 0.16, page_width * 0.14, page_width * 0.14],
                 styles=styles,
-                risk_col=3,
+                risk_col=1,
             ))
         else:
             flow.append(_build_no_data(styles, page_width))
@@ -1047,9 +1023,13 @@ def _build_url_scan_pdf(user_id=None):
             from scanner.technology_detector import classify_technologies
             classified = classify_technologies(tech_list, server_val)
 
-            tech_pairs = [("Web Server / Proxy", server_val)]
+            tech_pairs = []
+            if server_val and server_val != "Unknown":
+                tech_pairs.append(("Web Server / Proxy", server_val))
             for cat, items in classified.items():
                 if items:
+                    if cat.lower() == "web server" and any("web server" in p[0].lower() for p in tech_pairs):
+                        continue
                     tech_pairs.append((cat, ", ".join(items)))
             flow.append(_build_key_value_table(tech_pairs, styles, page_width))
         else:
@@ -1122,7 +1102,7 @@ def _build_url_scan_pdf(user_id=None):
             rows = []
             for p in ports:
                 p_dict = dict(p) if hasattr(p, "keys") else p
-                banner_text = (p_dict.get("banner") or "—")[:80]
+                banner_text = (p_dict.get("banner") or "—")[:120]
                 rows.append([
                     str(p_dict.get("port")),
                     p_dict.get("state") or "open",
@@ -1132,7 +1112,7 @@ def _build_url_scan_pdf(user_id=None):
             flow.append(_build_data_table(
                 headers=["Port", "State", "Service", "Service Banner / Response"],
                 rows=rows,
-                col_widths=[page_width * 0.12, page_width * 0.14, page_width * 0.20, page_width * 0.54],
+                col_widths=[page_width * 0.11, page_width * 0.13, page_width * 0.18, page_width * 0.58],
                 styles=styles,
             ))
         else:
@@ -1173,20 +1153,18 @@ def _build_url_scan_pdf(user_id=None):
                 v_dict = dict(v) if hasattr(v, "keys") else v
                 rec = v_dict.get("remediation") or "Restrict external access and apply firewall filtering"
                 cvss = v_dict.get("cvss_score") if v_dict.get("cvss_score") is not None else (7.5 if v_dict.get("risk") == "High" else (9.8 if v_dict.get("risk") == "Critical" else 5.3))
-                vector = v_dict.get("cvss_vector") or "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
                 imp = v_dict.get("impact") or "Exposure Risk"
                 rows.append([
                     f"{v_dict.get('port')}/{v_dict.get('service') or '—'}",
                     v_dict.get("risk") or "Medium",
                     str(cvss),
-                    vector[:20],
-                    imp[:22],
-                    rec[:30],
+                    imp,
+                    rec,
                 ])
             flow.append(_build_data_table(
-                headers=["Port/Service", "Severity", "CVSS v3.1", "Vector", "Impact", "Remediation"],
+                headers=["Port/Service", "Severity", "CVSS", "Impact / Type", "Remediation"],
                 rows=rows,
-                col_widths=[page_width * 0.16, page_width * 0.14, page_width * 0.11, page_width * 0.18, page_width * 0.20, page_width * 0.21],
+                col_widths=[page_width * 0.16, page_width * 0.13, page_width * 0.09, page_width * 0.26, page_width * 0.36],
                 styles=styles,
                 risk_col=1,
             ))
@@ -1205,22 +1183,22 @@ def _build_url_scan_pdf(user_id=None):
                 cvss = cv_dict.get("cvss_score") if cv_dict.get("cvss_score") is not None else "—"
                 cwe = cv_dict.get("cwe_id") or "CWE-200"
                 published = cv_dict.get("published_date") or "—"
-                exploit = "⚡ PoC" if cv_dict.get("exploit_available") else "No"
+                exploit = "PoC Available" if cv_dict.get("exploit_available") else "No"
                 rows.append([
                     cv_dict.get("cve_id", "—"),
-                    cwe,
-                    f"{cv_dict.get('port')}/{cv_dict.get('service') or '—'}",
                     cv_dict.get("severity") or "Medium",
                     str(cvss),
+                    f"{cv_dict.get('port')}/{cv_dict.get('service') or '—'}",
+                    cwe,
                     published,
                     exploit,
                 ])
             flow.append(_build_data_table(
-                headers=["CVE ID", "CWE Weakness", "Port/Service", "Severity", "CVSS v3.1", "Published", "Exploit"],
+                headers=["CVE ID", "Severity", "CVSS", "Port/Service", "Weakness (CWE)", "Published", "Exploit"],
                 rows=rows,
-                col_widths=[page_width * 0.17, page_width * 0.15, page_width * 0.14, page_width * 0.13, page_width * 0.10, page_width * 0.15, page_width * 0.16],
+                col_widths=[page_width * 0.18, page_width * 0.13, page_width * 0.09, page_width * 0.16, page_width * 0.16, page_width * 0.14, page_width * 0.14],
                 styles=styles,
-                risk_col=3,
+                risk_col=1,
             ))
         else:
             flow.append(_build_no_data(styles, page_width))
