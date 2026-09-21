@@ -1011,7 +1011,8 @@ def register_routes(app):
     @app.route("/api/dashboard/url-context", methods=["GET"])
     def api_dashboard_url_context():
         current_user_id = session.get("user_id")
-        if not current_user_id:
+        if not current_
+        user_id:
             return jsonify({"error": "Unauthorized"}), 401
         url_ctx = get_url_scan_dashboard_context(user_id=current_user_id, include_deep_intel=True)
         safe_ctx = {}
@@ -2919,20 +2920,21 @@ def register_routes(app):
     @app.route("/download-full-report-pdf")
     def download_full_report_pdf():
         requested = request.args.get("type", "").strip().lower()
+        current_user_id = session.get("user_id")
 
         if requested == "ip":
             scan_type = "ip"
         elif requested == "url":
             scan_type = "url"
         else:
-            latest_host = get_latest_host_status()
-            latest_url = get_latest_url_scan()
+            latest_host = get_latest_host_status(user_id=current_user_id) or get_latest_host_status()
+            latest_url = get_latest_url_scan(user_id=current_user_id) or get_latest_url_scan()
             scan_type = _determine_latest_scan_type(latest_host, latest_url)
 
         if scan_type == "ip":
-            pdf_path, filename = _build_ip_scan_pdf()
+            pdf_path, filename = _build_ip_scan_pdf(user_id=current_user_id)
         elif scan_type == "url":
-            pdf_path, filename = _build_url_scan_pdf()
+            pdf_path, filename = _build_url_scan_pdf(user_id=current_user_id)
         else:
             pdf_path, filename = _build_empty_state_pdf()
 
