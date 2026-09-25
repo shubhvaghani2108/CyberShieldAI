@@ -1,5 +1,8 @@
+import hashlib
 import os
 import sys
+import time
+import urllib.parse
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
@@ -12,49 +15,16 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
-from flask import Flask
+from flask import Flask, g, request, render_template, jsonify
 
-# Database & Data Helper Imports
-from database.db_helpers import (
-    get_db_connection,
-    init_db,
-    get_latest_ip,
-    get_latest_host_status,
-    get_latest_url_scan,
-    get_latest_technology,
-    get_latest_url_intelligence,
-    get_url_scan_dashboard_context,
-    get_dashboard_data,
-    get_recent_activity,
-    get_risk_trend,
-    get_ip_scan_context,
-)
+# Database & Initialization Imports
+from database.db_helpers import init_db
+from database.user_helpers import init_users_table
+from database.db_engine import register_db_teardown
 
-# Background Scan Jobs & Task State Imports
-from dashboard.scan_jobs import (
-    SCAN_JOBS,
-    SCAN_JOBS_LOCK,
-    _new_job,
-    _job_log,
-    _job_done,
-    _job_error,
-    _run_ip_scan_job,
-    _run_url_scan_job,
-)
-
-# PDF Generator Imports
-from dashboard.pdf_generator import (
-    _build_ip_scan_pdf,
-    _build_url_scan_pdf,
-    _build_empty_state_pdf,
-)
-
-# Route Handler & Auth Imports
+# Route Handler & Auth Middleware Imports
 from dashboard.routes import register_routes
 from dashboard.auth import setup_auth_middleware
-from database.user_helpers import init_users_table
-
-from database.db_engine import register_db_teardown
 
 # Instantiate Flask application
 app = Flask(__name__, template_folder="templates", static_folder="static")
@@ -75,9 +45,6 @@ setup_auth_middleware(app)
 
 # Register dashboard routes
 register_routes(app)
-
-import hashlib
-import urllib.parse
 
 # Inject safe csrf_token and universal email avatar helper into Jinja context
 @app.context_processor
@@ -113,8 +80,6 @@ def inject_template_helpers():
         get_user_avatar=get_user_avatar,
     )
 
-import time
-from flask import g, request
 
 @app.before_request
 def start_request_perf_timer():
@@ -145,10 +110,7 @@ def set_security_headers(response):
     return response
 
 
-
 # Safe Error Handlers (No stack traces or internal secrets exposed)
-from flask import render_template, jsonify, request
-
 @app.errorhandler(400)
 def handle_400(e):
     if request.is_json or request.path.startswith("/api/"):
